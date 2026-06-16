@@ -13,6 +13,7 @@ dist/
 build/
 .DS_Store
 coverage/
+backups/
 *.log
 *.tsbuildinfo
 *.egg-info/

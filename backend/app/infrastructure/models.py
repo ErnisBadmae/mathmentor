@@ -1,8 +1,7 @@
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy import Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.enums import (
@@ -17,6 +16,9 @@ from app.domain.enums import (
     Subject,
 )
 from app.infrastructure.db import Base
+
+
+PG_UUID = Uuid
 
 
 class UserORM(Base):
@@ -101,6 +103,7 @@ class EvidenceORM(Base):
     attempt_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("attempts.id"), index=True)
     mission_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("missions.id"), index=True)
     student_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("student_profiles.id"), index=True)
+    topic_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("topics.id"), nullable=True, index=True)
     status: Mapped[EvidenceStatus] = mapped_column(Enum(EvidenceStatus, native_enum=False))
     score_percent: Mapped[float] = mapped_column(Float)
     error_category: Mapped[ErrorCategory] = mapped_column(Enum(ErrorCategory, native_enum=False), index=True)
@@ -118,12 +121,16 @@ class ErrorEventORM(Base):
     student_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("student_profiles.id"), index=True)
     subject: Mapped[Subject] = mapped_column(Enum(Subject, native_enum=False), index=True)
     topic_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("topics.id"), nullable=True)
-    mission_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("missions.id"))
-    attempt_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("attempts.id"))
-    evidence_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("evidence.id"))
+    mission_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("missions.id"), nullable=True)
+    attempt_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("attempts.id"), nullable=True)
+    evidence_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("evidence.id"), nullable=True)
     category: Mapped[ErrorCategory] = mapped_column(Enum(ErrorCategory, native_enum=False), index=True)
     detail: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    source_file: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    source_sheet: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    source_row: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_ref: Mapped[str | None] = mapped_column(String(700), nullable=True, unique=True, index=True)
 
 
 class ReviewItemORM(Base):
@@ -133,7 +140,58 @@ class ReviewItemORM(Base):
     topic_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("topics.id"), index=True)
     due_date: Mapped[date] = mapped_column(Date, index=True)
     status: Mapped[ReviewStatus] = mapped_column(Enum(ReviewStatus, native_enum=False), index=True)
-    source_evidence_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("evidence.id"))
+    source_evidence_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("evidence.id"), nullable=True)
+    source_file: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    source_sheet: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    source_row: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_ref: Mapped[str | None] = mapped_column(String(700), nullable=True, unique=True, index=True)
+
+
+class ScoreEventORM(Base):
+    __tablename__ = "score_events"
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    student_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("student_profiles.id"), index=True)
+    subject: Mapped[Subject] = mapped_column(Enum(Subject, native_enum=False), index=True)
+    score: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(80), default="weekly_variant")
+    occurred_on: Mapped[date] = mapped_column(Date, index=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_file: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    source_sheet: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    source_row: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_ref: Mapped[str | None] = mapped_column(String(700), nullable=True, unique=True, index=True)
+
+
+class CleanSheetEventORM(Base):
+    __tablename__ = "clean_sheet_events"
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    student_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("student_profiles.id"), index=True)
+    occurred_on: Mapped[date] = mapped_column(Date, index=True)
+    tasks_total: Mapped[int] = mapped_column(Integer)
+    clean_sheet_count: Mapped[int] = mapped_column(Integer)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_file: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    source_sheet: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    source_row: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_ref: Mapped[str | None] = mapped_column(String(700), nullable=True, unique=True, index=True)
+
+
+class StudyLogEntryORM(Base):
+    __tablename__ = "study_log_entries"
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    student_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("student_profiles.id"), index=True)
+    subject: Mapped[Subject] = mapped_column(Enum(Subject, native_enum=False), index=True)
+    occurred_on: Mapped[date] = mapped_column(Date, index=True)
+    topic_title: Mapped[str] = mapped_column(String(240))
+    tasks_total: Mapped[int] = mapped_column(Integer)
+    tasks_correct: Mapped[int] = mapped_column(Integer)
+    percent_correct: Mapped[float] = mapped_column(Float)
+    status_note: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_file: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    source_sheet: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    source_row: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_ref: Mapped[str | None] = mapped_column(String(700), nullable=True, unique=True, index=True)
 
 
 class AuditSetORM(Base):

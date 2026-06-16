@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from app.application.ports import AttemptForReview, EvidenceDraft
 from app.config import Settings
-from app.domain.enums import ErrorCategory
+from app.domain.enums import ErrorCategory, EvidenceStatus
 
 
 class LlmEvidencePayload(BaseModel):
@@ -38,22 +38,34 @@ class OpenAICompatibleReviewer:
             "expected_answer": attempt.expected_answer,
             "threshold_percent": attempt.threshold_percent,
         }
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(
-                f"{self._settings.openai_compat_base_url.rstrip('/')}/chat/completions",
-                headers={"Authorization": f"Bearer {self._settings.openai_compat_api_key}"},
-                json={
-                    "model": self._settings.openai_compat_model,
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": json.dumps(user, ensure_ascii=False)},
-                    ],
-                    "temperature": 0,
-                    "response_format": {"type": "json_object"},
-                },
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.post(
+                    f"{self._settings.openai_compat_base_url.rstrip('/')}/chat/completions",
+                    headers={"Authorization": f"Bearer {self._settings.openai_compat_api_key}"},
+                    json={
+                        "model": self._settings.openai_compat_model,
+                        "messages": [
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": json.dumps(user, ensure_ascii=False)},
+                        ],
+                        "temperature": 0,
+                        "response_format": {"type": "json_object"},
+                    },
+                )
+                response.raise_for_status()
+            content = response.json()["choices"][0]["message"]["content"]
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
+            return EvidenceDraft(
+                score_percent=0.0,
+                error_category=ErrorCategory.OTHER,
+                feedback=f"LLM feedback failed and needs manual review: {exc}",
+                next_action="Manual review is required before changing the learning plan.",
+                model_id=self._settings.openai_compat_model,
+                prompt_version=self.prompt_version,
+                rubric_version=self.rubric_version,
+                status=EvidenceStatus.NEEDS_MANUAL_REVIEW,
             )
-            response.raise_for_status()
-        content = response.json()["choices"][0]["message"]["content"]
         try:
             payload = LlmEvidencePayload.model_validate_json(content)
         except ValidationError as exc:
@@ -65,6 +77,7 @@ class OpenAICompatibleReviewer:
                 model_id=self._settings.openai_compat_model,
                 prompt_version=self.prompt_version,
                 rubric_version=self.rubric_version,
+                status=EvidenceStatus.NEEDS_MANUAL_REVIEW,
             )
         return EvidenceDraft(
             score_percent=payload.score_percent,

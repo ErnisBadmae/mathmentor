@@ -22,6 +22,10 @@ bot = ["aiogram>=3.10"]
 testpaths = ["tests"]
 pythonpath = ["."]
 
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["alembic*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

@@ -10,7 +10,9 @@ class Settings(BaseSettings):
     app_env: str = "local"
     database_url: str = "postgresql+psycopg://ege:ege@localhost:5434/ege_mentor"
     api_cors_origins: str = "http://localhost:5174,http://127.0.0.1:5174"
+    api_shared_token: str = ""
     invite_bootstrap_code: str = "family-pilot"
+    local_timezone: str = "Europe/Moscow"
 
     llm_provider: str = "disabled"
     openai_compat_base_url: str = "http://localhost:8000/v1"

@@ -12,7 +12,7 @@ from uuid import UUID
 
 from app.domain.enums import AiPolicy, MissionStatus, Role, Subject
 from app.infrastructure.db import SessionLocal
-from app.infrastructure.models import MissionORM, StudentProfileORM, SubjectTrackORM, TopicORM, UserORM
+from app.infrastructure.models import CleanSheetEventORM, MissionORM, ScoreEventORM, StudentProfileORM, SubjectTrackORM, TopicORM, UserORM
 
 DEMO_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
 DEMO_STUDENT_ID = UUID("00000000-0000-0000-0000-000000000000")
@@ -32,6 +32,10 @@ MISSIONS = [
 ]
 
 
+def stable_uuid(number: int) -> UUID:
+    return UUID(f"00000000-0000-0000-0000-{number:012d}")
+
+
 def seed() -> None:
     session = SessionLocal()
     try:
@@ -44,7 +48,33 @@ def seed() -> None:
         existing_tracks = {track.subject for track in session.query(SubjectTrackORM).filter_by(student_id=DEMO_STUDENT_ID)}
         for index, (subject, current_score) in enumerate([(Subject.MATH_PROFILE, 65), (Subject.INFORMATICS, 50)], start=1):
             if subject not in existing_tracks:
-                session.add(SubjectTrackORM(id=UUID(int=index), student_id=DEMO_STUDENT_ID, subject=subject, current_score=current_score, target_score=85, phase="foundation"))
+                session.add(SubjectTrackORM(id=stable_uuid(index), student_id=DEMO_STUDENT_ID, subject=subject, current_score=current_score, target_score=85, phase="foundation"))
+            if session.query(ScoreEventORM).filter_by(source_ref=f"seed:score:{subject.value}").first() is None:
+                session.add(
+                    ScoreEventORM(
+                        id=stable_uuid(3000 + index),
+                        student_id=DEMO_STUDENT_ID,
+                        subject=subject,
+                        score=current_score,
+                        kind="baseline",
+                        occurred_on=date.today(),
+                        note="Initial observed baseline from AGENTS.md.",
+                        source_ref=f"seed:score:{subject.value}",
+                    )
+                )
+
+        if session.query(CleanSheetEventORM).filter_by(source_ref="seed:clean-sheet:baseline").first() is None:
+            session.add(
+                CleanSheetEventORM(
+                    id=stable_uuid(3100),
+                    student_id=DEMO_STUDENT_ID,
+                    occurred_on=date.today(),
+                    tasks_total=5,
+                    clean_sheet_count=2,
+                    note="Initial programming clean-sheet ratio: 0.4.",
+                    source_ref="seed:clean-sheet:baseline",
+                )
+            )
 
         topic_ids: dict[tuple[Subject, str], UUID] = {}
         existing_topics = {(topic.subject, topic.title): topic.id for topic in session.query(TopicORM)}
@@ -52,7 +82,7 @@ def seed() -> None:
             if (subject, title) in existing_topics:
                 topic_ids[(subject, title)] = existing_topics[(subject, title)]
                 continue
-            topic_id = UUID(int=1000 + index)
+            topic_id = stable_uuid(1000 + index)
             session.add(TopicORM(id=topic_id, subject=subject, title=title, spec_year=2026, task_number=task_number))
             topic_ids[(subject, title)] = topic_id
 
@@ -63,7 +93,7 @@ def seed() -> None:
             topic_id = topic_ids[TOPICS[topic_index][0], TOPICS[topic_index][1]]
             session.add(
                 MissionORM(
-                    id=UUID(int=2000 + index),
+                    id=stable_uuid(2000 + index),
                     student_id=DEMO_STUDENT_ID,
                     subject=subject,
                     topic_id=topic_id,

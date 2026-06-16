@@ -75,26 +75,27 @@ Initial scaffold exists and is committed.
 Working pieces:
 
 - FastAPI app and health route.
+- Alembic migrations and LAN-prod Docker Compose path.
 - SQLAlchemy ORM models for users, invite codes, student profiles, subject tracks, topics, missions, attempts, evidence, error events, reviews, audits.
 - `LearningService.submit_attempt` use case.
-- deterministic `RuleBasedReviewer` fallback.
-- OpenAI-compatible LLM reviewer port.
-- Excel preview importer for the current tracker.
-- React dashboard shell and daily attempt flow.
+- append-only manual review path for LLM-disabled/failed checks.
+- OpenAI-compatible LLM reviewer port with fail-closed manual review behavior.
+- Excel preview/importer for the current tracker, preserving source provenance.
+- React dashboard shell, daily attempt flow, error journal, review queue, manual review queue.
 - Telegram parent digest helper stub.
-- Domain policy tests.
+- Domain and v1 regression tests.
 
 Verified commands at scaffold time:
 
 ```powershell
 cd C:\Users\badmaev_es\egeMentor\backend
-.venv\Scripts\python.exe -m pytest tests -q
+.venv312\Scripts\python.exe -m pytest tests -q
 
 cd C:\Users\badmaev_es\egeMentor\frontend
 npm.cmd run build
 
 cd C:\Users\badmaev_es\egeMentor
-python scripts\preview_tracker.py
+backend\.venv312\Scripts\python.exe scripts\preview_tracker.py
 ```
 
 Known dev URLs when servers are running:
@@ -124,54 +125,30 @@ Explicit non-goals for now:
 
 ## Local Next Plan
 
-The next agent should build the first DB-backed vertical slice.
+The first DB-backed LAN v1 slice is implemented. Next work should harden pilot usage rather than add infrastructure.
 
-### Step 1: Alembic + DB Bootstrap
+### Step 1: Real LAN Smoke
 
-- Add Alembic config under `backend/`.
-- Create the initial migration from `app.infrastructure.models.Base.metadata`.
-- Ensure `docker compose up -d postgres` works on port `5433`.
-- Add a small bootstrap/seed command that creates:
-  - one `operator` or `guardian` user
-  - one `student` profile
-  - two subject tracks: `math_profile` 65/85, `informatics` 50/85
-  - a few topics and active missions from the current tracker/plans
+- Copy `.env.example` to `.env`, set `API_SHARED_TOKEN`, and point `OPENAI_COMPAT_*` at the real reviewer.
+- Run `.\scripts\prod_up.ps1`.
+- Open the printed LAN URL from the parent machine and the child's phone.
+- Submit one math attempt and one informatics code attempt, including a manual-review path.
 
-### Step 2: Real Importer
+### Step 2: Operator UX
 
-- Replace `scripts/preview_tracker.py` with an importer that can write canonical records.
-- Import at minimum:
-  - dashboard baseline from sheet `Дашборд`
-  - daily log rows from `Дневной лог`
-  - error events from `Журнал ошибок`
-  - clean-sheet baseline from `Чистый лист`
-  - review items from `Повторение`
-- Preserve source provenance: source file path, sheet name, row number where practical.
-- Keep the importer idempotent: re-running should not duplicate seed records.
+- Add a small frontend mission-create/edit screen over the existing mission API.
+- Add a score-event form for weekly variants/slices.
+- Keep `current_score` tied only to score events, not daily attempts.
 
-### Step 3: API Surface for Frontend
+### Step 3: Pilot Hardening
 
-Add endpoints for:
-
-- error journal list/filter
-- review queue list/filter
-- seed/current student lookup for local pilot
-- mission creation/update for operator/guardian
-
-The frontend should keep using API state only. Do not add local product logic to React.
-
-### Step 4: Tests
-
-Add tests for:
-
-- initial seed creates the known 65/50/0.4 state
-- closing a topic creates +7/+30 review items
-- failed attempt marks mission as repeat
-- hinted code attempt does not improve clean-sheet ratio
-- importer is idempotent
+- Schedule `.\scripts\backup_postgres.ps1` in Windows Task Scheduler.
+- Add restore instructions from a `pg_dump`.
+- Add regression fixtures for observed mistake types: sign transfer, ODZ over-filtering, condition reading, probability double count.
 
 ## Engineering Rules
 
+- Always follow `.claude/rules/simplicity.md`: every change must keep complexity flat or reduce it; added complexity needs explicit product justification.
 - Read only files needed for the current task.
 - Prefer targeted search with `rg`.
 - Keep domain logic in `domain` or `application`, not in API routes or React.

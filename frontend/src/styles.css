@@ -8,6 +8,11 @@
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; }
 button, textarea, input { font: inherit; }
+button { border: 0; border-radius: 8px; padding: 9px 12px; background: #216b5a; color: #fff; cursor: pointer; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.tokenGate { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 20% 20%, #efe2b4, transparent 32%), #f7f5ef; }
+.tokenPanel { width: min(440px, 100%); display: grid; gap: 14px; }
+.tokenPanel input { border: 1px solid #d8d1c2; border-radius: 8px; padding: 12px; }
 .shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 100vh; }
 .sidebar { background: #18332b; color: #f5f4ee; padding: 24px 18px; }
 .brand { display: flex; gap: 12px; align-items: center; margin-bottom: 28px; }
@@ -39,9 +44,14 @@ p { margin: 0; }
 .attemptPanel textarea { width: 100%; min-height: 240px; resize: vertical; border: 1px solid #d8d1c2; border-radius: 8px; padding: 12px; margin-top: 14px; background: #fff; }
 .attemptControls { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 12px; }
 .attemptControls label { display: flex; align-items: center; gap: 6px; color: #33413b; }
-.attemptControls button { margin-left: auto; border: 0; border-radius: 8px; padding: 10px 14px; background: #216b5a; color: #fff; cursor: pointer; }
-.attemptControls button:disabled { opacity: 0.45; cursor: not-allowed; }
+.attemptControls button { margin-left: auto; }
 .resultBox { background: #17201a; color: #f7f5ef; padding: 12px; border-radius: 8px; overflow: auto; margin-top: 14px; }
+.warningBox { background: #fff4d4; color: #422f00; border: 1px solid #e7c360; }
+.tableList { display: grid; gap: 10px; }
+.tableRow { display: flex; justify-content: space-between; gap: 18px; padding: 12px 0; border-top: 1px solid #eee8dc; }
+.tableRow div:first-child { display: grid; gap: 4px; }
+.tableRow span, .tableRow small { color: #66726c; }
+.rowActions { display: flex; gap: 8px; align-items: center; }
 .state, .emptyPanel { color: #66726c; }
 .stateError { color: #a33a2d; }
 @media (max-width: 900px) {

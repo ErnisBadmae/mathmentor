@@ -21,6 +21,14 @@ The LLM is a bounded evaluator, not the product brain. It may classify a solutio
 
 Every LLM result must include `model_id`, `prompt_version`, and `rubric_version`. If structured validation fails, save the attempt and mark evidence as needing manual review.
 
+Manual review is append-only: the raw AI/manual-required evidence remains, and the guardian decision is stored as a new evidence record with `model_id=manual-review`.
+
+## Deployment stance
+
+The first production deployment is a local LAN stack: PostgreSQL, FastAPI API, and nginx-served Vite SPA through Docker Compose. API routes except health require `X-EGE-MENTOR-TOKEN`.
+
+Backups are plain `pg_dump` files created by `scripts/backup_postgres.ps1`; no extra infrastructure is introduced for v1.
+
 ## What is intentionally absent
 
 - LangGraph or autonomous agent routing

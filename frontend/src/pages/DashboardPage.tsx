@@ -1,18 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
-import { DEMO_STUDENT_ID, getDashboard } from '../shared/api/client';
+import { errorMessage, getCurrentStudent, getDashboard } from '../shared/api/client';
 
 function subjectLabel(subject: string) {
   return subject === 'math_profile' ? 'Профильная математика' : 'Информатика';
 }
 
 export function DashboardPage() {
+  const studentQuery = useQuery({ queryKey: ['student', 'current'], queryFn: getCurrentStudent });
+  const studentId = studentQuery.data?.id;
   const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard', DEMO_STUDENT_ID],
-    queryFn: () => getDashboard(DEMO_STUDENT_ID),
+    queryKey: ['dashboard', studentId],
+    queryFn: () => getDashboard(studentId ?? ''),
+    enabled: Boolean(studentId),
   });
 
-  if (isLoading) return <div className="state">Загрузка...</div>;
-  if (error) return <div className="state stateError">API недоступен. Запустите backend или проверьте VITE_STUDENT_ID.</div>;
+  if (studentQuery.isLoading || isLoading) return <div className="state">Загрузка...</div>;
+  if (studentQuery.error || error) return <div className="state stateError">{errorMessage(studentQuery.error || error)}</div>;
 
   return (
     <section>

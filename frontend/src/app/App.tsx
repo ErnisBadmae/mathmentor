@@ -1,9 +1,11 @@
 import { NavLink, Route, Routes } from 'react-router-dom';
 import { BarChart3, BookOpenCheck, ClipboardList, RotateCcw } from 'lucide-react';
+import { FormEvent, useState } from 'react';
 import { DashboardPage } from '../pages/DashboardPage';
 import { DailyWorkPage } from '../pages/DailyWorkPage';
 import { ErrorJournalPage } from '../pages/ErrorJournalPage';
 import { ReviewQueuePage } from '../pages/ReviewQueuePage';
+import { getStoredApiToken, setStoredApiToken } from '../shared/api/client';
 
 const navItems = [
   { to: '/', label: 'Прогресс', icon: BarChart3 },
@@ -13,6 +15,34 @@ const navItems = [
 ];
 
 export function App() {
+  const [token, setToken] = useState(getStoredApiToken());
+  const [draftToken, setDraftToken] = useState(token);
+
+  function saveToken(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setStoredApiToken(draftToken.trim());
+    setToken(draftToken.trim());
+  }
+
+  if (!token) {
+    return (
+      <main className="tokenGate">
+        <form className="panel tokenPanel" onSubmit={saveToken}>
+          <h1>EGE Mentor</h1>
+          <p className="muted">Введите семейный API-токен из `.env`, чтобы открыть LAN-пилот.</p>
+          <input
+            autoFocus
+            onChange={(event) => setDraftToken(event.target.value)}
+            placeholder="X-EGE-MENTOR-TOKEN"
+            type="password"
+            value={draftToken}
+          />
+          <button type="submit">Открыть</button>
+        </form>
+      </main>
+    );
+  }
+
   return (
     <div className="shell">
       <aside className="sidebar">

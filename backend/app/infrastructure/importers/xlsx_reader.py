@@ -26,7 +26,7 @@ def _colnum(cell_ref: str) -> int:
     return value
 
 
-def read_xlsx_preview(path: Path, max_rows_per_sheet: int = 30) -> list[SheetPreview]:
+def read_xlsx_preview(path: Path, max_rows_per_sheet: int | None = 30) -> list[SheetPreview]:
     previews: list[SheetPreview] = []
     with zipfile.ZipFile(path) as archive:
         shared: list[str] = []
@@ -69,7 +69,11 @@ def read_xlsx_preview(path: Path, max_rows_per_sheet: int = 30) -> list[SheetPre
                         dense.append(value)
                         last_col = col
                     rows.append(dense)
-                    if len(rows) >= max_rows_per_sheet:
+                    if max_rows_per_sheet is not None and len(rows) >= max_rows_per_sheet:
                         break
             previews.append(SheetPreview(name=name, rows=rows))
     return previews
+
+
+def read_xlsx(path: Path) -> list[SheetPreview]:
+    return read_xlsx_preview(path, max_rows_per_sheet=None)

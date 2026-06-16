@@ -1,6 +1,6 @@
 # EGE Mentor
 
-Family pilot for EGE preparation in profile mathematics and informatics.
+Family LAN pilot for EGE preparation in profile mathematics and informatics.
 
 The product is intentionally not a generic AI tutor. It is a guided preparation loop:
 
@@ -8,48 +8,70 @@ The product is intentionally not a generic AI tutor. It is a guided preparation 
 plan -> mission -> independent attempt -> evidence -> review -> next mission
 ```
 
-## Architecture stance
+## V1 Rules
 
-- PostgreSQL is the product source of truth.
+- PostgreSQL is the source of truth.
 - The backend owns learning state and progression decisions.
 - The frontend renders backend state and does not duplicate coaching logic.
-- LLMs are replaceable infrastructure ports used for bounded tasks: feedback, error classification, and audit generation.
-- Every AI-produced evidence record must carry `model_id`, `prompt_version`, and `rubric_version`.
-- No vector DB, graph DB, voice layer, queue, or public SaaS features in v1.
+- Attempts never move `subject_tracks.current_score`; only score events from slices/weekly variants do.
+- LLM review is the production path. If the LLM fails or is disabled, evidence is saved as `needs_manual_review`.
+- Hinted code attempts do not improve the clean-sheet ratio.
 
-## Local layout
+## Local Dev
 
-```text
-backend/   FastAPI application, domain, application services, DB adapters
-frontend/  Vite React dashboard
-scripts/   operator/import helpers
-docs/      product and architecture notes
-```
-
-## Quick start
-
-1. Copy `.env.example` to `.env` and adjust values.
+1. Copy `.env.example` to `.env` and set `API_SHARED_TOKEN`.
 2. Start Postgres:
 
 ```powershell
 docker compose up -d postgres
 ```
 
-3. Install backend dependencies in a virtual environment:
+3. Run migrations, seed, and import tracker data:
 
 ```powershell
 cd backend
-python -m venv .venv
-.\.venv\Scripts\pip install -e ".[dev]"
-.\.venv\Scripts\uvicorn app.main:app --reload --port 8001
+.\.venv312\Scripts\alembic.exe upgrade head
+.\.venv312\Scripts\python.exe scripts\seed.py
+cd ..
+backend\.venv312\Scripts\python.exe scripts\preview_tracker.py --write
 ```
 
-4. Start frontend:
+4. Start backend and frontend:
 
 ```powershell
-cd frontend
-npm install
-npm run dev
+cd backend
+.\.venv312\Scripts\uvicorn.exe app.main:app --reload --port 8001
+
+cd ..\frontend
+npm.cmd run dev
 ```
 
-The first production-grade slice is dashboard + mission list + attempt submission + evidence/review updates.
+Open `http://127.0.0.1:5174` and enter `API_SHARED_TOKEN`.
+
+## LAN Prod
+
+From the repo root:
+
+```powershell
+.\scripts\prod_up.ps1
+```
+
+This builds containers, starts Postgres/API/nginx, runs Alembic, runs seed, imports the Excel tracker from `C:\Users\badmaev_es\Desktop\ЕГЭ`, and prints the LAN URL.
+
+Backup:
+
+```powershell
+.\scripts\backup_postgres.ps1
+```
+
+Add that command to Windows Task Scheduler for daily backups.
+
+## Verification
+
+```powershell
+cd backend
+.\.venv312\Scripts\python.exe -m pytest tests -q
+
+cd ..\frontend
+npm.cmd run build
+```

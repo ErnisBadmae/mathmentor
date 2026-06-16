@@ -1,22 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { DEMO_STUDENT_ID, getTodayMissions, submitAttempt } from '../shared/api/client';
+import { getCurrentStudent, getTodayMissions, submitAttempt } from '../shared/api/client';
 
 export function DailyWorkPage() {
   const queryClient = useQueryClient();
   const [selectedMission, setSelectedMission] = useState<string | null>(null);
   const [answer, setAnswer] = useState('');
   const [mode, setMode] = useState<'clean_sheet' | 'with_hint'>('clean_sheet');
+  const studentQuery = useQuery({ queryKey: ['student', 'current'], queryFn: getCurrentStudent });
+  const studentId = studentQuery.data?.id;
   const { data: missions, isLoading } = useQuery({
-    queryKey: ['today', DEMO_STUDENT_ID],
-    queryFn: () => getTodayMissions(DEMO_STUDENT_ID),
+    queryKey: ['today', studentId],
+    queryFn: () => getTodayMissions(studentId ?? ''),
+    enabled: Boolean(studentId),
   });
   const mutation = useMutation({
     mutationFn: submitAttempt,
     onSuccess: () => {
       setAnswer('');
-      void queryClient.invalidateQueries({ queryKey: ['today', DEMO_STUDENT_ID] });
-      void queryClient.invalidateQueries({ queryKey: ['dashboard', DEMO_STUDENT_ID] });
+      void queryClient.invalidateQueries({ queryKey: ['today', studentId] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard', studentId] });
+      void queryClient.invalidateQueries({ queryKey: ['manual-reviews', studentId] });
     },
   });
   const mission = missions?.find((item) => item.id === selectedMission) ?? missions?.[0];
@@ -27,6 +31,7 @@ export function DailyWorkPage() {
         <h1>Сегодня</h1>
         <p>Выберите миссию, затем решите.</p>
       </div>
+      {studentQuery.error ? <div className="state stateError">{studentQuery.error.message}</div> : null}
       {isLoading ? <div className="state">Загрузка...</div> : null}
       <div className="workLayout">
         <div className="panel missionList">
@@ -49,7 +54,14 @@ export function DailyWorkPage() {
               Отправить ответ
             </button>
           </div>
-          {mutation.data ? <pre className="resultBox">{JSON.stringify(mutation.data, null, 2)}</pre> : null}
+          {mutation.error ? <div className="state stateError">{mutation.error.message}</div> : null}
+          {mutation.data ? (
+            <div className={mutation.data.status === 'needs_manual_review' ? 'resultBox warningBox' : 'resultBox'}>
+              <strong>{mutation.data.status === 'needs_manual_review' ? 'Нужна ручная проверка' : `Статус: ${mutation.data.status}`}</strong>
+              <p>{mutation.data.feedback}</p>
+              <small>{mutation.data.next_action}</small>
+            </div>
+          ) : null}
         </div>
       </div>
     </section>

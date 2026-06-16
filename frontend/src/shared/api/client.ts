@@ -1,5 +1,25 @@
 export type Subject = 'math_profile' | 'informatics';
-export type ErrorCategory = 'arithmetic' | 'sign_transfer' | 'odz_logic' | 'condition_reading' | 'probability_double_count' | 'unknown_method' | 'algorithm_logic' | 'code_syntax' | 'code_algorithm' | 'time_management' | 'none' | 'other';
+export type ErrorCategory =
+  | 'arithmetic'
+  | 'sign_transfer'
+  | 'odz_logic'
+  | 'condition_reading'
+  | 'probability_double_count'
+  | 'unknown_method'
+  | 'algorithm_logic'
+  | 'code_syntax'
+  | 'code_algorithm'
+  | 'time_management'
+  | 'none'
+  | 'other';
+export type EvidenceStatus = 'passed' | 'failed' | 'needs_manual_review';
+export type ReviewStatus = 'due' | 'done' | 'back_to_work';
+
+export type Student = {
+  id: string;
+  display_name: string;
+  exam_year: number;
+};
 
 export type Track = {
   subject: Subject;
@@ -26,6 +46,37 @@ export type Mission = {
   timebox_minutes: number | null;
 };
 
+export type ErrorEvent = {
+  id: string;
+  subject: Subject;
+  topic_title: string | null;
+  category: ErrorCategory;
+  detail: string;
+  created_at: string;
+  source_ref: string | null;
+};
+
+export type ReviewItem = {
+  id: string;
+  topic_title: string;
+  subject: Subject;
+  due_date: string;
+  status: ReviewStatus;
+};
+
+export type ManualReview = {
+  id: string;
+  mission_id: string;
+  mission_title: string;
+  topic_title: string | null;
+  status: EvidenceStatus;
+  score_percent: number;
+  error_category: ErrorCategory;
+  feedback: string;
+  next_action: string;
+  created_at: string;
+};
+
 export type SubmitAttemptPayload = {
   mission_id: string;
   kind: 'text' | 'code' | 'photo' | 'mixed';
@@ -35,19 +86,54 @@ export type SubmitAttemptPayload = {
   time_spent_minutes?: number;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8001/api';
+export type SubmitAttemptResult = {
+  attempt_id: string;
+  evidence_id: string;
+  status: EvidenceStatus;
+  score_percent: number;
+  error_category: ErrorCategory;
+  feedback: string;
+  next_action: string;
+};
 
-export const DEMO_STUDENT_ID = import.meta.env.VITE_STUDENT_ID ?? '00000000-0000-0000-0000-000000000000';
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8001/api';
+const TOKEN_KEY = 'egeMentorApiToken';
+
+export function getStoredApiToken(): string {
+  return localStorage.getItem(TOKEN_KEY) ?? import.meta.env.VITE_API_TOKEN ?? '';
+}
+
+export function setStoredApiToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-    ...init,
-  });
+  const token = getStoredApiToken();
+  const headers = new Headers(init?.headers);
+  headers.set('Content-Type', 'application/json');
+  if (token) {
+    headers.set('X-EGE-MENTOR-TOKEN', token);
+  }
+  const response = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (!response.ok) {
-    throw new Error(`API ${response.status}: ${await response.text()}`);
+    let message = `API ${response.status}`;
+    try {
+      const body = (await response.json()) as { detail?: string };
+      if (body.detail) message = body.detail;
+    } catch {
+      message = await response.text();
+    }
+    throw new Error(message);
   }
   return response.json() as Promise<T>;
+}
+
+export function getCurrentStudent(): Promise<Student> {
+  return request<Student>('/students/current');
 }
 
 export function getDashboard(studentId: string): Promise<Dashboard> {
@@ -58,6 +144,35 @@ export function getTodayMissions(studentId: string): Promise<Mission[]> {
   return request<Mission[]>(`/students/${studentId}/missions/today`);
 }
 
-export function submitAttempt(payload: SubmitAttemptPayload) {
-  return request('/attempts', { method: 'POST', body: JSON.stringify(payload) });
+export function getErrors(studentId: string): Promise<ErrorEvent[]> {
+  return request<ErrorEvent[]>(`/students/${studentId}/errors`);
+}
+
+export function getReviews(studentId: string): Promise<ReviewItem[]> {
+  return request<ReviewItem[]>(`/students/${studentId}/reviews?due_only=false`);
+}
+
+export function markReviewResult(reviewId: string, passed: boolean): Promise<ReviewItem> {
+  return request<ReviewItem>(`/reviews/${reviewId}/result`, {
+    method: 'POST',
+    body: JSON.stringify({ passed }),
+  });
+}
+
+export function getManualReviews(studentId: string): Promise<ManualReview[]> {
+  return request<ManualReview[]>(`/students/${studentId}/manual-reviews`);
+}
+
+export function applyManualDecision(
+  evidenceId: string,
+  status: Exclude<EvidenceStatus, 'needs_manual_review'>,
+): Promise<SubmitAttemptResult> {
+  return request<SubmitAttemptResult>(`/evidence/${evidenceId}/manual-decision`, {
+    method: 'POST',
+    body: JSON.stringify({ status }),
+  });
+}
+
+export function submitAttempt(payload: SubmitAttemptPayload): Promise<SubmitAttemptResult> {
+  return request<SubmitAttemptResult>('/attempts', { method: 'POST', body: JSON.stringify(payload) });
 }
