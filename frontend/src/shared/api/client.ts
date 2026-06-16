@@ -37,6 +37,8 @@ export type SubmitAttemptPayload = {
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8001/api';
 
+export const DEMO_STUDENT_ID = import.meta.env.VITE_STUDENT_ID ?? '00000000-0000-0000-0000-000000000000';
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },

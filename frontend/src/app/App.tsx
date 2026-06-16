@@ -6,10 +6,10 @@ import { ErrorJournalPage } from '../pages/ErrorJournalPage';
 import { ReviewQueuePage } from '../pages/ReviewQueuePage';
 
 const navItems = [
-  { to: '/', label: '???????', icon: BarChart3 },
-  { to: '/daily', label: '???????', icon: BookOpenCheck },
-  { to: '/errors', label: '??????', icon: ClipboardList },
-  { to: '/review', label: '??????????', icon: RotateCcw },
+  { to: '/', label: 'Прогресс', icon: BarChart3 },
+  { to: '/daily', label: 'Сегодня', icon: BookOpenCheck },
+  { to: '/errors', label: 'Ошибки', icon: ClipboardList },
+  { to: '/review', label: 'Повторение', icon: RotateCcw },
 ];
 
 export function App() {

@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -31,7 +32,7 @@ class MissionOut(BaseModel):
     title: str
     instructions: str
     threshold_percent: float
-    due_date: str | None = None
+    due_date: date | None = None
     timebox_minutes: int | None = None
     model_config = {"from_attributes": True}
 

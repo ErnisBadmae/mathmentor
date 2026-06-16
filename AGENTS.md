@@ -15,7 +15,7 @@ plan -> mission -> independent attempt -> evidence -> review -> next mission
 The first user is a real child preparing for EGE 2027. Existing preparation materials live outside the repo at:
 
 ```text
-C:\Users\badmaev_es\Desktop\???
+C:\Users\badmaev_es\Desktop\ЕГЭ
 ```
 
 Important current observed baseline from the tracker:
@@ -141,11 +141,11 @@ The next agent should build the first DB-backed vertical slice.
 
 - Replace `scripts/preview_tracker.py` with an importer that can write canonical records.
 - Import at minimum:
-  - dashboard baseline from sheet `???????`
-  - daily log rows from `??????? ???`
-  - error events from `?????? ??????`
-  - clean-sheet baseline from `?????? ????`
-  - review items from `??????????`
+  - dashboard baseline from sheet `Дашборд`
+  - daily log rows from `Дневной лог`
+  - error events from `Журнал ошибок`
+  - clean-sheet baseline from `Чистый лист`
+  - review items from `Повторение`
 - Preserve source provenance: source file path, sheet name, row number where practical.
 - Keep the importer idempotent: re-running should not duplicate seed records.
 

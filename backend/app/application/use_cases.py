@@ -121,17 +121,17 @@ class RuleBasedReviewer:
         score = 100.0
         feedback = "Attempt recorded. Manual review can refine this feedback."
         next_action = "Keep the topic in normal rotation."
-        if "?? ????" in text or not text.strip():
+        if "не знаю" in text or not text.strip():
             category = ErrorCategory.UNKNOWN_METHOD
             score = 0.0
             feedback = "No independent solution was provided."
             next_action = "Repeat the topic with one worked example, then submit a clean attempt."
-        elif "-1-3" in text or "2?=8" in text or "2x=8" in text:
+        elif "-1-3" in text or "2х=8" in text or "2x=8" in text:
             category = ErrorCategory.SIGN_TRANSFER
             score = 50.0
             feedback = "The method is close, but signs or term transfer changed the answer."
             next_action = "Do three short equations focused only on moving terms across the equality sign."
-        elif "???" in text and "?? ????????" in text:
+        elif "одз" in text and "не учитываю" in text:
             category = ErrorCategory.ODZ_LOGIC
             score = 50.0
             feedback = "The domain restriction was applied too broadly. Check each candidate root separately."

@@ -4,6 +4,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .venv/
+.venv*/
 venv/
 .env
 .env.local
@@ -15,3 +16,4 @@ coverage/
 *.log
 *.tsbuildinfo
 *.egg-info/
+.claude/settings.local.json

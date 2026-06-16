@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_env: str = "local"
-    database_url: str = "postgresql+psycopg://ege:ege@localhost:5433/ege_mentor"
+    database_url: str = "postgresql+psycopg://ege:ege@localhost:5434/ege_mentor"
     api_cors_origins: str = "http://localhost:5174,http://127.0.0.1:5174"
     invite_bootstrap_code: str = "family-pilot"
 
