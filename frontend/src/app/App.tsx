@@ -1,15 +1,17 @@
 import { NavLink, Route, Routes } from 'react-router-dom';
-import { BarChart3, BookOpenCheck, ClipboardList, Layers, RotateCcw } from 'lucide-react';
+import { BarChart3, BookOpenCheck, ClipboardList, GraduationCap, Layers, RotateCcw } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import { DashboardPage } from '../pages/DashboardPage';
 import { DailyWorkPage } from '../pages/DailyWorkPage';
 import { ErrorJournalPage } from '../pages/ErrorJournalPage';
+import { ProgramPage } from '../pages/ProgramPage';
 import { ReviewQueuePage } from '../pages/ReviewQueuePage';
 import { TopicLifecyclePage } from '../pages/TopicLifecyclePage';
 import { getStoredApiToken, setStoredApiToken } from '../shared/api/client';
 
 const navItems = [
   { to: '/', label: 'Прогресс', icon: BarChart3 },
+  { to: '/program', label: 'Программа', icon: GraduationCap },
   { to: '/topics', label: 'Темы', icon: Layers },
   { to: '/daily', label: 'Сегодня', icon: BookOpenCheck },
   { to: '/errors', label: 'Ошибки', icon: ClipboardList },
@@ -70,6 +72,7 @@ export function App() {
       <main className="content">
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/program" element={<ProgramPage />} />
           <Route path="/topics" element={<TopicLifecyclePage />} />
           <Route path="/daily" element={<DailyWorkPage />} />
           <Route path="/errors" element={<ErrorJournalPage />} />

@@ -42,6 +42,70 @@ TOPICS = [
     (Subject.INFORMATICS, "Комбинаторика: подсчёт слов и чисел", "combinatorics"),
 ]
 
+# Учебная программа (фазы из app/domain/program.py): (phase_key, subject, title).
+# Темы с совпадающим названием переиспользуются (получают фазу), недостающие создаются.
+# Гранулярно: июнь (Срез 1) + июль–август (Срез 2/3). Источник — папка `контроль`.
+PROGRAM = [
+    # --- Июнь · Диагностика (математика) ---
+    ("june_diagnostics", Subject.MATH_PROFILE, "Вероятность: теорема сложения"),
+    ("june_diagnostics", Subject.MATH_PROFILE, "Вычисления: степени и корни"),
+    ("june_diagnostics", Subject.MATH_PROFILE, "Вычисления: логарифмы и тригонометрия"),
+    ("june_diagnostics", Subject.MATH_PROFILE, "Простейшие уравнения (показательные, логарифмические)"),
+    ("june_diagnostics", Subject.MATH_PROFILE, "Производная: геометрический смысл"),
+    ("june_diagnostics", Subject.MATH_PROFILE, "Производная: физический смысл"),
+    ("june_diagnostics", Subject.MATH_PROFILE, "Применение производной: экстремумы"),
+    ("june_diagnostics", Subject.MATH_PROFILE, "Текстовые задачи: движение"),
+    ("june_diagnostics", Subject.MATH_PROFILE, "Текстовые задачи на проценты"),
+    ("june_diagnostics", Subject.MATH_PROFILE, "Планиметрия (Часть 1)"),
+    ("june_diagnostics", Subject.MATH_PROFILE, "Стереометрия (Часть 1)"),
+    ("june_diagnostics", Subject.MATH_PROFILE, "Векторы"),
+    ("june_diagnostics", Subject.MATH_PROFILE, "Задача 13: тригонометрическое уравнение"),
+    ("june_diagnostics", Subject.MATH_PROFILE, "Задача 13: отбор корней на отрезке"),
+    ("june_diagnostics", Subject.MATH_PROFILE, "Уравнения и неравенства с ОДЗ"),
+    ("june_diagnostics", Subject.MATH_PROFILE, "Неравенства"),
+    # --- Июнь · Диагностика (информатика, без кода) ---
+    ("june_diagnostics", Subject.INFORMATICS, "Анализ таблиц и диаграмм"),
+    ("june_diagnostics", Subject.INFORMATICS, "Логика: таблицы истинности"),
+    ("june_diagnostics", Subject.INFORMATICS, "Кодирование: префиксные коды (условие Фано)"),
+    ("june_diagnostics", Subject.INFORMATICS, "Комбинаторика: подсчёт слов и чисел"),
+    ("june_diagnostics", Subject.INFORMATICS, "Информационный объём сообщения"),
+    ("june_diagnostics", Subject.INFORMATICS, "Кодирование изображений и звука"),
+    ("june_diagnostics", Subject.INFORMATICS, "Системы счисления"),
+    ("june_diagnostics", Subject.INFORMATICS, "Базы данных (несколько таблиц)"),
+    ("june_diagnostics", Subject.INFORMATICS, "Электронные таблицы (Excel)"),
+    ("june_diagnostics", Subject.INFORMATICS, "Подсчёт путей в графе"),
+    ("june_diagnostics", Subject.INFORMATICS, "Теория игр: выигрышная стратегия"),
+    ("june_diagnostics", Subject.INFORMATICS, "Рекурсия (трассировка функций)"),
+    # --- Июнь · Диагностика (программирование) ---
+    ("june_diagnostics", Subject.INFORMATICS, "Python: Thonny, переменные и ввод-вывод"),
+    ("june_diagnostics", Subject.INFORMATICS, "Python: арифметика, типы, %, //"),
+    ("june_diagnostics", Subject.INFORMATICS, "Python: условия if/elif/else"),
+    ("june_diagnostics", Subject.INFORMATICS, "Python: цикл for и range"),
+    ("june_diagnostics", Subject.INFORMATICS, "Python: цикл while и накопитель"),
+    ("june_diagnostics", Subject.INFORMATICS, "Поиск максимума/минимума в потоке"),
+    ("june_diagnostics", Subject.INFORMATICS, "Задание 17: обработка чисел из файла"),
+    ("june_diagnostics", Subject.INFORMATICS, "Списки и срезы"),
+    ("june_diagnostics", Subject.INFORMATICS, "Работа со строками"),
+    ("june_diagnostics", Subject.INFORMATICS, "Делители числа (Задание 25)"),
+    # --- Июль–август · Фундамент (математика) ---
+    ("july_aug_foundation", Subject.MATH_PROFILE, "Экономическая задача (№16): вклады"),
+    ("july_aug_foundation", Subject.MATH_PROFILE, "Экономическая задача (№16): кредиты"),
+    ("july_aug_foundation", Subject.MATH_PROFILE, "Стереометрия (№14): объёмы и углы"),
+    ("july_aug_foundation", Subject.MATH_PROFILE, "Планиметрия (№17): подобие и площади"),
+    ("july_aug_foundation", Subject.MATH_PROFILE, "Параметр (№18): графический метод"),
+    # --- Июль–август · Фундамент (информатика) ---
+    ("july_aug_foundation", Subject.INFORMATICS, "Задание 26: обработка таблицы"),
+    ("july_aug_foundation", Subject.INFORMATICS, "Жадные алгоритмы"),
+    ("july_aug_foundation", Subject.INFORMATICS, "Динамическое программирование (идея)"),
+    ("july_aug_foundation", Subject.INFORMATICS, "Анализ алгоритмов и сложность"),
+    ("july_aug_foundation", Subject.INFORMATICS, "Задание 27: эффективность (введение)"),
+    # --- Июль–август · Фундамент (программирование) ---
+    ("july_aug_foundation", Subject.INFORMATICS, "Чтение большого файла и сортировка"),
+    ("july_aug_foundation", Subject.INFORMATICS, "Задание 26: топ-значения, два прохода"),
+    ("july_aug_foundation", Subject.INFORMATICS, "Задание 27: однопроходный алгоритм"),
+    ("july_aug_foundation", Subject.INFORMATICS, "Оптимизация решения по времени"),
+]
+
 MISSIONS = [
     (
         Subject.MATH_PROFILE,
@@ -633,6 +697,29 @@ def seed() -> None:
                 )
             )
             topic_ids[(subject, title)] = topic_id
+
+        # Program phases: reuse a topic if its title already exists (assign phase),
+        # otherwise create a program-only topic so the controller sees full coverage.
+        topic_objs = {(topic.subject, topic.title): topic for topic in session.query(TopicORM)}
+        for order, (phase_key, subject, title) in enumerate(PROGRAM, start=1):
+            key = (subject, title)
+            topic = topic_objs.get(key)
+            if topic is None:
+                topic = TopicORM(
+                    id=stable_uuid(5000 + order),
+                    subject=subject,
+                    title=title,
+                    spec_year=2026,
+                    task_number=None,
+                    phase=phase_key,
+                    program_order=order,
+                )
+                session.add(topic)
+                topic_objs[key] = topic
+                topic_ids[key] = topic.id
+            else:
+                topic.phase = phase_key
+                topic.program_order = order
 
         task_by_ref: dict[str, TaskORM] = {}
         for task_spec in TASKS:

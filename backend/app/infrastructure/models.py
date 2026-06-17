@@ -77,6 +77,9 @@ class TopicORM(Base):
     title: Mapped[str] = mapped_column(String(240))
     spec_year: Mapped[int] = mapped_column(Integer, default=2026)
     task_number: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Привязка к фазе учебной программы (app/domain/program.py). None — тема вне программы.
+    phase: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    program_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class TaskORM(Base):

@@ -14,6 +14,7 @@ from app.domain.enums import (
     MissionStatus,
     ReviewStatus,
     Subject,
+    TopicState,
 )
 from app.domain.policies import compute_topic_state
 from app.infrastructure.models import (
@@ -576,3 +577,28 @@ class TopicSqlRepository:
             )
         result.sort(key=lambda r: r["topic_title"])
         return result
+
+    def list_program(self, student_id: UUID) -> list[dict[str, object]]:
+        """Program topics (phase is not None) with their computed lifecycle state.
+        Reuses ``list_topic_lifecycle``; untouched program topics default to OPEN."""
+        lifecycle = {row["topic_id"]: row for row in self.list_topic_lifecycle(student_id)}
+        topics = self.session.scalars(
+            select(TopicORM).where(TopicORM.phase.is_not(None))
+        ).all()
+        rows: list[dict[str, object]] = []
+        for topic in topics:
+            life = lifecycle.get(topic.id)
+            rows.append(
+                {
+                    "phase": topic.phase,
+                    "program_order": topic.program_order,
+                    "topic_id": topic.id,
+                    "topic_title": topic.title,
+                    "subject": topic.subject,
+                    "task_number": topic.task_number,
+                    "state": life["state"] if life else TopicState.OPEN,
+                    "error_count": life["error_count"] if life else 0,
+                    "reviews_due_today": life["reviews_due_today"] if life else 0,
+                }
+            )
+        return rows

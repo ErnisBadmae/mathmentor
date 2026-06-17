@@ -10,8 +10,10 @@ from app.domain.enums import (
     MissionStatus,
     ReviewStatus,
     TaskStatus,
+    TopicState,
 )
 from app.domain.policies import evidence_status, review_due_dates, review_result_to_status
+from app.domain.program import PHASES, current_phase_key
 
 
 class LearningService:
@@ -130,6 +132,41 @@ class LearningService:
 
     def list_topic_lifecycle(self, student_id: UUID) -> list[dict[str, object]]:
         return self._uow.topics.list_topic_lifecycle(student_id)
+
+    def list_program_progress(self, student_id: UUID) -> list[dict[str, object]]:
+        rows = self._uow.topics.list_program(student_id)
+        by_phase: dict[str, list[dict[str, object]]] = {}
+        for row in rows:
+            by_phase.setdefault(row["phase"], []).append(row)
+        current = current_phase_key(self._today())
+        in_progress_states = (
+            TopicState.IN_WORK,
+            TopicState.UNDER_REVIEW,
+            TopicState.BACK_TO_WORK,
+        )
+        phases_out: list[dict[str, object]] = []
+        for phase in PHASES:
+            topics = sorted(
+                by_phase.get(phase.key, []),
+                key=lambda r: (r["program_order"] or 0, r["topic_title"]),
+            )
+            phases_out.append(
+                {
+                    "key": phase.key,
+                    "label": phase.label,
+                    "start_date": phase.start,
+                    "end_date": phase.end,
+                    "is_current": phase.key == current,
+                    "coverage": {
+                        "confirmed": sum(1 for t in topics if t["state"] == TopicState.CONFIRMED),
+                        "in_progress": sum(1 for t in topics if t["state"] in in_progress_states),
+                        "open": sum(1 for t in topics if t["state"] == TopicState.OPEN),
+                        "total": len(topics),
+                    },
+                    "topics": topics,
+                }
+            )
+        return phases_out
 
     def create_mission(self, values: dict[str, object]) -> object:
         mission = self._uow.missions.create({**self._prepare_task_link(values), "id": uuid4()})

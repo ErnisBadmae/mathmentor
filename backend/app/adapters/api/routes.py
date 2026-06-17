@@ -11,6 +11,7 @@ from app.adapters.api.schemas import (
     MissionCreateIn,
     MissionOut,
     MissionUpdateIn,
+    ProgramPhaseOut,
     ReviewItemOut,
     ReviewResultIn,
     ScoreEventIn,
@@ -50,6 +51,11 @@ def today_missions(student_id: UUID, service: LearningService = Depends(get_lear
 @protected_router.get("/students/{student_id}/topics/lifecycle", response_model=list[TopicLifecycleOut])
 def topic_lifecycle(student_id: UUID, service: LearningService = Depends(get_learning_service)) -> list[dict[str, object]]:
     return service.list_topic_lifecycle(student_id)
+
+
+@protected_router.get("/students/{student_id}/program", response_model=list[ProgramPhaseOut])
+def program_progress(student_id: UUID, service: LearningService = Depends(get_learning_service)) -> list[dict[str, object]]:
+    return service.list_program_progress(student_id)
 
 
 @protected_router.post("/students/{student_id}/missions", response_model=MissionOut)

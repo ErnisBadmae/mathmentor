@@ -60,6 +60,33 @@ class TopicLifecycleOut(BaseModel):
     last_activity_at: datetime | None = None
 
 
+class ProgramTopicOut(BaseModel):
+    topic_id: UUID
+    topic_title: str
+    subject: Subject
+    task_number: str | None = None
+    state: TopicState
+    error_count: int
+    reviews_due_today: int
+
+
+class ProgramCoverageOut(BaseModel):
+    confirmed: int
+    in_progress: int
+    open: int
+    total: int
+
+
+class ProgramPhaseOut(BaseModel):
+    key: str
+    label: str
+    start_date: date
+    end_date: date
+    is_current: bool
+    coverage: ProgramCoverageOut
+    topics: list[ProgramTopicOut]
+
+
 class MissionOut(BaseModel):
     id: UUID
     subject: Subject
