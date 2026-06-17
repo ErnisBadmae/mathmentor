@@ -6,7 +6,15 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.domain.enums import AttemptKind, AttemptMode, ErrorCategory, EvidenceStatus, MissionStatus, ReviewStatus, Subject
+from app.domain.enums import (
+    AttemptKind,
+    AttemptMode,
+    ErrorCategory,
+    EvidenceStatus,
+    MissionStatus,
+    ReviewStatus,
+    Subject,
+)
 from app.domain.policies import compute_topic_state
 from app.infrastructure.models import (
     AttemptORM,
@@ -18,6 +26,7 @@ from app.infrastructure.models import (
     ScoreEventORM,
     StudentProfileORM,
     SubjectTrackORM,
+    TaskORM,
     TopicORM,
 )
 
@@ -46,6 +55,7 @@ class SqlAlchemyUnitOfWork:
         self.reviews = ReviewSqlRepository(session)
         self.scores = ScoreSqlRepository(session)
         self.topics = TopicSqlRepository(session)
+        self.tasks = TaskSqlRepository(session)
 
     def commit(self) -> None:
         self.session.commit()
@@ -100,6 +110,28 @@ class MissionSqlRepository:
 
     def mark_repeat(self, mission_id: UUID) -> None:
         self.get_for_attempt(mission_id).status = MissionStatus.REPEAT
+
+
+class TaskSqlRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def get(self, task_id: UUID) -> TaskORM:
+        task = self.session.get(TaskORM, task_id)
+        if task is None:
+            raise LookupError(f"Task not found: {task_id}")
+        return task
+
+    def add(self, values: dict[str, object]) -> TaskORM:
+        source_ref = values.get("source_ref")
+        if source_ref:
+            existing = self.session.scalar(select(TaskORM).where(TaskORM.source_ref == source_ref))
+            if existing is not None:
+                return existing
+        task = TaskORM(**values)
+        self.session.add(task)
+        self.session.flush()
+        return task
 
 
 class AttemptSqlRepository:
@@ -171,7 +203,11 @@ class DashboardSqlRepository:
         self.session = session
 
     def get_dashboard(self, student_id: UUID) -> dict[str, object]:
-        tracks = list(self.session.scalars(select(SubjectTrackORM).where(SubjectTrackORM.student_id == student_id)).all())
+        tracks = list(
+            self.session.scalars(
+                select(SubjectTrackORM).where(SubjectTrackORM.student_id == student_id)
+            ).all()
+        )
         top_errors = list(
             self.session.execute(
                 select(ErrorEventORM.category, func.count(ErrorEventORM.id))
@@ -181,48 +217,77 @@ class DashboardSqlRepository:
                 .limit(3)
             ).all()
         )
-        imported_code_total = self.session.scalar(
-            select(func.coalesce(func.sum(CleanSheetEventORM.tasks_total), 0)).where(CleanSheetEventORM.student_id == student_id)
-        ) or 0
-        imported_clean_code = self.session.scalar(
-            select(func.coalesce(func.sum(CleanSheetEventORM.clean_sheet_count), 0)).where(CleanSheetEventORM.student_id == student_id)
-        ) or 0
-        code_attempts_total = self.session.scalar(
-            select(func.count(AttemptORM.id)).where(AttemptORM.student_id == student_id).where(AttemptORM.kind == AttemptKind.CODE)
-        ) or 0
+        imported_code_total = (
+            self.session.scalar(
+                select(func.coalesce(func.sum(CleanSheetEventORM.tasks_total), 0)).where(
+                    CleanSheetEventORM.student_id == student_id
+                )
+            )
+            or 0
+        )
+        imported_clean_code = (
+            self.session.scalar(
+                select(func.coalesce(func.sum(CleanSheetEventORM.clean_sheet_count), 0)).where(
+                    CleanSheetEventORM.student_id == student_id
+                )
+            )
+            or 0
+        )
+        code_attempts_total = (
+            self.session.scalar(
+                select(func.count(AttemptORM.id))
+                .where(AttemptORM.student_id == student_id)
+                .where(AttemptORM.kind == AttemptKind.CODE)
+            )
+            or 0
+        )
         latest_evidence = (
             select(EvidenceORM.attempt_id, func.max(EvidenceORM.created_at).label("created_at"))
             .group_by(EvidenceORM.attempt_id)
             .subquery()
         )
-        clean_attempts_passed = self.session.scalar(
-            select(func.count(AttemptORM.id))
-            .join(EvidenceORM, EvidenceORM.attempt_id == AttemptORM.id)
-            .join(
-                latest_evidence,
-                (latest_evidence.c.attempt_id == EvidenceORM.attempt_id)
-                & (latest_evidence.c.created_at == EvidenceORM.created_at),
+        clean_attempts_passed = (
+            self.session.scalar(
+                select(func.count(AttemptORM.id))
+                .join(EvidenceORM, EvidenceORM.attempt_id == AttemptORM.id)
+                .join(
+                    latest_evidence,
+                    (latest_evidence.c.attempt_id == EvidenceORM.attempt_id)
+                    & (latest_evidence.c.created_at == EvidenceORM.created_at),
+                )
+                .where(AttemptORM.student_id == student_id)
+                .where(AttemptORM.kind == AttemptKind.CODE)
+                .where(AttemptORM.mode == AttemptMode.CLEAN_SHEET)
+                .where(EvidenceORM.status == EvidenceStatus.PASSED)
             )
-            .where(AttemptORM.student_id == student_id)
-            .where(AttemptORM.kind == AttemptKind.CODE)
-            .where(AttemptORM.mode == AttemptMode.CLEAN_SHEET)
-            .where(EvidenceORM.status == EvidenceStatus.PASSED)
-        ) or 0
-        due_reviews = self.session.scalar(
-            select(func.count(ReviewItemORM.id))
-            .where(ReviewItemORM.student_id == student_id)
-            .where(ReviewItemORM.status == ReviewStatus.DUE)
-            .where(ReviewItemORM.due_date <= _local_today())
-        ) or 0
+            or 0
+        )
+        due_reviews = (
+            self.session.scalar(
+                select(func.count(ReviewItemORM.id))
+                .where(ReviewItemORM.student_id == student_id)
+                .where(ReviewItemORM.status == ReviewStatus.DUE)
+                .where(ReviewItemORM.due_date <= _local_today())
+            )
+            or 0
+        )
         total_code = imported_code_total + code_attempts_total
         clean_code = imported_clean_code + clean_attempts_passed
         return {
             "tracks": [
-                {"subject": track.subject, "current_score": track.current_score, "target_score": track.target_score, "score_gap": track.target_score - track.current_score, "phase": track.phase}
+                {
+                    "subject": track.subject,
+                    "current_score": track.current_score,
+                    "target_score": track.target_score,
+                    "score_gap": track.target_score - track.current_score,
+                    "phase": track.phase,
+                }
                 for track in tracks
             ],
             "clean_sheet_ratio": 0.0 if total_code == 0 else clean_code / total_code,
-            "top_errors": [{"category": category, "count": count} for category, count in top_errors],
+            "top_errors": [
+                {"category": category, "count": count} for category, count in top_errors
+            ],
             "due_reviews": due_reviews,
         }
 
@@ -232,7 +297,9 @@ class StudentSqlRepository:
         self.session = session
 
     def get_current(self) -> StudentProfileORM:
-        student = self.session.scalar(select(StudentProfileORM).order_by(StudentProfileORM.id).limit(1))
+        student = self.session.scalar(
+            select(StudentProfileORM).order_by(StudentProfileORM.id).limit(1)
+        )
         if student is None:
             raise LookupError("No student profile exists. Run seed/import first.")
         return student
@@ -329,7 +396,9 @@ class ScoreSqlRepository:
     def add_event(self, values: dict[str, object]) -> ScoreEventORM:
         source_ref = values.get("source_ref")
         if source_ref:
-            existing = self.session.scalar(select(ScoreEventORM).where(ScoreEventORM.source_ref == source_ref))
+            existing = self.session.scalar(
+                select(ScoreEventORM).where(ScoreEventORM.source_ref == source_ref)
+            )
             if existing is not None:
                 return existing
         event = ScoreEventORM(**values)

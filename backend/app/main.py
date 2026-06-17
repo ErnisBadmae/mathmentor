@@ -9,10 +9,13 @@ from app.config import get_settings
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title="EGE Mentor API", version="0.1.0")
+    origins = settings.cors_origins
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_credentials=True,
+        allow_origins=origins,
+        # Browsers reject wildcard origin together with credentials; auth here is a
+        # header token, not cookies, so credentials are not needed when allowing all.
+        allow_credentials="*" not in origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )

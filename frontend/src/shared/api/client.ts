@@ -59,6 +59,7 @@ export type Mission = {
   subject: Subject;
   title: string;
   instructions: string;
+  statement: string | null;
   threshold_percent: number;
   due_date: string | null;
   timebox_minutes: number | null;
@@ -115,10 +116,11 @@ export type SubmitAttemptResult = {
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8001/api';
+const BUNDLED_API_TOKEN = import.meta.env.VITE_API_TOKEN ?? '';
 const TOKEN_KEY = 'egeMentorApiToken';
 
 export function getStoredApiToken(): string {
-  return localStorage.getItem(TOKEN_KEY) ?? import.meta.env.VITE_API_TOKEN ?? '';
+  return BUNDLED_API_TOKEN || localStorage.getItem(TOKEN_KEY) || '';
 }
 
 export function setStoredApiToken(token: string): void {

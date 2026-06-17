@@ -3,12 +3,21 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from app.application.ports import AttemptForReview, EvidenceDraft, EvidenceReviewer, UnitOfWork
-from app.domain.enums import AiPolicy, ErrorCategory, EvidenceStatus, MissionStatus, ReviewStatus
+from app.domain.enums import (
+    AiPolicy,
+    ErrorCategory,
+    EvidenceStatus,
+    MissionStatus,
+    ReviewStatus,
+    TaskStatus,
+)
 from app.domain.policies import evidence_status, review_due_dates, review_result_to_status
 
 
 class LearningService:
-    def __init__(self, uow: UnitOfWork, reviewer: EvidenceReviewer, local_timezone: str = "Europe/Moscow") -> None:
+    def __init__(
+        self, uow: UnitOfWork, reviewer: EvidenceReviewer, local_timezone: str = "Europe/Moscow"
+    ) -> None:
         self._uow = uow
         self._reviewer = reviewer
         self._local_timezone = local_timezone
@@ -16,7 +25,14 @@ class LearningService:
     def _today(self):
         return datetime.now(ZoneInfo(self._local_timezone)).date()
 
-    def _add_error_event(self, mission: object, attempt_id: UUID, evidence: object, detail: str, category: ErrorCategory) -> None:
+    def _add_error_event(
+        self,
+        mission: object,
+        attempt_id: UUID,
+        evidence: object,
+        detail: str,
+        category: ErrorCategory,
+    ) -> None:
         self._uow.evidence.add_error_event(
             {
                 "id": uuid4(),
@@ -32,7 +48,9 @@ class LearningService:
             }
         )
 
-    def _apply_progression(self, mission: object, evidence: object, category: ErrorCategory, feedback: str) -> None:
+    def _apply_progression(
+        self, mission: object, evidence: object, category: ErrorCategory, feedback: str
+    ) -> None:
         if evidence.status == EvidenceStatus.PASSED:
             self._uow.missions.mark_done(mission.id)
             if mission.topic_id is not None:
@@ -69,7 +87,23 @@ class LearningService:
         return self._uow.students.get_current()
 
     def list_today(self, student_id: UUID) -> list[object]:
-        return self._uow.missions.list_today(student_id)
+        return [
+            self._mission_payload(mission) for mission in self._uow.missions.list_today(student_id)
+        ]
+
+    def _mission_payload(self, mission: object) -> dict[str, object]:
+        task = getattr(mission, "task", None)
+        statement = task.statement if task is not None else None
+        return {
+            "id": mission.id,
+            "subject": mission.subject,
+            "title": mission.title,
+            "instructions": mission.instructions,
+            "statement": statement,
+            "threshold_percent": mission.threshold_percent,
+            "due_date": mission.due_date,
+            "timebox_minutes": mission.timebox_minutes,
+        }
 
     def list_errors(
         self,
@@ -98,17 +132,44 @@ class LearningService:
         return self._uow.topics.list_topic_lifecycle(student_id)
 
     def create_mission(self, values: dict[str, object]) -> object:
-        mission = self._uow.missions.create({**values, "id": uuid4()})
+        mission = self._uow.missions.create({**self._prepare_task_link(values), "id": uuid4()})
         self._uow.commit()
-        return mission
+        return self._mission_payload(mission)
 
     def update_mission(self, mission_id: UUID, values: dict[str, object]) -> object:
+        existing = self._uow.missions.get_for_attempt(mission_id)
+        values = self._prepare_task_link(values, existing)
         mission = self._uow.missions.update(mission_id, values)
         self._uow.commit()
-        return mission
+        return self._mission_payload(mission)
+
+    def _prepare_task_link(
+        self,
+        values: dict[str, object],
+        existing_mission: object | None = None,
+    ) -> dict[str, object]:
+        task_id = values.get("task_id")
+        if task_id is None:
+            return values
+        if not isinstance(task_id, UUID):
+            raise TypeError("task_id must be a UUID")
+        task = self._uow.tasks.get(task_id)
+        if task.status != TaskStatus.APPROVED:
+            raise ValueError("Mission can only reference an approved task.")
+        subject = values.get("subject") or getattr(existing_mission, "subject", None)
+        if subject is not None and subject != task.subject:
+            raise ValueError("Mission subject must match the task subject.")
+        topic_id = values.get("topic_id") or getattr(existing_mission, "topic_id", None)
+        if task.topic_id is not None:
+            if topic_id is not None and topic_id != task.topic_id:
+                raise ValueError("Mission topic must match the task topic.")
+            values["topic_id"] = task.topic_id
+        return values
 
     def record_score_event(self, values: dict[str, object]) -> object:
-        event = self._uow.scores.add_event({**values, "id": uuid4(), "occurred_on": values.get("occurred_on") or self._today()})
+        event = self._uow.scores.add_event(
+            {**values, "id": uuid4(), "occurred_on": values.get("occurred_on") or self._today()}
+        )
         self._uow.commit()
         return event
 
@@ -149,6 +210,7 @@ class LearningService:
             raise TypeError("mission_id must be a UUID")
 
         mission = self._uow.missions.get_for_attempt(mission_id)
+        task = self._uow.tasks.get(mission.task_id) if mission.task_id is not None else None
         submitted_at = datetime.now(UTC)
         attempt = self._uow.attempts.add(
             {
@@ -173,9 +235,11 @@ class LearningService:
                 mode=attempt.mode,
                 answer_text=attempt.answer_text,
                 code_text=attempt.code_text,
-                expected_answer=mission.expected_answer,
+                expected_answer=task.expected_answer
+                if task is not None
+                else mission.expected_answer,
                 threshold_percent=mission.threshold_percent,
-                instructions=mission.instructions,
+                instructions=self._review_instructions(mission, task),
             )
         )
         status = draft.status or evidence_status(draft.score_percent, mission.threshold_percent)
@@ -210,7 +274,14 @@ class LearningService:
             "next_action": draft.next_action,
         }
 
-    def apply_manual_decision(self, evidence_id: UUID, values: dict[str, object]) -> dict[str, object]:
+    def _review_instructions(self, mission: object, task: object | None) -> str:
+        if task is None:
+            return mission.instructions
+        return f"Task:\n{task.statement}\n\nInstructions:\n{mission.instructions}"
+
+    def apply_manual_decision(
+        self, evidence_id: UUID, values: dict[str, object]
+    ) -> dict[str, object]:
         source = self._uow.evidence.get(evidence_id)
         mission = self._uow.missions.get_for_attempt(source.mission_id)
         status = values["status"]
@@ -220,9 +291,13 @@ class LearningService:
         score_percent = values.get("score_percent")
         if score_percent is None:
             score_percent = 100.0 if status == EvidenceStatus.PASSED else 0.0
-        category = values.get("error_category") or (ErrorCategory.NONE if status == EvidenceStatus.PASSED else ErrorCategory.OTHER)
+        category = values.get("error_category") or (
+            ErrorCategory.NONE if status == EvidenceStatus.PASSED else ErrorCategory.OTHER
+        )
         feedback = values.get("feedback") or "Manual guardian review applied."
-        next_action = values.get("next_action") or ("Topic accepted." if status == EvidenceStatus.PASSED else "Repeat this mission.")
+        next_action = values.get("next_action") or (
+            "Topic accepted." if status == EvidenceStatus.PASSED else "Repeat this mission."
+        )
         evidence = self._uow.evidence.add(
             {
                 "id": uuid4(),
@@ -276,12 +351,17 @@ class RuleBasedReviewer:
             status = EvidenceStatus.FAILED
             score = 50.0
             feedback = "The method is close, but signs or term transfer changed the answer."
-            next_action = "Do three short equations focused only on moving terms across the equality sign."
+            next_action = (
+                "Do three short equations focused only on moving terms across the equality sign."
+            )
         elif "одз" in text and "не учитываю" in text:
             category = ErrorCategory.ODZ_LOGIC
             status = EvidenceStatus.FAILED
             score = 50.0
-            feedback = "The domain restriction was applied too broadly. Check each candidate root separately."
+            feedback = (
+                "The domain restriction was applied too broadly. "
+                "Check each candidate root separately."
+            )
             next_action = "Practice two examples where ODZ removes one root but keeps the other."
         return EvidenceDraft(
             score,

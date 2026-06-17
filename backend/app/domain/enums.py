@@ -66,6 +66,11 @@ class ReviewStatus(StrEnum):
     BACK_TO_WORK = "back_to_work"
 
 
+class TaskStatus(StrEnum):
+    DRAFT = "draft"
+    APPROVED = "approved"
+
+
 class TopicState(StrEnum):
     OPEN = "open"
     IN_WORK = "in_work"

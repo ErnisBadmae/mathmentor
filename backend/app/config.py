@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -15,12 +16,22 @@ class LlmConnection:
     timeout: float
 
 
+_REPO_ENV = Path(__file__).resolve().parents[2] / ".env"
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=(_REPO_ENV, ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     app_env: str = "local"
     database_url: str = "postgresql+psycopg://ege:ege@localhost:5434/ege_mentor"
-    api_cors_origins: str = "http://localhost:5174,http://127.0.0.1:5174"
+    # LAN pilot is opened from the parent machine, the child's phone and docker web,
+    # so the default allows any origin. Auth is a header token (not cookies), so a
+    # wildcard is safe here. Set a comma-separated list to lock it down.
+    api_cors_origins: str = "*"
     api_shared_token: str = ""
     invite_bootstrap_code: str = "family-pilot"
     local_timezone: str = "Europe/Moscow"

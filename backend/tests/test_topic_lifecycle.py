@@ -29,7 +29,7 @@ from scripts import seed as seed_module
 
 STUDENT = seed_module.DEMO_STUDENT_ID
 LOG_TOPIC = "Уравнения и неравенства с ОДЗ"
-PERCENT_TOPIC = "Текстовые задачи на проценты"
+PERCENT_TOPIC = "Вероятность: теорема сложения"
 
 
 class StaticReviewer:

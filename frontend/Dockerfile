@@ -5,7 +5,9 @@ COPY package*.json ./
 RUN npm install --no-audit --no-fund
 COPY . .
 ARG VITE_API_BASE=/api
+ARG VITE_API_TOKEN=
 ENV VITE_API_BASE=$VITE_API_BASE
+ENV VITE_API_TOKEN=$VITE_API_TOKEN
 RUN npm run build
 
 FROM nginx:1.27-alpine

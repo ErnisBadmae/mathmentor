@@ -39,12 +39,19 @@ export function DailyWorkPage() {
           {missions?.length ? missions.map((item) => (
             <button className={item.id === mission?.id ? 'missionButton active' : 'missionButton'} key={item.id} onClick={() => setSelectedMission(item.id)} type="button">
               <strong>{item.title}</strong>
-              <span>{item.subject} · порог {item.threshold_percent}%</span>
+              {item.statement ? <span className="missionPreview">{item.statement}</span> : null}
+              <span className="missionMeta">{item.subject} · порог {item.threshold_percent}%</span>
             </button>
           )) : <p className="muted">Активных миссий пока нет.</p>}
         </div>
         <div className="panel attemptPanel">
           <h2>{mission?.title ?? 'Выберите миссию'}</h2>
+          {mission?.statement ? (
+            <div className="taskStatement">
+              <span>Условие</span>
+              <p>{mission.statement}</p>
+            </div>
+          ) : null}
           <p className="muted">{mission?.instructions ?? 'Чтобы увидеть условие, выберите миссию слева.'}</p>
           <textarea value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Введите ответ так, как написали бы его на чистовике экзамена" />
           <div className="attemptControls">

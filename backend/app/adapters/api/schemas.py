@@ -3,7 +3,17 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.domain.enums import AiPolicy, AttemptKind, AttemptMode, ErrorCategory, EvidenceStatus, MissionStatus, ReviewStatus, Subject, TopicState
+from app.domain.enums import (
+    AiPolicy,
+    AttemptKind,
+    AttemptMode,
+    ErrorCategory,
+    EvidenceStatus,
+    MissionStatus,
+    ReviewStatus,
+    Subject,
+    TopicState,
+)
 
 
 class StudentOut(BaseModel):
@@ -55,6 +65,7 @@ class MissionOut(BaseModel):
     subject: Subject
     title: str
     instructions: str
+    statement: str | None = None
     threshold_percent: float
     due_date: date | None = None
     timebox_minutes: int | None = None
@@ -71,6 +82,7 @@ class MissionCreateIn(BaseModel):
     ai_policy: AiPolicy = AiPolicy.ATTEMPT_FIRST
     threshold_percent: float = Field(default=80.0, ge=0, le=100)
     topic_id: UUID | None = None
+    task_id: UUID | None = None
     due_date: date | None = None
     timebox_minutes: int | None = Field(default=None, ge=0, le=600)
     source_ref: str | None = None
@@ -85,6 +97,7 @@ class MissionUpdateIn(BaseModel):
     ai_policy: AiPolicy | None = None
     threshold_percent: float | None = Field(default=None, ge=0, le=100)
     topic_id: UUID | None = None
+    task_id: UUID | None = None
     due_date: date | None = None
     timebox_minutes: int | None = Field(default=None, ge=0, le=600)
     source_ref: str | None = None

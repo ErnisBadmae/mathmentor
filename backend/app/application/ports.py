@@ -3,7 +3,14 @@ from datetime import date
 from typing import Protocol
 from uuid import UUID
 
-from app.domain.enums import AttemptKind, AttemptMode, ErrorCategory, EvidenceStatus, ReviewStatus, Subject
+from app.domain.enums import (
+    AttemptKind,
+    AttemptMode,
+    ErrorCategory,
+    EvidenceStatus,
+    ReviewStatus,
+    Subject,
+)
 
 
 @dataclass(frozen=True)
@@ -46,6 +53,7 @@ class UnitOfWork(Protocol):
     reviews: "ReviewRepository"
     scores: "ScoreRepository"
     topics: "TopicRepository"
+    tasks: "TaskRepository"
 
     def commit(self) -> None: ...
     def rollback(self) -> None: ...
@@ -108,3 +116,8 @@ class ScoreRepository(Protocol):
 class TopicRepository(Protocol):
     def get(self, topic_id: UUID) -> object | None: ...
     def list_topic_lifecycle(self, student_id: UUID) -> list[dict[str, object]]: ...
+
+
+class TaskRepository(Protocol):
+    def get(self, task_id: UUID) -> object: ...
+    def add(self, values: dict[str, object]) -> object: ...

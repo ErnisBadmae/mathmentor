@@ -1,4 +1,5 @@
 import json
+import re
 
 import httpx
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -21,6 +22,26 @@ RESPONSE_SCHEMA = {
     "required": ["score_percent", "error_category", "feedback", "next_action"],
     "additionalProperties": False,
 }
+
+PHONE_NOTATION_HINT = (
+    "Ученики могут писать с телефона. Перед оценкой учитывай такие сокращения:\n"
+    "- >_ и >= означают >= (больше или равно).\n"
+    "- <_ и <= означают <= (меньше или равно).\n"
+    "- кириллическая х/Х может означать латинскую x.\n"
+    "- Не снижай балл только за формат записи, если математический смысл ясен.\n"
+    "- Но неправильное включение границы всё равно является ошибкой: "
+    "для (x-1)/(x+2) >= 0 ответ x >= 1 или x <= -2 неверен, "
+    "потому что x = -2 запрещён знаменателем; слева должно быть x < -2.\n"
+)
+
+
+def normalize_student_notation(text: str | None) -> str | None:
+    if text is None:
+        return None
+    normalized = text.replace("х", "x").replace("Х", "X")
+    normalized = re.sub(r">\s*_", ">=", normalized)
+    normalized = re.sub(r"<\s*_", "<=", normalized)
+    return normalized
 
 
 class LlmEvidencePayload(BaseModel):
@@ -72,8 +93,11 @@ class OpenAICompatibleReviewer:
         system = (
             "You review EGE preparation attempts. Do not solve before the student's attempt. "
             "Return strict JSON with keys: score_percent, error_category, feedback, next_action. "
-            "feedback и next_action пиши на русском языке.\n" + CATEGORY_RUBRIC
+            "feedback и next_action пиши на русском языке.\n"
+            + PHONE_NOTATION_HINT
+            + CATEGORY_RUBRIC
         )
+        normalized_answer_text = normalize_student_notation(attempt.answer_text)
         user = {
             "subject": attempt.subject,
             "mission_title": attempt.mission_title,
@@ -82,6 +106,7 @@ class OpenAICompatibleReviewer:
             "kind": attempt.kind,
             "mode": attempt.mode,
             "answer_text": attempt.answer_text,
+            "answer_text_normalized": normalized_answer_text,
             "code_text": attempt.code_text,
             "expected_answer": attempt.expected_answer,
             "threshold_percent": attempt.threshold_percent,
