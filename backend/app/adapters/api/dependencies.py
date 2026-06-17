@@ -21,5 +21,6 @@ def require_api_token(
 
 def get_learning_service(session: Session = Depends(get_session)) -> Generator[LearningService, None, None]:
     settings = get_settings()
-    reviewer = OpenAICompatibleReviewer(settings) if settings.llm_provider == "openai_compatible" else RuleBasedReviewer()
+    connection = settings.llm_connection()
+    reviewer = OpenAICompatibleReviewer(connection) if connection else RuleBasedReviewer()
     yield LearningService(SqlAlchemyUnitOfWork(session), reviewer, settings.local_timezone)

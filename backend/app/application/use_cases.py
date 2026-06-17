@@ -146,6 +146,7 @@ class LearningService:
                 code_text=attempt.code_text,
                 expected_answer=mission.expected_answer,
                 threshold_percent=mission.threshold_percent,
+                instructions=mission.instructions,
             )
         )
         status = draft.status or evidence_status(draft.score_percent, mission.threshold_percent)

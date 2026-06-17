@@ -17,6 +17,7 @@ class AttemptForReview:
     code_text: str | None
     expected_answer: str | None
     threshold_percent: float
+    instructions: str | None = None
 
 
 @dataclass(frozen=True)

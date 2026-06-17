@@ -1,0 +1,86 @@
+# Golden error-category replay (REQUIREMENTS §14).
+# Мало сценариев, но каждый — реальная наблюдённая ошибка из корпуса ЕГЭ.
+# mainline = blocking (ведущие ошибки, на которых строится next-mission план),
+# expanded = advisory. Запуск против живой локальной модели:
+#   python scripts/llm_review_gate.py --tier mainline
+
+- name: probability_double_count
+  tier: mainline
+  subject: math_profile
+  kind: text
+  expected_category: probability_double_count
+  expected_answer: "0.58"
+  answer_text: |
+    Считаю вероятность, что сработает хотя бы один из двух независимых датчиков.
+    Взял P(A) + P(B) и не вычел пересечение P(A и B), посчитал общую часть дважды.
+    Получил 0.7 вместо правильного значения.
+  must_contain_any: ["пересеч", "дважды", "вероятн"]
+
+- name: arithmetic_transfer
+  tier: mainline
+  subject: math_profile
+  kind: text
+  expected_category: arithmetic
+  expected_answer: "5"
+  answer_text: |
+    Решаю 2x - 1 = 9. Перенёс единицу и получил 2x = 8 вместо 2x = 10,
+    дальше x = 4. Где-то ошибся в арифметике при переносе числа.
+
+- name: sign_transfer
+  tier: mainline
+  subject: math_profile
+  kind: text
+  expected_category: sign_transfer
+  expected_answer: "4"
+  answer_text: |
+    Переносил слагаемые через знак равенства, но не поменял знак у перенесённого
+    члена. В итоге получил -4, хотя правильный ответ 4.
+
+- name: condition_reading
+  tier: mainline
+  subject: math_profile
+  kind: text
+  expected_category: condition_reading
+  expected_answer: "наибольший корень"
+  answer_text: |
+    Уравнение решил верно, нашёл оба корня 2 и 7. Но в ответ записал меньший
+    корень, хотя в условии просили наибольший. Решение правильное, ответ не тот,
+    что требовался.
+
+- name: odz_logic
+  tier: mainline
+  subject: math_profile
+  kind: text
+  expected_category: odz_logic
+  expected_answer: "x = 3"
+  answer_text: |
+    Нашёл корни x = 3 и x = -2. ОДЗ нарушает только x = -2 (обнуляет знаменатель),
+    но я отбросил сразу оба корня и написал, что решений нет.
+  must_contain_any: ["одз", "знаменател", "корн"]
+
+- name: code_syntax
+  tier: expanded
+  subject: informatics
+  kind: code
+  expected_category: code_syntax
+  code_text: |
+    n = int(input())
+    for i in range(n)
+        print(i)
+  answer_text: "Цикл не запускается, Python ругается на строку с for."
+
+- name: code_algorithm
+  tier: expanded
+  subject: informatics
+  kind: code
+  expected_category: code_algorithm
+  code_text: |
+    s = "abcabc"
+    count = 0
+    for i in range(len(s)):
+        if s[i] == "a":
+            count = 1
+    print(count)
+  answer_text: |
+    Нужно посчитать количество букв 'a' в строке, но я присваиваю count = 1
+    вместо count += 1, поэтому всегда получаю 1 вместо настоящего количества.

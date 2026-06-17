@@ -129,7 +129,8 @@ The first DB-backed LAN v1 slice is implemented. Next work should harden pilot u
 
 ### Step 1: Real LAN Smoke
 
-- Copy `.env.example` to `.env`, set `API_SHARED_TOKEN`, and point `OPENAI_COMPAT_*` at the real reviewer.
+- Copy `.env.example` to `.env`, set `API_SHARED_TOKEN`, choose `LLM_PROVIDER` (`llama_cpp` or `vllm`), and point the matching `LLAMA_CPP_*` / `VLLM_*` vars at the real local model.
+- Before trusting a new model/prompt/rubric version, replay the golden gate against the live model: `backend\.venv312\Scripts\python.exe backend\scripts\llm_review_gate.py --tier mainline`.
 - Run `.\scripts\prod_up.ps1`.
 - Open the printed LAN URL from the parent machine and the child's phone.
 - Submit one math attempt and one informatics code attempt, including a manual-review path.
@@ -160,6 +161,7 @@ The first DB-backed LAN v1 slice is implemented. Next work should harden pilot u
 ## Useful References
 
 - `README.md`
+- `docs/REQUIREMENTS.md`
 - `docs/ARCHITECTURE.md`
 - `docs/PRODUCT_DECISIONS.md`
 - `backend/app/domain/policies.py`
