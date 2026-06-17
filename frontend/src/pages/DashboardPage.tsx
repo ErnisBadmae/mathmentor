@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { errorMessage, getCurrentStudent, getDashboard } from '../shared/api/client';
+import { errorMessage, getCurrentStudent, getDashboard, getDiagnostics } from '../shared/api/client';
 
 function subjectLabel(subject: string) {
   return subject === 'math_profile' ? 'Профильная математика' : 'Информатика';
@@ -11,6 +11,11 @@ export function DashboardPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard', studentId],
     queryFn: () => getDashboard(studentId ?? ''),
+    enabled: Boolean(studentId),
+  });
+  const diagnosticsQuery = useQuery({
+    queryKey: ['diagnostics', studentId],
+    queryFn: () => getDiagnostics(studentId ?? ''),
     enabled: Boolean(studentId),
   });
 
@@ -41,6 +46,23 @@ export function DashboardPage() {
           <strong>{data?.due_reviews ?? 0}</strong>
           <small>Карточек к повторению</small>
         </article>
+      </div>
+      <div className="panel">
+        <h2>Диагностика (срезы)</h2>
+        <div className="tableList">
+          {diagnosticsQuery.data?.length ? diagnosticsQuery.data.map((srez) => (
+            <article className="tableRow" key={`${srez.label}-${srez.occurred_on}`}>
+              <div>
+                <strong>{srez.label}</strong>
+                <span>{subjectLabel(srez.subject)} · {new Date(srez.occurred_on).toLocaleDateString('ru-RU')}</span>
+              </div>
+              <div>
+                <b>{srez.tasks_correct}/{srez.tasks_total}</b>
+                <small>{Math.round(srez.percent * 100)}%</small>
+              </div>
+            </article>
+          )) : <p className="muted">Срезов пока нет.</p>}
+        </div>
       </div>
       <div className="panel">
         <h2>Топ ошибок</h2>

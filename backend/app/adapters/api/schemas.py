@@ -56,6 +56,9 @@ class TopicLifecycleOut(BaseModel):
     reviews_done: int
     back_to_work_reviews: int
     error_count: int
+    attempts_count: int
+    solved_count: int
+    tasks_in_bank: int
     top_error_category: ErrorCategory | None = None
     last_activity_at: datetime | None = None
 
@@ -68,6 +71,10 @@ class ProgramTopicOut(BaseModel):
     state: TopicState
     error_count: int
     reviews_due_today: int
+    tasks_in_bank: int
+    solved_count: int
+    attempts_count: int
+    percent: int | None = None
 
 
 class ProgramCoverageOut(BaseModel):
@@ -83,8 +90,19 @@ class ProgramPhaseOut(BaseModel):
     start_date: date
     end_date: date
     is_current: bool
+    percent: int
     coverage: ProgramCoverageOut
     topics: list[ProgramTopicOut]
+
+
+class DiagnosticOut(BaseModel):
+    occurred_on: date
+    subject: Subject
+    label: str
+    tasks_total: int
+    tasks_correct: int
+    percent: float
+    note: str | None = None
 
 
 class MissionOut(BaseModel):

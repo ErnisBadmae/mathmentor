@@ -50,6 +50,9 @@ export type TopicLifecycle = {
   reviews_done: number;
   back_to_work_reviews: number;
   error_count: number;
+  attempts_count: number;
+  solved_count: number;
+  tasks_in_bank: number;
   top_error_category: ErrorCategory | null;
   last_activity_at: string | null;
 };
@@ -62,6 +65,10 @@ export type ProgramTopic = {
   state: TopicState;
   error_count: number;
   reviews_due_today: number;
+  tasks_in_bank: number;
+  solved_count: number;
+  attempts_count: number;
+  percent: number | null;
 };
 
 export type ProgramPhase = {
@@ -70,8 +77,19 @@ export type ProgramPhase = {
   start_date: string;
   end_date: string;
   is_current: boolean;
+  percent: number;
   coverage: { confirmed: number; in_progress: number; open: number; total: number };
   topics: ProgramTopic[];
+};
+
+export type Diagnostic = {
+  occurred_on: string;
+  subject: Subject;
+  label: string;
+  tasks_total: number;
+  tasks_correct: number;
+  percent: number;
+  note: string | null;
 };
 
 export type Mission = {
@@ -190,6 +208,10 @@ export function getTopicLifecycle(studentId: string): Promise<TopicLifecycle[]> 
 
 export function getProgram(studentId: string): Promise<ProgramPhase[]> {
   return request<ProgramPhase[]>(`/students/${studentId}/program`);
+}
+
+export function getDiagnostics(studentId: string): Promise<Diagnostic[]> {
+  return request<Diagnostic[]>(`/students/${studentId}/diagnostics`);
 }
 
 export function getErrors(studentId: string): Promise<ErrorEvent[]> {

@@ -90,9 +90,11 @@ Manual mission creation is priority 1 product capability, not a later nice-to-ha
 
 `subject_track`: current and target exam score by subject. `current_score` is moved only by score events.
 
-`topic`: a learning unit, often mapped to an EGE task number or type. Topic lifecycle is computed from missions, evidence and reviews; no stored topic status is required for v1.
+`topic`: a learning unit, often mapped to an EGE task number or type. Topic lifecycle is computed from missions, evidence and reviews; no stored topic status is required for v1. Implemented: a topic also carries an optional `phase`/`program_order` linking it to a program phase (see §17a).
 
-`mission`: a concrete assignment to the student. A mission can represent one task, a small review block, or a daily practice set. The standard daily topic mission represents one practice set, usually 10 tasks, not 10 separate missions.
+`task`: a vetted item in the task bank — statement + `expected_answer` (+ optional `solution`), with `status` (`draft`/`approved`), provenance (`source`, `model_id`, `prompt_version`, `source_ref`) and an optional `topic`. Only `approved` tasks may be referenced by missions. A senior LLM may author tasks offline into `draft`; missions/grading never see unapproved tasks. The answer key is never exposed to the student.
+
+`mission`: a concrete assignment to the student. A mission can represent one task, a small review block, or a daily practice set. The standard daily topic mission represents one practice set, usually 10 tasks, not 10 separate missions. A mission may reference a bank `task` (`task_id`); its statement and answer key then come from the task.
 
 `attempt`: one submitted attempt. Append-only.
 
@@ -129,7 +131,7 @@ REPEAT -> REPEAT   on evidence FAILED
 
 `NEEDS_MANUAL_REVIEW` does not change mission status.
 
-`PLANNED` and `SKIPPED` are declared in code but not product-supported in v1 flows. They must not be exposed in operator UI until their transitions are specified. If they remain unused after requirements are stable, remove them rather than expanding behavior speculatively.
+`PLANNED` was removed (unused). `SKIPPED` is retained and used to retire duplicate missions during seed/dedup; it is not part of the student-facing flow and must not be exposed in operator UI as a transition target.
 
 ## 7. Evidence State
 
@@ -354,7 +356,7 @@ Meaning:
 - AI or reviewer feedback happens only after submission.
 - Reviewer output is evidence, not coaching authority.
 
-`BLOCKED` and `ALLOWED_AFTER_ATTEMPT` are declared in code but not product-supported as separate behavior in v1. They must not be exposed in UI until specific transitions and use cases are defined. If no real need appears, remove them to stay aligned with `.claude/rules/simplicity.md`.
+`BLOCKED` and `ALLOWED_AFTER_ATTEMPT` were removed (unused) per `.claude/rules/simplicity.md`. `ATTEMPT_FIRST` is the only `AiPolicy`.
 
 ## 16. Import Mapping
 
@@ -401,6 +403,16 @@ External calibration:
 - December 2026: external mock exam.
 - March 2027: external mock exam.
 - If external result is much lower than home variants, home conditions are too soft and must be tightened.
+
+## 17a. Program Phases And Controller View
+
+The prep program from `контроль` is modelled as fixed phase metadata in code (`app/domain/program.py`: key, label, date window, order), not a DB table. Each program `topic` carries an optional `phase`/`program_order`. June and July–August are seeded granularly (Slice 1/2/3); later phases (Sept–May) are coarse milestones without topics.
+
+The controller view overlays the computed topic lifecycle (§9) on program topics, grouped by phase, with coverage (confirmed/in_progress/open/total), a phase percent, and per-topic progress by the task bank (`solved / tasks_in_bank`, `—` when the bank has no tasks for the topic). Diagnostic slices (срезы) are surfaced from `study_log_entry` so prior work is visible. The student never sees task answer keys.
+
+## 17b. Implementation Status (2026-06-17)
+
+Beyond the v1 baseline, the following is implemented: local LLM reviewer with provider switch (`llama_cpp`/`vllm`) using constrained decoding + fail-closed manual review; a golden replay gate for error-category classification; task bank with approval/provenance; computed topic lifecycle (§9) including failed-review → new ACTIVE mission (§8); program/controller progress view (§17a); срез diagnostics + per-topic progress; and the §11 newest-by-`occurred_on` score rule. Still open (P1): daily practice-set first-class `tasks_total`/`tasks_correct` (§10); guardian mission-create and score-event UI on the frontend (§19); golden error fixtures as in-suite regression.
 
 ## 18. Acceptance Tests
 

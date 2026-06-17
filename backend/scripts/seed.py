@@ -14,9 +14,11 @@ from app.domain.enums import AiPolicy, ErrorCategory, MissionStatus, Role, Subje
 from app.infrastructure.db import SessionLocal
 from app.infrastructure.models import (
     CleanSheetEventORM,
+    ErrorEventORM,
     MissionORM,
     ScoreEventORM,
     StudentProfileORM,
+    StudyLogEntryORM,
     SubjectTrackORM,
     TaskORM,
     TopicORM,
@@ -720,6 +722,60 @@ def seed() -> None:
             else:
                 topic.phase = phase_key
                 topic.program_order = order
+
+        # Срез-история (диагностика, §11): study-log результаты + ошибки журнала.
+        # Источник: Desktop\ЕГЭ\срезы знаний\история первых срезов.md. Идемпотентно по source_ref.
+        srez_date = date(2026, 6, 7)
+        srez_log = [
+            ("srez:1:studylog", "Срез №1 — 4 темы", 12, 10),
+            ("srez:2:studylog", "Срез №2 — без вероятности", 9, 8),
+        ]
+        for index, (source_ref, title, total, correct) in enumerate(srez_log, start=1):
+            if session.query(StudyLogEntryORM).filter_by(source_ref=source_ref).first() is None:
+                session.add(
+                    StudyLogEntryORM(
+                        id=stable_uuid(6000 + index),
+                        student_id=DEMO_STUDENT_ID,
+                        subject=Subject.MATH_PROFILE,
+                        occurred_on=srez_date,
+                        topic_title=title,
+                        tasks_total=total,
+                        tasks_correct=correct,
+                        percent_correct=correct / total,
+                        status_note="зачёт" if correct / total >= 0.8 else None,
+                        note="Импортировано из истории срезов.",
+                        source_ref=source_ref,
+                    )
+                )
+        probability_topic = topic_objs.get((Subject.MATH_PROFILE, "Вероятность: теорема сложения"))
+        srez_errors = [
+            (
+                "srez:1:err:probability",
+                probability_topic.id if probability_topic is not None else None,
+                ErrorCategory.PROBABILITY_DOUBLE_COUNT,
+                "Двойной счёт в теореме сложения: взяла P(A) вместо P(только A).",
+            ),
+            (
+                "srez:2:err:logdiff",
+                None,
+                ErrorCategory.OTHER,
+                "Разность логарифмов log2(24)-log2(3): знала направление, не довела (нет уверенности).",
+            ),
+        ]
+        for index, (source_ref, topic_id, category, detail) in enumerate(srez_errors, start=1):
+            if session.query(ErrorEventORM).filter_by(source_ref=source_ref).first() is None:
+                session.add(
+                    ErrorEventORM(
+                        id=stable_uuid(6100 + index),
+                        student_id=DEMO_STUDENT_ID,
+                        subject=Subject.MATH_PROFILE,
+                        topic_id=topic_id,
+                        category=category,
+                        detail=detail,
+                        created_at=datetime.combine(srez_date, datetime.min.time(), tzinfo=UTC),
+                        source_ref=source_ref,
+                    )
+                )
 
         task_by_ref: dict[str, TaskORM] = {}
         for task_spec in TASKS:

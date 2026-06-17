@@ -175,7 +175,7 @@ def test_local_model_review_closes_mission_end_to_end(seeded_session, llm_http):
     assert seeded_session.get(MissionORM, mission.id).status == MissionStatus.DONE
     evidence = seeded_session.get(EvidenceORM, result["evidence_id"])
     assert evidence.model_id == "Qwen3.6-35B-A3B-Q5-256K"
-    assert evidence.prompt_version == "attempt-review-v2"
+    assert evidence.prompt_version == "attempt-review-v3"
 
 
 def test_failed_local_review_marks_repeat_end_to_end(seeded_session, llm_http):

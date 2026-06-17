@@ -13,11 +13,10 @@ class Role(StrEnum):
 
 
 class MissionStatus(StrEnum):
-    PLANNED = "planned"
     ACTIVE = "active"
     DONE = "done"
     REPEAT = "repeat"
-    SKIPPED = "skipped"
+    SKIPPED = "skipped"  # used to retire duplicate missions during seed/dedup
 
 
 class AttemptMode(StrEnum):
@@ -35,8 +34,6 @@ class AttemptKind(StrEnum):
 
 class AiPolicy(StrEnum):
     ATTEMPT_FIRST = "attempt_first"
-    BLOCKED = "blocked"
-    ALLOWED_AFTER_ATTEMPT = "allowed_after_attempt"
 
 
 class EvidenceStatus(StrEnum):

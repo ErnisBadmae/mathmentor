@@ -150,6 +150,12 @@ class LearningService:
                 by_phase.get(phase.key, []),
                 key=lambda r: (r["program_order"] or 0, r["topic_title"]),
             )
+            for topic in topics:
+                bank = topic["tasks_in_bank"]
+                # progress by the task bank (user choice): solved / bank tasks, or None.
+                topic["percent"] = round(topic["solved_count"] / bank * 100) if bank else None
+            confirmed = sum(1 for t in topics if t["state"] == TopicState.CONFIRMED)
+            total = len(topics)
             phases_out.append(
                 {
                     "key": phase.key,
@@ -157,16 +163,20 @@ class LearningService:
                     "start_date": phase.start,
                     "end_date": phase.end,
                     "is_current": phase.key == current,
+                    "percent": round(confirmed / total * 100) if total else 0,
                     "coverage": {
-                        "confirmed": sum(1 for t in topics if t["state"] == TopicState.CONFIRMED),
+                        "confirmed": confirmed,
                         "in_progress": sum(1 for t in topics if t["state"] in in_progress_states),
                         "open": sum(1 for t in topics if t["state"] == TopicState.OPEN),
-                        "total": len(topics),
+                        "total": total,
                     },
                     "topics": topics,
                 }
             )
         return phases_out
+
+    def list_diagnostics(self, student_id: UUID) -> list[dict[str, object]]:
+        return self._uow.dashboard.list_diagnostics(student_id)
 
     def create_mission(self, values: dict[str, object]) -> object:
         mission = self._uow.missions.create({**self._prepare_task_link(values), "id": uuid4()})

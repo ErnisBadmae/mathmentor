@@ -87,6 +87,7 @@ class EvidenceRepository(Protocol):
 
 class DashboardRepository(Protocol):
     def get_dashboard(self, student_id: UUID) -> dict[str, object]: ...
+    def list_diagnostics(self, student_id: UUID) -> list[dict[str, object]]: ...
 
 
 class ErrorRepository(Protocol):

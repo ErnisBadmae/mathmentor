@@ -295,4 +295,5 @@ def test_srez_like_scenario_surfaces_weak_topics(seeded_session):
     assert rows[LOG_TOPIC]["state"] == TopicState.IN_WORK
     assert rows[LOG_TOPIC]["top_error_category"] == ErrorCategory.SIGN_TRANSFER
     assert rows[PERCENT_TOPIC]["state"] == TopicState.CONFIRMED
-    assert rows[PERCENT_TOPIC]["error_count"] == 0
+    # passed topic shows real progress; it may still carry historical срез errors
+    assert rows[PERCENT_TOPIC]["solved_count"] >= 1

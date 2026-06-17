@@ -14,6 +14,7 @@ from app.domain.enums import (
     MissionStatus,
     ReviewStatus,
     Subject,
+    TaskStatus,
     TopicState,
 )
 from app.domain.policies import compute_topic_state
@@ -26,6 +27,7 @@ from app.infrastructure.models import (
     ReviewItemORM,
     ScoreEventORM,
     StudentProfileORM,
+    StudyLogEntryORM,
     SubjectTrackORM,
     TaskORM,
     TopicORM,
@@ -292,6 +294,26 @@ class DashboardSqlRepository:
             "due_reviews": due_reviews,
         }
 
+    def list_diagnostics(self, student_id: UUID) -> list[dict[str, object]]:
+        """Diagnostic slices (срезы) from the study log — the work already done."""
+        entries = self.session.scalars(
+            select(StudyLogEntryORM)
+            .where(StudyLogEntryORM.student_id == student_id)
+            .order_by(StudyLogEntryORM.occurred_on.desc())
+        ).all()
+        return [
+            {
+                "occurred_on": entry.occurred_on,
+                "subject": entry.subject,
+                "label": entry.topic_title,
+                "tasks_total": entry.tasks_total,
+                "tasks_correct": entry.tasks_correct,
+                "percent": entry.percent_correct,
+                "note": entry.note,
+            }
+            for entry in entries
+        ]
+
 
 class StudentSqlRepository:
     def __init__(self, session: Session) -> None:
@@ -403,6 +425,14 @@ class ScoreSqlRepository:
             if existing is not None:
                 return existing
         event = ScoreEventORM(**values)
+        # current_score must reflect the newest event by occurred_on (REQUIREMENTS §11):
+        # a backfilled older event must not regress the score.
+        prior_latest = self.session.scalar(
+            select(func.max(ScoreEventORM.occurred_on))
+            .where(ScoreEventORM.student_id == event.student_id)
+            .where(ScoreEventORM.subject == event.subject)
+        )
+        is_newest = prior_latest is None or event.occurred_on >= prior_latest
         self.session.add(event)
         track = self.session.scalar(
             select(SubjectTrackORM)
@@ -419,7 +449,7 @@ class ScoreSqlRepository:
                 phase="foundation",
             )
             self.session.add(track)
-        else:
+        elif is_newest:
             track.current_score = event.score
         self.session.flush()
         return event
@@ -431,6 +461,16 @@ class TopicSqlRepository:
 
     def get(self, topic_id: UUID) -> TopicORM | None:
         return self.session.get(TopicORM, topic_id)
+
+    def _approved_task_counts(self) -> list[tuple[UUID, int]]:
+        return list(
+            self.session.execute(
+                select(TaskORM.topic_id, func.count(TaskORM.id))
+                .where(TaskORM.status == TaskStatus.APPROVED)
+                .where(TaskORM.topic_id.is_not(None))
+                .group_by(TaskORM.topic_id)
+            ).all()
+        )
 
     def list_topic_lifecycle(self, student_id: UUID) -> list[dict[str, object]]:
         """Per-topic computed lifecycle (REQUIREMENTS §9). A topic is listed if it has
@@ -449,6 +489,9 @@ class TopicSqlRepository:
                     "reviews_done": 0,
                     "back_to_work_reviews": 0,
                     "error_count": 0,
+                    "attempts_count": 0,
+                    "solved_count": 0,
+                    "tasks_in_bank": 0,
                     "last_activity_at": None,
                     "errors_by_category": {},
                 },
@@ -466,27 +509,39 @@ class TopicSqlRepository:
             if status in (MissionStatus.ACTIVE, MissionStatus.REPEAT):
                 s["active_missions"] += count
 
-        # Evidence: latest activity + whether the topic was ever passed.
+        # Evidence: latest activity, attempt count, and whether the topic was ever passed.
         evidence_rows = self.session.execute(
-            select(EvidenceORM.topic_id, func.max(EvidenceORM.created_at))
+            select(
+                EvidenceORM.topic_id,
+                func.max(EvidenceORM.created_at),
+                func.count(EvidenceORM.id),
+            )
             .where(EvidenceORM.student_id == student_id)
             .where(EvidenceORM.topic_id.is_not(None))
             .group_by(EvidenceORM.topic_id)
         ).all()
-        for topic_id, last_created in evidence_rows:
+        for topic_id, last_created, attempts in evidence_rows:
             s = slot(topic_id)
             s["last_activity_at"] = _max_dt(s["last_activity_at"], last_created)
-        passed_topics = set(
-            self.session.scalars(
-                select(EvidenceORM.topic_id)
-                .where(EvidenceORM.student_id == student_id)
-                .where(EvidenceORM.status == EvidenceStatus.PASSED)
-                .where(EvidenceORM.topic_id.is_not(None))
-                .distinct()
-            ).all()
-        )
-        for topic_id in passed_topics:
-            slot(topic_id)["passed"] = True
+            s["attempts_count"] = attempts
+        passed_rows = self.session.execute(
+            select(EvidenceORM.topic_id, func.count(EvidenceORM.id))
+            .where(EvidenceORM.student_id == student_id)
+            .where(EvidenceORM.status == EvidenceStatus.PASSED)
+            .where(EvidenceORM.topic_id.is_not(None))
+            .group_by(EvidenceORM.topic_id)
+        ).all()
+        for topic_id, solved in passed_rows:
+            s = slot(topic_id)
+            s["passed"] = True
+            s["solved_count"] = solved
+
+        # Tasks available in the approved bank per topic (denominator for progress).
+        # Kept out of `slot()` so we don't list topics that only have bank tasks.
+        task_counts = dict(self._approved_task_counts())
+        for topic_id, count in task_counts.items():
+            if topic_id in facts:
+                facts[topic_id]["tasks_in_bank"] = count
 
         # Reviews by status, plus overdue-today as a separate UI signal.
         review_rows = self.session.execute(
@@ -571,6 +626,9 @@ class TopicSqlRepository:
                     "reviews_done": s["reviews_done"],
                     "back_to_work_reviews": s["back_to_work_reviews"],
                     "error_count": s["error_count"],
+                    "attempts_count": s["attempts_count"],
+                    "solved_count": s["solved_count"],
+                    "tasks_in_bank": s["tasks_in_bank"],
                     "top_error_category": top_error_category,
                     "last_activity_at": s["last_activity_at"],
                 }
@@ -582,6 +640,7 @@ class TopicSqlRepository:
         """Program topics (phase is not None) with their computed lifecycle state.
         Reuses ``list_topic_lifecycle``; untouched program topics default to OPEN."""
         lifecycle = {row["topic_id"]: row for row in self.list_topic_lifecycle(student_id)}
+        task_counts = dict(self._approved_task_counts())
         topics = self.session.scalars(
             select(TopicORM).where(TopicORM.phase.is_not(None))
         ).all()
@@ -599,6 +658,9 @@ class TopicSqlRepository:
                     "state": life["state"] if life else TopicState.OPEN,
                     "error_count": life["error_count"] if life else 0,
                     "reviews_due_today": life["reviews_due_today"] if life else 0,
+                    "attempts_count": life["attempts_count"] if life else 0,
+                    "solved_count": life["solved_count"] if life else 0,
+                    "tasks_in_bank": task_counts.get(topic.id, 0),
                 }
             )
         return rows

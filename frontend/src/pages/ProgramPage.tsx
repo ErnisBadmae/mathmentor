@@ -46,9 +46,12 @@ export function ProgramPage() {
               {phase.is_current ? ' · сейчас' : ''}
             </h2>
             <p style={{ margin: 0 }}>
-              закрыто {phase.coverage.confirmed} · в процессе {phase.coverage.in_progress} · не начато{' '}
-              {phase.coverage.open} из {phase.coverage.total}
+              прогресс {phase.percent}% · закрыто {phase.coverage.confirmed} · в процессе{' '}
+              {phase.coverage.in_progress} · не начато {phase.coverage.open} из {phase.coverage.total}
             </p>
+            <div className="progressBar" aria-hidden>
+              <div className="progressFill" style={{ width: `${phase.percent}%` }} />
+            </div>
           </div>
           {phase.topics.length ? (
             <div className="tableList">
@@ -61,8 +64,10 @@ export function ProgramPage() {
                   <div>
                     <b style={{ color: isWeak(topic) ? '#c0392b' : '#27ae60' }}>{STATE_LABEL[topic.state]}</b>
                     <small>
-                      {topic.reviews_due_today > 0 ? `повторов к сдаче: ${topic.reviews_due_today} · ` : ''}
-                      ошибок: {topic.error_count}
+                      банк: {topic.tasks_in_bank} · решено: {topic.solved_count}
+                      {topic.percent !== null ? ` · ${topic.percent}%` : ' · —'}
+                      {topic.reviews_due_today > 0 ? ` · повторов: ${topic.reviews_due_today}` : ''}
+                      {topic.error_count > 0 ? ` · ошибок: ${topic.error_count}` : ''}
                     </small>
                   </div>
                 </article>

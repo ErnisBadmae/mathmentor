@@ -83,7 +83,7 @@ CATEGORY_RUBRIC = (
 
 
 class OpenAICompatibleReviewer:
-    prompt_version = "attempt-review-v2"
+    prompt_version = "attempt-review-v3"
     rubric_version = "ege-mentor-v1"
 
     def __init__(self, connection: LlmConnection) -> None:
@@ -91,8 +91,14 @@ class OpenAICompatibleReviewer:
 
     async def review_attempt(self, attempt: AttemptForReview) -> EvidenceDraft:
         system = (
-            "You review EGE preparation attempts. Do not solve before the student's attempt. "
-            "Return strict JSON with keys: score_percent, error_category, feedback, next_action. "
+            "Ты проверяешь попытку ученика по подготовке к ЕГЭ. "
+            "РЕШЕНИЕ УЧЕНИКА — в полях answer_text и code_text. Если хотя бы одно из них "
+            "непустое, это и есть решение: оцени его по существу. НИКОГДА не пиши «решение не "
+            "предоставлено» и не ставь unknown_method, если в answer_text или code_text есть текст/код. "
+            "Для задач с кодом (kind=code) оценивай корректность кода по условию (instructions); "
+            "единого expected_answer может не быть — это нормально. "
+            "Условие задачи дано в instructions; не выдавай готовое решение, только оцени попытку. "
+            "Верни строгий JSON с ключами: score_percent, error_category, feedback, next_action. "
             "feedback и next_action пиши на русском языке.\n"
             + PHONE_NOTATION_HINT
             + CATEGORY_RUBRIC

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 from app.adapters.api.dependencies import get_learning_service, require_api_token
 from app.adapters.api.schemas import (
     DashboardOut,
+    DiagnosticOut,
     ErrorEventOut,
     ManualDecisionIn,
     ManualReviewOut,
@@ -56,6 +57,11 @@ def topic_lifecycle(student_id: UUID, service: LearningService = Depends(get_lea
 @protected_router.get("/students/{student_id}/program", response_model=list[ProgramPhaseOut])
 def program_progress(student_id: UUID, service: LearningService = Depends(get_learning_service)) -> list[dict[str, object]]:
     return service.list_program_progress(student_id)
+
+
+@protected_router.get("/students/{student_id}/diagnostics", response_model=list[DiagnosticOut])
+def diagnostics(student_id: UUID, service: LearningService = Depends(get_learning_service)) -> list[dict[str, object]]:
+    return service.list_diagnostics(student_id)
 
 
 @protected_router.post("/students/{student_id}/missions", response_model=MissionOut)

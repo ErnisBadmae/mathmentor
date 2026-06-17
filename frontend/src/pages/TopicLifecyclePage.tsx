@@ -66,8 +66,9 @@ export function TopicLifecyclePage() {
                 <div>
                   <b style={{ color: isWeak(topic) ? '#c0392b' : '#27ae60' }}>{STATE_LABEL[topic.state]}</b>
                   <small>
-                    {topic.reviews_due_today > 0 ? `повторов к сдаче: ${topic.reviews_due_today} · ` : ''}
-                    ошибок: {topic.error_count}
+                    банк: {topic.tasks_in_bank} · решено: {topic.solved_count}
+                    {topic.reviews_due_today > 0 ? ` · повторов: ${topic.reviews_due_today}` : ''}
+                    {topic.error_count > 0 ? ` · ошибок: ${topic.error_count}` : ''}
                   </small>
                 </div>
               </article>

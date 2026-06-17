@@ -60,6 +60,8 @@ p { margin: 0; }
 .rowActions { display: flex; gap: 8px; align-items: center; }
 .state, .emptyPanel { color: #66726c; }
 .stateError { color: #a33a2d; }
+.progressBar { height: 6px; background: #e6eaf0; border-radius: 999px; overflow: hidden; margin-top: 6px; }
+.progressFill { height: 100%; background: #2d6cdf; border-radius: 999px; }
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }
   .metricGrid, .workLayout { grid-template-columns: 1fr; }
