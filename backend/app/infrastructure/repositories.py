@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.domain.enums import AttemptKind, AttemptMode, ErrorCategory, EvidenceStatus, MissionStatus, ReviewStatus, Subject
+from app.domain.policies import compute_topic_state
 from app.infrastructure.models import (
     AttemptORM,
     CleanSheetEventORM,
@@ -25,6 +26,14 @@ def _local_today() -> date:
     return datetime.now(ZoneInfo(get_settings().local_timezone)).date()
 
 
+def _max_dt(current: datetime | None, candidate: datetime | None) -> datetime | None:
+    if current is None:
+        return candidate
+    if candidate is None:
+        return current
+    return max(current, candidate)
+
+
 class SqlAlchemyUnitOfWork:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -36,6 +45,7 @@ class SqlAlchemyUnitOfWork:
         self.errors = ErrorSqlRepository(session)
         self.reviews = ReviewSqlRepository(session)
         self.scores = ScoreSqlRepository(session)
+        self.topics = TopicSqlRepository(session)
 
     def commit(self) -> None:
         self.session.commit()
@@ -68,6 +78,14 @@ class MissionSqlRepository:
         self.session.add(mission)
         self.session.flush()
         return mission
+
+    def latest_for_topic(self, topic_id: UUID) -> MissionORM | None:
+        return self.session.scalar(
+            select(MissionORM)
+            .where(MissionORM.topic_id == topic_id)
+            .order_by(MissionORM.due_date.desc().nulls_last(), MissionORM.id.desc())
+            .limit(1)
+        )
 
     def update(self, mission_id: UUID, values: dict[str, object]) -> MissionORM:
         mission = self.get_for_attempt(mission_id)
@@ -335,3 +353,157 @@ class ScoreSqlRepository:
             track.current_score = event.score
         self.session.flush()
         return event
+
+
+class TopicSqlRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def get(self, topic_id: UUID) -> TopicORM | None:
+        return self.session.get(TopicORM, topic_id)
+
+    def list_topic_lifecycle(self, student_id: UUID) -> list[dict[str, object]]:
+        """Per-topic computed lifecycle (REQUIREMENTS §9). A topic is listed if it has
+        any mission/evidence/review/error for the student. State is derived, not stored."""
+        today = _local_today()
+        facts: dict[UUID, dict[str, object]] = {}
+
+        def slot(topic_id: UUID) -> dict[str, object]:
+            return facts.setdefault(
+                topic_id,
+                {
+                    "active_missions": 0,
+                    "passed": False,
+                    "reviews_due": 0,
+                    "reviews_due_today": 0,
+                    "reviews_done": 0,
+                    "back_to_work_reviews": 0,
+                    "error_count": 0,
+                    "last_activity_at": None,
+                    "errors_by_category": {},
+                },
+            )
+
+        # Missions (any status registers the topic; ACTIVE/REPEAT feed the state machine).
+        mission_rows = self.session.execute(
+            select(MissionORM.topic_id, MissionORM.status, func.count(MissionORM.id))
+            .where(MissionORM.student_id == student_id)
+            .where(MissionORM.topic_id.is_not(None))
+            .group_by(MissionORM.topic_id, MissionORM.status)
+        ).all()
+        for topic_id, status, count in mission_rows:
+            s = slot(topic_id)
+            if status in (MissionStatus.ACTIVE, MissionStatus.REPEAT):
+                s["active_missions"] += count
+
+        # Evidence: latest activity + whether the topic was ever passed.
+        evidence_rows = self.session.execute(
+            select(EvidenceORM.topic_id, func.max(EvidenceORM.created_at))
+            .where(EvidenceORM.student_id == student_id)
+            .where(EvidenceORM.topic_id.is_not(None))
+            .group_by(EvidenceORM.topic_id)
+        ).all()
+        for topic_id, last_created in evidence_rows:
+            s = slot(topic_id)
+            s["last_activity_at"] = _max_dt(s["last_activity_at"], last_created)
+        passed_topics = set(
+            self.session.scalars(
+                select(EvidenceORM.topic_id)
+                .where(EvidenceORM.student_id == student_id)
+                .where(EvidenceORM.status == EvidenceStatus.PASSED)
+                .where(EvidenceORM.topic_id.is_not(None))
+                .distinct()
+            ).all()
+        )
+        for topic_id in passed_topics:
+            slot(topic_id)["passed"] = True
+
+        # Reviews by status, plus overdue-today as a separate UI signal.
+        review_rows = self.session.execute(
+            select(ReviewItemORM.topic_id, ReviewItemORM.status, func.count(ReviewItemORM.id))
+            .where(ReviewItemORM.student_id == student_id)
+            .group_by(ReviewItemORM.topic_id, ReviewItemORM.status)
+        ).all()
+        for topic_id, status, count in review_rows:
+            s = slot(topic_id)
+            if status == ReviewStatus.DUE:
+                s["reviews_due"] += count
+            elif status == ReviewStatus.DONE:
+                s["reviews_done"] += count
+            elif status == ReviewStatus.BACK_TO_WORK:
+                s["back_to_work_reviews"] += count
+        due_today_rows = self.session.execute(
+            select(ReviewItemORM.topic_id, func.count(ReviewItemORM.id))
+            .where(ReviewItemORM.student_id == student_id)
+            .where(ReviewItemORM.status == ReviewStatus.DUE)
+            .where(ReviewItemORM.due_date <= today)
+            .group_by(ReviewItemORM.topic_id)
+        ).all()
+        for topic_id, count in due_today_rows:
+            slot(topic_id)["reviews_due_today"] = count
+
+        # Errors: total + per-category counts (for the dominant weak signal).
+        error_rows = self.session.execute(
+            select(
+                ErrorEventORM.topic_id,
+                ErrorEventORM.category,
+                func.count(ErrorEventORM.id),
+                func.max(ErrorEventORM.created_at),
+            )
+            .where(ErrorEventORM.student_id == student_id)
+            .where(ErrorEventORM.topic_id.is_not(None))
+            .group_by(ErrorEventORM.topic_id, ErrorEventORM.category)
+        ).all()
+        for topic_id, category, count, last_created in error_rows:
+            s = slot(topic_id)
+            s["error_count"] += count
+            s["errors_by_category"][category] = count
+            s["last_activity_at"] = _max_dt(s["last_activity_at"], last_created)
+
+        if not facts:
+            return []
+        topics = {
+            topic.id: topic
+            for topic in self.session.scalars(
+                select(TopicORM).where(TopicORM.id.in_(facts.keys()))
+            ).all()
+        }
+
+        result: list[dict[str, object]] = []
+        for topic_id, s in facts.items():
+            topic = topics.get(topic_id)
+            if topic is None:
+                continue
+            errors_by_category: dict[ErrorCategory, int] = s["errors_by_category"]
+            top_error_category = None
+            if errors_by_category:
+                # deterministic tie-break: count desc, then category asc
+                top_error_category = sorted(
+                    errors_by_category.items(), key=lambda kv: (-kv[1], kv[0])
+                )[0][0]
+            result.append(
+                {
+                    "topic_id": topic_id,
+                    "topic_title": topic.title,
+                    "subject": topic.subject,
+                    "task_number": topic.task_number,
+                    "state": compute_topic_state(
+                        active_missions=s["active_missions"],
+                        has_passed_evidence=s["passed"],
+                        reviews_due=s["reviews_due"],
+                        reviews_done=s["reviews_done"],
+                        reviews_back_to_work=s["back_to_work_reviews"],
+                    ),
+                    "active_missions": s["active_missions"],
+                    "passed": s["passed"],
+                    "reviews_due": s["reviews_due"],
+                    "reviews_due_today": s["reviews_due_today"],
+                    "reviews_done": s["reviews_done"],
+                    "back_to_work_reviews": s["back_to_work_reviews"],
+                    "error_count": s["error_count"],
+                    "top_error_category": top_error_category,
+                    "last_activity_at": s["last_activity_at"],
+                }
+            )
+        result.sort(key=lambda r: r["topic_title"])
+        return result

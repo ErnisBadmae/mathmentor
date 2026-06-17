@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.domain.enums import AiPolicy, AttemptKind, AttemptMode, ErrorCategory, EvidenceStatus, MissionStatus, ReviewStatus, Subject
+from app.domain.enums import AiPolicy, AttemptKind, AttemptMode, ErrorCategory, EvidenceStatus, MissionStatus, ReviewStatus, Subject, TopicState
 
 
 class StudentOut(BaseModel):
@@ -31,6 +31,23 @@ class DashboardOut(BaseModel):
     clean_sheet_ratio: float
     top_errors: list[TopErrorOut]
     due_reviews: int
+
+
+class TopicLifecycleOut(BaseModel):
+    topic_id: UUID
+    topic_title: str
+    subject: Subject
+    task_number: str | None = None
+    state: TopicState
+    active_missions: int
+    passed: bool
+    reviews_due: int
+    reviews_due_today: int
+    reviews_done: int
+    back_to_work_reviews: int
+    error_count: int
+    top_error_category: ErrorCategory | None = None
+    last_activity_at: datetime | None = None
 
 
 class MissionOut(BaseModel):

@@ -18,6 +18,7 @@ from app.adapters.api.schemas import (
     StudentOut,
     SubmitAttemptIn,
     SubmitAttemptOut,
+    TopicLifecycleOut,
 )
 from app.application.use_cases import LearningService
 from app.domain.enums import ErrorCategory, ReviewStatus, Subject
@@ -44,6 +45,11 @@ def dashboard(student_id: UUID, service: LearningService = Depends(get_learning_
 @protected_router.get("/students/{student_id}/missions/today", response_model=list[MissionOut])
 def today_missions(student_id: UUID, service: LearningService = Depends(get_learning_service)) -> list[object]:
     return service.list_today(student_id)
+
+
+@protected_router.get("/students/{student_id}/topics/lifecycle", response_model=list[TopicLifecycleOut])
+def topic_lifecycle(student_id: UUID, service: LearningService = Depends(get_learning_service)) -> list[dict[str, object]]:
+    return service.list_topic_lifecycle(student_id)
 
 
 @protected_router.post("/students/{student_id}/missions", response_model=MissionOut)

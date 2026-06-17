@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from app.application.ports import AttemptForReview, EvidenceDraft, EvidenceReviewer, UnitOfWork
-from app.domain.enums import ErrorCategory, EvidenceStatus, ReviewStatus
+from app.domain.enums import AiPolicy, ErrorCategory, EvidenceStatus, MissionStatus, ReviewStatus
 from app.domain.policies import evidence_status, review_due_dates, review_result_to_status
 
 
@@ -94,6 +94,9 @@ class LearningService:
     def list_manual_reviews(self, student_id: UUID) -> list[dict[str, object]]:
         return self._uow.evidence.list_manual_reviews(student_id)
 
+    def list_topic_lifecycle(self, student_id: UUID) -> list[dict[str, object]]:
+        return self._uow.topics.list_topic_lifecycle(student_id)
+
     def create_mission(self, values: dict[str, object]) -> object:
         mission = self._uow.missions.create({**values, "id": uuid4()})
         self._uow.commit()
@@ -111,8 +114,34 @@ class LearningService:
 
     def record_review_result(self, review_id: UUID, passed: bool) -> object:
         item = self._uow.reviews.mark_result(review_id, review_result_to_status(passed))
+        if not passed:
+            self._create_back_to_work_mission(item)
         self._uow.commit()
         return item
+
+    def _create_back_to_work_mission(self, review_item: object) -> None:
+        """A failed review is not terminal (§8): open a fresh ACTIVE mission for the same
+        topic with default fields, preserving history instead of reopening a DONE mission.
+        Defaults stay valid even when the review came from import with no prior mission."""
+        topic = self._uow.topics.get(review_item.topic_id)
+        latest = self._uow.missions.latest_for_topic(review_item.topic_id)
+        topic_title = getattr(topic, "title", None)
+        self._uow.missions.create(
+            {
+                "id": uuid4(),
+                "student_id": review_item.student_id,
+                "subject": topic.subject if topic is not None else latest.subject,
+                "topic_id": review_item.topic_id,
+                "title": f"Повтор: {topic_title}" if topic_title else "Повтор темы",
+                "instructions": (
+                    "2-3 холодные задачи по теме без ИИ и шпаргалки. Причина: провален возврат."
+                ),
+                "status": MissionStatus.ACTIVE,
+                "ai_policy": latest.ai_policy if latest is not None else AiPolicy.ATTEMPT_FIRST,
+                "threshold_percent": latest.threshold_percent if latest is not None else 80.0,
+                "due_date": self._today(),
+            }
+        )
 
     async def submit_attempt(self, values: dict[str, object]) -> dict[str, object]:
         mission_id = values["mission_id"]

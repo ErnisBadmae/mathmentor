@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 
-from app.domain.enums import AttemptKind, AttemptMode, EvidenceStatus, ReviewStatus
+from app.domain.enums import AttemptKind, AttemptMode, EvidenceStatus, ReviewStatus, TopicState
 
 
 def is_topic_closed(score_percent: float, threshold_percent: float) -> bool:
@@ -29,3 +29,30 @@ def review_due_dates(closed_at: date) -> tuple[date, date]:
 
 def review_result_to_status(passed: bool) -> ReviewStatus:
     return ReviewStatus.DONE if passed else ReviewStatus.BACK_TO_WORK
+
+
+def compute_topic_state(
+    active_missions: int,
+    has_passed_evidence: bool,
+    reviews_due: int,
+    reviews_done: int,
+    reviews_back_to_work: int,
+) -> TopicState:
+    """Computed topic lifecycle (REQUIREMENTS §9); state is derived, never stored.
+
+    ``reviews_due`` counts every review card still in DUE (including future ones).
+    Priority order matters: back_to_work outranks in_work because a failed review
+    spawns a fresh ACTIVE mission (§8). A passed mission becomes DONE and leaves the
+    active set, so in_work does not steal under_review/confirmed in the normal flow.
+    """
+    if reviews_back_to_work > 0:
+        return TopicState.BACK_TO_WORK
+    if active_missions > 0:
+        return TopicState.IN_WORK
+    if has_passed_evidence:
+        # confirmed only when both +7/+30 cards are done and nothing is pending —
+        # reviews_done >= 2, not > 0, so a single imported pass cannot confirm a topic.
+        if reviews_done >= 2 and reviews_due == 0:
+            return TopicState.CONFIRMED
+        return TopicState.UNDER_REVIEW
+    return TopicState.OPEN

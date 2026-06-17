@@ -14,6 +14,7 @@ export type ErrorCategory =
   | 'other';
 export type EvidenceStatus = 'passed' | 'failed' | 'needs_manual_review';
 export type ReviewStatus = 'due' | 'done' | 'back_to_work';
+export type TopicState = 'open' | 'in_work' | 'under_review' | 'confirmed' | 'back_to_work';
 
 export type Student = {
   id: string;
@@ -34,6 +35,23 @@ export type Dashboard = {
   clean_sheet_ratio: number;
   top_errors: Array<{ category: ErrorCategory; count: number }>;
   due_reviews: number;
+};
+
+export type TopicLifecycle = {
+  topic_id: string;
+  topic_title: string;
+  subject: Subject;
+  task_number: string | null;
+  state: TopicState;
+  active_missions: number;
+  passed: boolean;
+  reviews_due: number;
+  reviews_due_today: number;
+  reviews_done: number;
+  back_to_work_reviews: number;
+  error_count: number;
+  top_error_category: ErrorCategory | null;
+  last_activity_at: string | null;
 };
 
 export type Mission = {
@@ -142,6 +160,10 @@ export function getDashboard(studentId: string): Promise<Dashboard> {
 
 export function getTodayMissions(studentId: string): Promise<Mission[]> {
   return request<Mission[]>(`/students/${studentId}/missions/today`);
+}
+
+export function getTopicLifecycle(studentId: string): Promise<TopicLifecycle[]> {
+  return request<TopicLifecycle[]>(`/students/${studentId}/topics/lifecycle`);
 }
 
 export function getErrors(studentId: string): Promise<ErrorEvent[]> {

@@ -64,3 +64,11 @@ class ReviewStatus(StrEnum):
     DUE = "due"
     DONE = "done"
     BACK_TO_WORK = "back_to_work"
+
+
+class TopicState(StrEnum):
+    OPEN = "open"
+    IN_WORK = "in_work"
+    UNDER_REVIEW = "under_review"
+    CONFIRMED = "confirmed"
+    BACK_TO_WORK = "back_to_work"
