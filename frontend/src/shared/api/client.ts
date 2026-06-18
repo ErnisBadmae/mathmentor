@@ -30,11 +30,20 @@ export type Track = {
   phase: string;
 };
 
+export type MentorNote = {
+  id: string;
+  body: string;
+  topic_title: string | null;
+  source_ref: string | null;
+  created_at: string;
+};
+
 export type Dashboard = {
   tracks: Track[];
   clean_sheet_ratio: number;
   top_errors: Array<{ category: ErrorCategory; count: number }>;
   due_reviews: number;
+  mentor_notes: MentorNote[];
 };
 
 export type TopicLifecycle = {

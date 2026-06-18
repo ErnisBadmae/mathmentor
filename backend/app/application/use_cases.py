@@ -83,7 +83,29 @@ class LearningService:
             self._uow.missions.mark_repeat(mission.id)
 
     def get_dashboard(self, student_id: UUID) -> dict[str, object]:
-        return self._uow.dashboard.get_dashboard(student_id)
+        data = self._uow.dashboard.get_dashboard(student_id)
+        data["mentor_notes"] = self._uow.mentor_notes.list_recent(student_id)
+        return data
+
+    def publish_feedback(self, values: dict[str, object]) -> dict[str, object]:
+        """Publish a student-facing mentor note straight to the dashboard feed."""
+        note = self._uow.mentor_notes.add(
+            {
+                "id": uuid4(),
+                "student_id": values["student_id"],
+                "topic_id": values.get("topic_id"),
+                "body": values["body"],
+                "source_ref": values.get("source_ref"),
+                "created_at": datetime.now(UTC),
+            }
+        )
+        self._uow.commit()
+        return {
+            "id": note.id,
+            "body": note.body,
+            "topic_id": note.topic_id,
+            "created_at": note.created_at,
+        }
 
     def get_current_student(self) -> object:
         return self._uow.students.get_current()

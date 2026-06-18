@@ -250,6 +250,21 @@ def record_review_result(review_id: str, passed: bool) -> Any:
         return {"review_id": review_id, "passed": passed}
 
 
+@mcp.tool()
+def publish_feedback(body: str, topic_id: str | None = None, student_id: str = DEFAULT_STUDENT_ID) -> Any:
+    """Publish a mentor note the STUDENT reads on the dashboard feed (transparent process).
+    Write it for the student in plain language; never include answer keys. Optionally tag a
+    topic_id. Published immediately. Tagged source=mcp:agent."""
+    values = {
+        "student_id": UUID(student_id),
+        "topic_id": UUID(topic_id) if topic_id else None,
+        "body": body,
+        "source_ref": "mcp:agent",
+    }
+    with SessionLocal() as session:
+        return _serialize(_service(session).publish_feedback(values))
+
+
 def main() -> None:
     mcp.run()
 

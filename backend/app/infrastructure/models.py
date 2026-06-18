@@ -294,6 +294,24 @@ class StudyLogEntryORM(Base):
     )
 
 
+class MentorNoteORM(Base):
+    """Student-facing feedback from the senior mentor (the agent). Published straight to
+    the dashboard feed — transparent process, no answer keys. Append-only."""
+
+    __tablename__ = "mentor_notes"
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    student_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("student_profiles.id"), index=True
+    )
+    topic_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("topics.id"), nullable=True, index=True
+    )
+    body: Mapped[str] = mapped_column(Text)
+    source_ref: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    topic: Mapped[TopicORM | None] = relationship()
+
+
 class AuditSetORM(Base):
     __tablename__ = "audit_sets"
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)

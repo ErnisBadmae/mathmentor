@@ -23,6 +23,7 @@ from app.infrastructure.models import (
     CleanSheetEventORM,
     ErrorEventORM,
     EvidenceORM,
+    MentorNoteORM,
     MissionORM,
     ReviewItemORM,
     ScoreEventORM,
@@ -59,6 +60,7 @@ class SqlAlchemyUnitOfWork:
         self.scores = ScoreSqlRepository(session)
         self.topics = TopicSqlRepository(session)
         self.tasks = TaskSqlRepository(session)
+        self.mentor_notes = MentorNoteSqlRepository(session)
 
     def commit(self) -> None:
         self.session.commit()
@@ -523,6 +525,35 @@ class ScoreSqlRepository:
             track.current_score = event.score
         self.session.flush()
         return event
+
+
+class MentorNoteSqlRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, values: dict[str, object]) -> MentorNoteORM:
+        note = MentorNoteORM(**values)
+        self.session.add(note)
+        self.session.flush()
+        return note
+
+    def list_recent(self, student_id: UUID, limit: int = 20) -> list[dict[str, object]]:
+        notes = self.session.scalars(
+            select(MentorNoteORM)
+            .where(MentorNoteORM.student_id == student_id)
+            .order_by(MentorNoteORM.created_at.desc())
+            .limit(limit)
+        ).all()
+        return [
+            {
+                "id": note.id,
+                "body": note.body,
+                "topic_title": note.topic.title if note.topic is not None else None,
+                "source_ref": note.source_ref,
+                "created_at": note.created_at,
+            }
+            for note in notes
+        ]
 
 
 class TopicSqlRepository:

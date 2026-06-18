@@ -48,6 +48,22 @@ export function DashboardPage() {
         </article>
       </div>
       <div className="panel">
+        <h2>Обратная связь наставника</h2>
+        <div className="tableList">
+          {data?.mentor_notes.length ? data.mentor_notes.map((note) => (
+            <article className="tableRow" key={note.id}>
+              <div>
+                {note.topic_title && <strong>{note.topic_title}</strong>}
+                <span style={{ whiteSpace: 'pre-wrap' }}>{note.body}</span>
+              </div>
+              <div>
+                <small>{new Date(note.created_at).toLocaleDateString('ru-RU')}</small>
+              </div>
+            </article>
+          )) : <p className="muted">Пока нет заметок от наставника.</p>}
+        </div>
+      </div>
+      <div className="panel">
         <h2>Диагностика (срезы)</h2>
         <div className="tableList">
           {diagnosticsQuery.data?.length ? diagnosticsQuery.data.map((srez) => (

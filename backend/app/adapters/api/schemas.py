@@ -36,11 +36,20 @@ class TopErrorOut(BaseModel):
     count: int
 
 
+class MentorNoteOut(BaseModel):
+    id: UUID
+    body: str
+    topic_title: str | None = None
+    source_ref: str | None = None
+    created_at: datetime
+
+
 class DashboardOut(BaseModel):
     tracks: list[TrackOut]
     clean_sheet_ratio: float
     top_errors: list[TopErrorOut]
     due_reviews: int
+    mentor_notes: list[MentorNoteOut] = []
 
 
 class TopicLifecycleOut(BaseModel):
