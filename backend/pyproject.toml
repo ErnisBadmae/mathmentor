@@ -17,6 +17,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.2", "ruff>=0.6", "mypy>=1.11"]
 bot = ["aiogram>=3.10"]
+mcp = ["mcp>=1.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -178,6 +178,42 @@ class LearningService:
     def list_diagnostics(self, student_id: UUID) -> list[dict[str, object]]:
         return self._uow.dashboard.list_diagnostics(student_id)
 
+    def list_attempt_history(
+        self, student_id: UUID, topic_id: UUID | None = None, limit: int = 50
+    ) -> list[dict[str, object]]:
+        return self._uow.evidence.list_attempt_history(student_id, topic_id, limit)
+
+    def list_tasks(self, status: TaskStatus | None = None) -> list[dict[str, object]]:
+        return self._uow.tasks.list_tasks(status)
+
+    def add_task(self, values: dict[str, object]) -> object:
+        """Add a task to the bank as DRAFT by default (senior model authors offline)."""
+        payload = {
+            "id": uuid4(),
+            "subject": values["subject"],
+            "topic_id": values.get("topic_id"),
+            "task_number": values.get("task_number"),
+            "statement": values["statement"],
+            "expected_answer": values["expected_answer"],
+            "solution": values.get("solution"),
+            "error_category": values.get("error_category"),
+            "status": values.get("status") or TaskStatus.DRAFT,
+            "source": values.get("source") or "agent",
+            "source_url": values.get("source_url"),
+            "model_id": values.get("model_id"),
+            "prompt_version": values.get("prompt_version"),
+            "source_ref": values.get("source_ref"),
+            "created_at": datetime.now(UTC),
+        }
+        task = self._uow.tasks.add(payload)
+        self._uow.commit()
+        return task
+
+    def approve_task(self, task_id: UUID) -> object:
+        task = self._uow.tasks.approve(task_id)
+        self._uow.commit()
+        return task
+
     def create_mission(self, values: dict[str, object]) -> object:
         mission = self._uow.missions.create({**self._prepare_task_link(values), "id": uuid4()})
         self._uow.commit()

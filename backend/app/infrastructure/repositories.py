@@ -136,6 +136,41 @@ class TaskSqlRepository:
         self.session.flush()
         return task
 
+    def approve(self, task_id: UUID) -> TaskORM:
+        task = self.get(task_id)
+        task.status = TaskStatus.APPROVED
+        self.session.flush()
+        return task
+
+    def list_tasks(self, status: TaskStatus | None = None) -> list[dict[str, object]]:
+        stmt = (
+            select(TaskORM, TopicORM.title)
+            .outerjoin(TopicORM, TopicORM.id == TaskORM.topic_id)
+            .order_by(TaskORM.created_at.desc())
+        )
+        if status is not None:
+            stmt = stmt.where(TaskORM.status == status)
+        rows = self.session.execute(stmt).all()
+        return [
+            {
+                "id": task.id,
+                "subject": task.subject,
+                "topic_id": task.topic_id,
+                "topic_title": topic_title,
+                "task_number": task.task_number,
+                "statement": task.statement,
+                "expected_answer": task.expected_answer,
+                "solution": task.solution,
+                "error_category": task.error_category,
+                "status": task.status,
+                "source": task.source,
+                "source_url": task.source_url,
+                "source_ref": task.source_ref,
+                "created_at": task.created_at,
+            }
+            for task, topic_title in rows
+        ]
+
 
 class AttemptSqlRepository:
     def __init__(self, session: Session) -> None:
@@ -199,6 +234,41 @@ class EvidenceSqlRepository:
 
     def schedule_reviews(self, values: list[dict[str, object]]) -> None:
         self.session.add_all([ReviewItemORM(**item) for item in values])
+
+    def list_attempt_history(
+        self, student_id: UUID, topic_id: UUID | None = None, limit: int = 50
+    ) -> list[dict[str, object]]:
+        """How the student solved: attempt content + the reviewer's interpretation."""
+        stmt = (
+            select(EvidenceORM, AttemptORM, TopicORM.title)
+            .join(AttemptORM, AttemptORM.id == EvidenceORM.attempt_id)
+            .outerjoin(TopicORM, TopicORM.id == EvidenceORM.topic_id)
+            .where(EvidenceORM.student_id == student_id)
+            .order_by(EvidenceORM.created_at.desc())
+            .limit(limit)
+        )
+        if topic_id is not None:
+            stmt = stmt.where(EvidenceORM.topic_id == topic_id)
+        rows = self.session.execute(stmt).all()
+        return [
+            {
+                "attempt_id": attempt.id,
+                "topic_id": evidence.topic_id,
+                "topic_title": topic_title,
+                "kind": attempt.kind,
+                "mode": attempt.mode,
+                "answer_text": attempt.answer_text,
+                "code_text": attempt.code_text,
+                "status": evidence.status,
+                "score_percent": evidence.score_percent,
+                "error_category": evidence.error_category,
+                "feedback": evidence.feedback,
+                "next_action": evidence.next_action,
+                "model_id": evidence.model_id,
+                "created_at": evidence.created_at,
+            }
+            for evidence, attempt, topic_title in rows
+        ]
 
 
 class DashboardSqlRepository:

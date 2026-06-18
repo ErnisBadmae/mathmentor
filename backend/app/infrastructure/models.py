@@ -98,6 +98,7 @@ class TaskORM(Base):
     )
     status: Mapped[TaskStatus] = mapped_column(Enum(TaskStatus, native_enum=False), index=True)
     source: Mapped[str] = mapped_column(String(80))
+    source_url: Mapped[str | None] = mapped_column(String(700), nullable=True)
     model_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
     prompt_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
     source_ref: Mapped[str | None] = mapped_column(

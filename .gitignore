@@ -18,3 +18,4 @@ backups/
 *.tsbuildinfo
 *.egg-info/
 .claude/settings.local.json
+graphify-out/

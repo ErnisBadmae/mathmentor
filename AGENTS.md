@@ -158,6 +158,22 @@ The first DB-backed LAN v1 slice is implemented. Next work should harden pilot u
 - Use small, focused commits.
 - Run backend tests and frontend build before reporting done.
 
+## MCP Server (agent as senior mentor)
+
+An MCP server exposes this project's data and track edits so an agent (Claude/Codex) can act as the senior mentor — read student state/progress/history and edit missions/tasks/scores/reviews — **without any paid cloud LLM API in the backend**. It is a thin adapter over `LearningService` (`backend/app/adapters/mcp/server.py`); the local model stays the per-attempt evaluator.
+
+Run (needs the `mcp` extra and DB access):
+
+```powershell
+cd C:\Users\badmaev_es\egeMentor\backend
+.venv312\Scripts\python.exe -m pip install -e .[mcp]
+.venv312\Scripts\python.exe -m app.adapters.mcp.server
+```
+
+Connect from Claude Code: `claude mcp add ege -- <python> -m app.adapters.mcp.server` (run with cwd `backend/`). Codex: add the same stdio command to its MCP config.
+
+Tools — read: `student_overview`, `program_progress`, `topic_lifecycle`, `diagnostics`, `error_journal`, `attempt_history`, `reviews`, `manual_reviews`, `list_tasks`. Write (provenance-tagged): `create_mission`, `update_mission`, `add_task` (lands as DRAFT), `approve_task`, `record_score_event`, `record_review_result`. Only APPROVED bank tasks reach missions; answer keys are never sent to the student. Note: during a session the student's data goes to the agent's provider — use with guardian consent.
+
 ## Useful References
 
 - `README.md`

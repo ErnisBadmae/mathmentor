@@ -791,7 +791,7 @@ def seed() -> None:
                 existing_task.solution = task_spec["solution"]
                 existing_task.error_category = task_spec["error_category"]
                 existing_task.status = TaskStatus.APPROVED
-                existing_task.source = task_spec.get("source", "corpus")
+                existing_task.source = task_spec.get("source", "corpus_llm")
                 task_by_ref[source_ref] = existing_task
                 continue
             task = TaskORM(
@@ -804,7 +804,7 @@ def seed() -> None:
                 solution=task_spec["solution"],
                 error_category=task_spec["error_category"],
                 status=TaskStatus.APPROVED,
-                source=task_spec.get("source", "corpus"),
+                source=task_spec.get("source", "corpus_llm"),
                 source_ref=source_ref,
                 created_at=datetime.now(UTC),
             )
