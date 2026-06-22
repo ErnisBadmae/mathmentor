@@ -79,4 +79,3 @@ def compute_topic_state(
             return TopicState.CONFIRMED
         return TopicState.UNDER_REVIEW
     return TopicState.OPEN
-# graphify label hook test 22 июн 2026 г. 15:22:19
