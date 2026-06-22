@@ -1,3 +1,4 @@
+import random
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -9,11 +10,22 @@ from app.domain.enums import (
     EvidenceStatus,
     MissionStatus,
     ReviewStatus,
+    Subject,
     TaskStatus,
     TopicState,
 )
-from app.domain.policies import evidence_status, review_due_dates, review_result_to_status
+from app.domain.policies import (
+    answer_is_correct,
+    evidence_status,
+    review_due_dates,
+    review_result_to_status,
+)
 from app.domain.program import PHASES, current_phase_key
+
+SLICE_SUBJECT_LABEL = {
+    Subject.MATH_PROFILE: "Профматематика",
+    Subject.INFORMATICS: "Информатика",
+}
 
 
 class LearningService:
@@ -26,6 +38,33 @@ class LearningService:
 
     def _today(self):
         return datetime.now(ZoneInfo(self._local_timezone)).date()
+
+    def _resolve_score(
+        self,
+        *,
+        threshold_percent: float,
+        reviewer_score_percent: float | None = None,
+        explicit_score_percent: float | None = None,
+        tasks_total: int | None = None,
+        tasks_correct: int | None = None,
+        explicit_status: EvidenceStatus | None = None,
+    ) -> tuple[float, EvidenceStatus]:
+        if (tasks_total is None) != (tasks_correct is None):
+            raise ValueError("tasks_total and tasks_correct must be provided together")
+        if tasks_total is not None and tasks_correct is not None:
+            if tasks_correct > tasks_total:
+                raise ValueError("tasks_correct cannot exceed tasks_total")
+            score_percent = 0.0 if tasks_total == 0 else tasks_correct / tasks_total * 100
+            return score_percent, evidence_status(score_percent, threshold_percent)
+        if explicit_score_percent is not None:
+            if explicit_status is not None:
+                return explicit_score_percent, explicit_status
+            return explicit_score_percent, evidence_status(explicit_score_percent, threshold_percent)
+        if reviewer_score_percent is None:
+            raise ValueError("score_percent is required when reviewer score is absent")
+        return reviewer_score_percent, explicit_status or evidence_status(
+            reviewer_score_percent, threshold_percent
+        )
 
     def _add_error_event(
         self,
@@ -278,6 +317,75 @@ class LearningService:
         self._uow.commit()
         return event
 
+    def draw_slice(self, subject: Subject, size: int) -> list[dict[str, object]]:
+        """Draw a knowledge slice: a random sample of approved, exact-answer tasks.
+        Returns statements only — the answer key never leaves the backend (§5)."""
+        pool = self._uow.tasks.list_gradable(subject)
+        chosen = random.sample(pool, min(size, len(pool)))
+        return [
+            {"task_id": task.id, "task_number": task.task_number, "statement": task.statement}
+            for task in chosen
+        ]
+
+    def grade_slice(
+        self, student_id: UUID, subject: Subject, items: list[dict[str, object]]
+    ) -> dict[str, object]:
+        """Grade a slice deterministically by exact-answer match (no LLM). Records one
+        aggregate study-log diagnostic (§17a) + an error event per miss (§13). A slice is a
+        topic_check (§11): it does not create a score event, so current_score is untouched."""
+        now = datetime.now(UTC)
+        results: list[dict[str, object]] = []
+        correct = 0
+        for item in items:
+            task_id = item["task_id"]
+            if not isinstance(task_id, UUID):
+                task_id = UUID(str(task_id))
+            task = self._uow.tasks.get(task_id)
+            if task.status != TaskStatus.APPROVED or task.subject != subject:
+                raise ValueError("Slice item must reference an approved task of the subject.")
+            is_correct = answer_is_correct(item.get("answer_text"), task.expected_answer)
+            if is_correct:
+                correct += 1
+            else:
+                self._uow.evidence.add_error_event(
+                    {
+                        "id": uuid4(),
+                        "student_id": student_id,
+                        "subject": subject,
+                        "topic_id": task.topic_id,
+                        "mission_id": None,
+                        "attempt_id": None,
+                        "evidence_id": None,
+                        "category": task.error_category or ErrorCategory.OTHER,
+                        "detail": f"Срез: неверный ответ. Задача {task.task_number or task.id}.",
+                        "created_at": now,
+                    }
+                )
+            results.append({"task_id": task.id, "correct": is_correct})
+        total = len(items)
+        fraction = correct / total if total else 0.0
+        self._uow.dashboard.add_diagnostic(
+            {
+                "id": uuid4(),
+                "student_id": student_id,
+                "subject": subject,
+                "occurred_on": self._today(),
+                "topic_title": f"Срез — {SLICE_SUBJECT_LABEL.get(subject, subject.value)}",
+                "tasks_total": total,
+                "tasks_correct": correct,
+                "percent_correct": fraction,
+                "note": None,
+            }
+        )
+        self._uow.commit()
+        return {
+            "tasks_total": total,
+            "tasks_correct": correct,
+            "percent": round(fraction * 100),
+            "passed": fraction >= 0.8,
+            "items": results,
+        }
+
     def record_review_result(self, review_id: UUID, passed: bool) -> object:
         item = self._uow.reviews.mark_result(review_id, review_result_to_status(passed))
         if not passed:
@@ -347,7 +455,13 @@ class LearningService:
                 instructions=self._review_instructions(mission, task),
             )
         )
-        status = draft.status or evidence_status(draft.score_percent, mission.threshold_percent)
+        score_percent, status = self._resolve_score(
+            threshold_percent=mission.threshold_percent,
+            reviewer_score_percent=draft.score_percent,
+            tasks_total=values.get("tasks_total"),
+            tasks_correct=values.get("tasks_correct"),
+            explicit_status=draft.status,
+        )
         evidence = self._uow.evidence.add(
             {
                 "id": uuid4(),
@@ -356,7 +470,9 @@ class LearningService:
                 "student_id": mission.student_id,
                 "topic_id": mission.topic_id,
                 "status": status,
-                "score_percent": draft.score_percent,
+                "score_percent": score_percent,
+                "tasks_total": values.get("tasks_total"),
+                "tasks_correct": values.get("tasks_correct"),
                 "error_category": draft.error_category,
                 "feedback": draft.feedback,
                 "next_action": draft.next_action,
@@ -373,7 +489,9 @@ class LearningService:
             "attempt_id": attempt.id,
             "evidence_id": evidence.id,
             "status": status,
-            "score_percent": draft.score_percent,
+            "score_percent": score_percent,
+            "tasks_total": evidence.tasks_total,
+            "tasks_correct": evidence.tasks_correct,
             "error_category": draft.error_category,
             "feedback": draft.feedback,
             "next_action": draft.next_action,
@@ -393,9 +511,16 @@ class LearningService:
         if status == EvidenceStatus.NEEDS_MANUAL_REVIEW:
             raise ValueError("manual decision must be passed or failed")
         created_at = datetime.now(UTC)
-        score_percent = values.get("score_percent")
-        if score_percent is None:
-            score_percent = 100.0 if status == EvidenceStatus.PASSED else 0.0
+        tasks_total = values.get("tasks_total")
+        tasks_correct = values.get("tasks_correct")
+        default_score = 100.0 if status == EvidenceStatus.PASSED else 0.0
+        score_percent, status = self._resolve_score(
+            threshold_percent=mission.threshold_percent,
+            explicit_score_percent=values.get("score_percent", default_score),
+            tasks_total=tasks_total,
+            tasks_correct=tasks_correct,
+            explicit_status=status,
+        )
         category = values.get("error_category") or (
             ErrorCategory.NONE if status == EvidenceStatus.PASSED else ErrorCategory.OTHER
         )
@@ -412,6 +537,8 @@ class LearningService:
                 "topic_id": source.topic_id,
                 "status": status,
                 "score_percent": score_percent,
+                "tasks_total": tasks_total,
+                "tasks_correct": tasks_correct,
                 "error_category": category,
                 "feedback": feedback,
                 "next_action": next_action,
@@ -428,6 +555,8 @@ class LearningService:
             "evidence_id": evidence.id,
             "status": evidence.status,
             "score_percent": evidence.score_percent,
+            "tasks_total": evidence.tasks_total,
+            "tasks_correct": evidence.tasks_correct,
             "error_category": evidence.error_category,
             "feedback": evidence.feedback,
             "next_action": evidence.next_action,

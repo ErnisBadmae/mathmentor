@@ -37,7 +37,7 @@ services:
     depends_on:
       - api
     ports:
-      - "8080:80"
+      - "8088:80"
 
 volumes:
   ege_mentor_pg:

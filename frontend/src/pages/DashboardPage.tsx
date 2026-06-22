@@ -18,6 +18,9 @@ export function DashboardPage() {
     queryFn: () => getDiagnostics(studentId ?? ''),
     enabled: Boolean(studentId),
   });
+  const mentorNotes = data?.mentor_notes ?? [];
+  const topErrors = data?.top_errors ?? [];
+  const diagnostics = diagnosticsQuery.data ?? [];
 
   if (studentQuery.isLoading || isLoading) return <div className="state">Загрузка...</div>;
   if (studentQuery.error || error) return <div className="state stateError">{errorMessage(studentQuery.error || error)}</div>;
@@ -50,7 +53,7 @@ export function DashboardPage() {
       <div className="panel">
         <h2>Обратная связь наставника</h2>
         <div className="tableList">
-          {data?.mentor_notes.length ? data.mentor_notes.map((note) => (
+          {mentorNotes.length ? mentorNotes.map((note) => (
             <article className="tableRow" key={note.id}>
               <div>
                 {note.topic_title && <strong>{note.topic_title}</strong>}
@@ -66,7 +69,9 @@ export function DashboardPage() {
       <div className="panel">
         <h2>Диагностика (срезы)</h2>
         <div className="tableList">
-          {diagnosticsQuery.data?.length ? diagnosticsQuery.data.map((srez) => (
+          {diagnosticsQuery.error ? (
+            <p className="muted">{errorMessage(diagnosticsQuery.error)}</p>
+          ) : diagnostics.length ? diagnostics.map((srez) => (
             <article className="tableRow" key={`${srez.label}-${srez.occurred_on}`}>
               <div>
                 <strong>{srez.label}</strong>
@@ -83,7 +88,7 @@ export function DashboardPage() {
       <div className="panel">
         <h2>Топ ошибок</h2>
         <div className="errorList">
-          {data?.top_errors.length ? data.top_errors.map((item) => (
+          {topErrors.length ? topErrors.map((item) => (
             <div className="errorRow" key={item.category}>
               <span>{item.category}</span>
               <strong>{item.count}</strong>

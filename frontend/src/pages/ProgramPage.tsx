@@ -1,11 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import {
-  errorMessage,
-  getCurrentStudent,
-  getProgram,
-  type ProgramTopic,
-  type TopicState,
-} from '../shared/api/client';
+import { errorMessage, getCurrentStudent, getProgram, type TopicState } from '../shared/api/client';
 
 const STATE_LABEL: Record<TopicState, string> = {
   open: 'Не начата',
@@ -15,9 +9,13 @@ const STATE_LABEL: Record<TopicState, string> = {
   back_to_work: 'Возврат провален',
 };
 
-function isWeak(topic: ProgramTopic): boolean {
-  return topic.state !== 'confirmed' && topic.state !== 'under_review';
-}
+const STATE_BADGE: Record<TopicState, string> = {
+  open: 'badge--open',
+  in_work: 'badge--work',
+  under_review: 'badge--review',
+  confirmed: 'badge--confirmed',
+  back_to_work: 'badge--back',
+};
 
 export function ProgramPage() {
   const studentQuery = useQuery({ queryKey: ['student', 'current'], queryFn: getCurrentStudent });
@@ -39,7 +37,7 @@ export function ProgramPage() {
       ) : null}
       {isLoading ? <div className="state">Загрузка...</div> : null}
       {data?.map((phase) => (
-        <div className="panel" key={phase.key} style={phase.is_current ? { borderColor: '#2d6cdf' } : undefined}>
+        <div className={phase.is_current ? 'panel panel--current' : 'panel'} key={phase.key}>
           <div className="pageHeader" style={{ marginBottom: 8 }}>
             <h2 style={{ margin: 0 }}>
               {phase.label}
@@ -62,7 +60,7 @@ export function ProgramPage() {
                     <span>{topic.subject === 'math_profile' ? 'Профматематика' : 'Информатика'}</span>
                   </div>
                   <div>
-                    <b style={{ color: isWeak(topic) ? '#c0392b' : '#27ae60' }}>{STATE_LABEL[topic.state]}</b>
+                    <span className={`badge ${STATE_BADGE[topic.state]}`}>{STATE_LABEL[topic.state]}</span>
                     <small>
                       банк: {topic.tasks_in_bank} · решено: {topic.solved_count}
                       {topic.percent !== null ? ` · ${topic.percent}%` : ' · —'}

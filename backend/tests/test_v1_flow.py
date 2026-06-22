@@ -26,6 +26,7 @@ from app.infrastructure.importers import tracker_importer
 from app.infrastructure.importers.xlsx_reader import SheetPreview
 from app.infrastructure.models import (
     ErrorEventORM,
+    EvidenceORM,
     MissionORM,
     ReviewItemORM,
     SubjectTrackORM,
@@ -323,6 +324,62 @@ def test_failed_attempt_marks_repeat_and_records_error(seeded_session):
     )
 
 
+def test_daily_set_counts_override_score_and_pass_at_eight_of_ten(seeded_session):
+    mission = first_mission(seeded_session)
+    service = LearningService(
+        SqlAlchemyUnitOfWork(seeded_session),
+        StaticReviewer(draft(5, ErrorCategory.ARITHMETIC)),
+    )
+
+    result = asyncio.run(
+        service.submit_attempt(
+            {
+                "mission_id": mission.id,
+                "kind": AttemptKind.TEXT,
+                "mode": AttemptMode.CLEAN_SHEET,
+                "answer_text": "set result",
+                "tasks_total": 10,
+                "tasks_correct": 8,
+            }
+        )
+    )
+
+    evidence = seeded_session.get(EvidenceORM, result["evidence_id"])
+    assert result["status"] == EvidenceStatus.PASSED
+    assert result["score_percent"] == 80.0
+    assert result["tasks_total"] == 10
+    assert result["tasks_correct"] == 8
+    assert evidence is not None
+    assert evidence.tasks_total == 10
+    assert evidence.tasks_correct == 8
+    assert seeded_session.get(MissionORM, mission.id).status == MissionStatus.DONE
+
+
+def test_daily_set_counts_fail_below_threshold_and_mark_repeat(seeded_session):
+    mission = first_mission(seeded_session)
+    service = LearningService(
+        SqlAlchemyUnitOfWork(seeded_session),
+        StaticReviewer(draft(95, ErrorCategory.NONE)),
+    )
+
+    result = asyncio.run(
+        service.submit_attempt(
+            {
+                "mission_id": mission.id,
+                "kind": AttemptKind.TEXT,
+                "mode": AttemptMode.CLEAN_SHEET,
+                "answer_text": "set result",
+                "tasks_total": 10,
+                "tasks_correct": 7,
+            }
+        )
+    )
+
+    assert result["status"] == EvidenceStatus.FAILED
+    assert result["score_percent"] == 70.0
+    assert seeded_session.get(MissionORM, mission.id).status == MissionStatus.REPEAT
+
+
 def test_hinted_code_attempt_does_not_improve_clean_sheet_ratio(seeded_session):
     mission = first_mission(seeded_session, Subject.INFORMATICS)
     service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(90)))
@@ -343,6 +400,31 @@ def test_hinted_code_attempt_does_not_improve_clean_sheet_ratio(seeded_session):
         seed_module.DEMO_STUDENT_ID
     )
     assert dashboard["clean_sheet_ratio"] < 0.4
+
+
+def test_single_task_attempt_still_uses_reviewer_score_without_counts(seeded_session):
+    mission = first_mission(seeded_session)
+    service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(90)))
+
+    result = asyncio.run(
+        service.submit_attempt(
+            {
+                "mission_id": mission.id,
+                "kind": AttemptKind.TEXT,
+                "mode": AttemptMode.CLEAN_SHEET,
+                "answer_text": "single task",
+            }
+        )
+    )
+
+    evidence = seeded_session.get(EvidenceORM, result["evidence_id"])
+    assert result["status"] == EvidenceStatus.PASSED
+    assert result["score_percent"] == 90.0
+    assert result["tasks_total"] is None
+    assert result["tasks_correct"] is None
+    assert evidence is not None
+    assert evidence.tasks_total is None
+    assert evidence.tasks_correct is None
 
 
 def test_rule_based_reviewer_defaults_to_manual_review_for_non_empty_attempt():
@@ -431,3 +513,198 @@ def test_tracker_importer_is_idempotent(seeded_session, monkeypatch):
     assert second.clean_sheet_events == 0
     assert second.review_items == 0
     assert second.score_events == 0
+
+
+def test_topic_check_score_event_does_not_move_current_score(seeded_session):
+    service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(0)))
+    service.record_score_event(
+        {
+            "student_id": seed_module.DEMO_STUDENT_ID,
+            "subject": Subject.MATH_PROFILE,
+            "score": 40,
+            "kind": "topic_check",
+        }
+    )
+    track = seeded_session.scalar(
+        select(SubjectTrackORM).where(SubjectTrackORM.subject == Subject.MATH_PROFILE)
+    )
+    assert track.current_score == 65
+
+
+def test_exam_like_score_event_moves_current_score(seeded_session):
+    service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(0)))
+    service.record_score_event(
+        {
+            "student_id": seed_module.DEMO_STUDENT_ID,
+            "subject": Subject.MATH_PROFILE,
+            "score": 78,
+            "kind": "exam_like_slice",
+        }
+    )
+    track = seeded_session.scalar(
+        select(SubjectTrackORM).where(SubjectTrackORM.subject == Subject.MATH_PROFILE)
+    )
+    assert track.current_score == 78
+
+
+def test_manual_decision_with_counts_scores_from_counts_over_button(seeded_session):
+    mission = first_mission(seeded_session)
+    service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(0)))
+    submitted = asyncio.run(
+        service.submit_attempt(
+            {
+                "mission_id": mission.id,
+                "kind": AttemptKind.TEXT,
+                "mode": AttemptMode.CLEAN_SHEET,
+                "answer_text": "x",
+            }
+        )
+    )
+    # Operator presses "passed" but records 5/10 -> objective counts win -> FAILED at 50%.
+    result = service.apply_manual_decision(
+        submitted["evidence_id"],
+        {"status": EvidenceStatus.PASSED, "tasks_total": 10, "tasks_correct": 5},
+    )
+    assert result["status"] == EvidenceStatus.FAILED
+    assert result["score_percent"] == 50.0
+    assert result["tasks_total"] == 10
+    assert result["tasks_correct"] == 5
+
+
+def test_submit_with_only_one_count_raises_value_error(seeded_session):
+    mission = first_mission(seeded_session)
+    service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(90)))
+    with pytest.raises(ValueError):
+        asyncio.run(
+            service.submit_attempt(
+                {
+                    "mission_id": mission.id,
+                    "kind": AttemptKind.TEXT,
+                    "mode": AttemptMode.CLEAN_SHEET,
+                    "answer_text": "x",
+                    "tasks_total": 10,
+                }
+            )
+        )
+
+
+def test_submit_with_correct_exceeding_total_raises_value_error(seeded_session):
+    mission = first_mission(seeded_session)
+    service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(90)))
+    with pytest.raises(ValueError):
+        asyncio.run(
+            service.submit_attempt(
+                {
+                    "mission_id": mission.id,
+                    "kind": AttemptKind.TEXT,
+                    "mode": AttemptMode.CLEAN_SHEET,
+                    "answer_text": "x",
+                    "tasks_total": 10,
+                    "tasks_correct": 11,
+                }
+            )
+        )
+
+
+def test_value_error_is_mapped_to_400():
+    app = create_app()
+
+    class RaisingService:
+        async def submit_attempt(self, _values):
+            raise ValueError("tasks_correct cannot exceed tasks_total")
+
+    app.dependency_overrides[get_learning_service] = lambda: RaisingService()
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/attempts",
+        headers={"X-EGE-MENTOR-TOKEN": "change-this-family-token"},
+        json={
+            "mission_id": "00000000-0000-0000-0000-000000000123",
+            "kind": "text",
+            "mode": "clean_sheet",
+            "answer_text": "x",
+        },
+    )
+
+    assert response.status_code == 400
+
+
+def test_publish_feedback_appears_in_dashboard_feed(seeded_session):
+    service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(90)))
+    service.publish_feedback(
+        {"student_id": seed_module.DEMO_STUDENT_ID, "body": "Хорошая работа, продолжай."}
+    )
+    dashboard = service.get_dashboard(seed_module.DEMO_STUDENT_ID)
+    bodies = [note["body"] for note in dashboard["mentor_notes"]]
+    assert "Хорошая работа, продолжай." in bodies
+
+
+def test_answer_is_correct_normalizes_short_answers():
+    from app.domain.policies import answer_is_correct
+
+    assert answer_is_correct("3,5", "3.5")
+    assert answer_is_correct(" -3 ", "-3")
+    assert answer_is_correct("5", "5 ")
+    assert not answer_is_correct("4", "5")
+    assert not answer_is_correct(None, "5")
+    assert not answer_is_correct("5", "")
+
+
+def test_draw_slice_returns_approved_tasks_without_answer_key(seeded_session):
+    service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(90)))
+    items = service.draw_slice(Subject.MATH_PROFILE, 5)
+    assert 1 <= len(items) <= 5
+    for item in items:
+        assert item["statement"]
+        assert item["task_id"] is not None
+        assert "expected_answer" not in item
+
+
+def test_grade_slice_records_diagnostic_and_errors_without_moving_score(seeded_session):
+    uow = SqlAlchemyUnitOfWork(seeded_session)
+    service = LearningService(uow, StaticReviewer(draft(90)))
+    pool = uow.tasks.list_gradable(Subject.MATH_PROFILE)
+    assert len(pool) >= 3
+    items = [{"task_id": task.id, "answer_text": task.expected_answer} for task in pool]
+    # Make exactly two answers wrong.
+    items[0]["answer_text"] = "___wrong___"
+    items[1]["answer_text"] = "___wrong___"
+    expected_correct = len(pool) - 2
+    before = seeded_session.scalar(
+        select(SubjectTrackORM).where(SubjectTrackORM.subject == Subject.MATH_PROFILE)
+    ).current_score
+
+    result = service.grade_slice(seed_module.DEMO_STUDENT_ID, Subject.MATH_PROFILE, items)
+
+    assert result["tasks_total"] == len(pool)
+    assert result["tasks_correct"] == expected_correct
+    assert result["percent"] == round(expected_correct / len(pool) * 100)
+    assert result["passed"] == (expected_correct / len(pool) >= 0.8)
+    # Diagnostic is surfaced on the dashboard "Диагностика (срезы)" feed.
+    diagnostics = uow.dashboard.list_diagnostics(seed_module.DEMO_STUDENT_ID)
+    assert any(
+        d["tasks_total"] == len(pool) and d["tasks_correct"] == expected_correct
+        for d in diagnostics
+    )
+    # The two misses land in the error journal.
+    errors = uow.errors.list_errors(seed_module.DEMO_STUDENT_ID, subject=Subject.MATH_PROFILE)
+    assert len(errors) >= 2
+    # §11: a diagnostic slice must not move current_score.
+    after = seeded_session.scalar(
+        select(SubjectTrackORM).where(SubjectTrackORM.subject == Subject.MATH_PROFILE)
+    ).current_score
+    assert after == before
+
+
+def test_grade_slice_rejects_unapproved_task(seeded_session):
+    service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(90)))
+    draft_task = service.add_task(
+        {"subject": Subject.MATH_PROFILE, "statement": "2+2?", "expected_answer": "4"}
+    )
+    with pytest.raises(ValueError):
+        service.grade_slice(
+            seed_module.DEMO_STUDENT_ID,
+            Subject.MATH_PROFILE,
+            [{"task_id": draft_task.id, "answer_text": "4"}],
+        )

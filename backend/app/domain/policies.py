@@ -31,6 +31,29 @@ def review_result_to_status(passed: bool) -> ReviewStatus:
     return ReviewStatus.DONE if passed else ReviewStatus.BACK_TO_WORK
 
 
+# §11: a topic diagnostic (topic_check) creates evidence/error/review work but must NOT
+# move current_score; only exam-like signals (baseline, weekly/exam variants, exam-like
+# slices, manual guardian scores) do. Diagnostics are the one score-event kind that is
+# explicitly non-moving, so a deny-list keeps imported/seeded kinds moving unchanged.
+NON_SCORING_SCORE_EVENT_KINDS = frozenset({"topic_check"})
+
+
+def score_event_moves_score(kind: str) -> bool:
+    return kind not in NON_SCORING_SCORE_EVENT_KINDS
+
+
+def normalize_answer(value: str) -> str:
+    """Normalize a short exact answer for deterministic comparison: casefold, decimal
+    comma -> dot, and drop all whitespace. Suits numeric/short math answers."""
+    return "".join(value.strip().casefold().replace(",", ".").split())
+
+
+def answer_is_correct(submitted: str | None, expected: str | None) -> bool:
+    if not submitted or not expected:
+        return False
+    return normalize_answer(submitted) == normalize_answer(expected)
+
+
 def compute_topic_state(
     active_missions: int,
     has_passed_evidence: bool,

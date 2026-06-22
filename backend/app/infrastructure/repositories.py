@@ -17,7 +17,11 @@ from app.domain.enums import (
     TaskStatus,
     TopicState,
 )
-from app.domain.policies import compute_topic_state
+from app.domain.policies import (
+    NON_SCORING_SCORE_EVENT_KINDS,
+    compute_topic_state,
+    score_event_moves_score,
+)
 from app.infrastructure.models import (
     AttemptORM,
     CleanSheetEventORM,
@@ -173,6 +177,19 @@ class TaskSqlRepository:
             for task, topic_title in rows
         ]
 
+    def list_gradable(self, subject: Subject) -> list[TaskORM]:
+        """Approved tasks with a non-empty exact answer — the pool for a knowledge slice."""
+        return list(
+            self.session.scalars(
+                select(TaskORM)
+                .where(TaskORM.subject == subject)
+                .where(TaskORM.status == TaskStatus.APPROVED)
+                .where(TaskORM.expected_answer.is_not(None))
+                .where(TaskORM.expected_answer != "")
+                .order_by(TaskORM.id)
+            ).all()
+        )
+
 
 class AttemptSqlRepository:
     def __init__(self, session: Session) -> None:
@@ -220,6 +237,8 @@ class EvidenceSqlRepository:
                 "topic_title": topic_title,
                 "status": evidence.status,
                 "score_percent": evidence.score_percent,
+                "tasks_total": evidence.tasks_total,
+                "tasks_correct": evidence.tasks_correct,
                 "error_category": evidence.error_category,
                 "feedback": evidence.feedback,
                 "next_action": evidence.next_action,
@@ -263,6 +282,8 @@ class EvidenceSqlRepository:
                 "code_text": attempt.code_text,
                 "status": evidence.status,
                 "score_percent": evidence.score_percent,
+                "tasks_total": evidence.tasks_total,
+                "tasks_correct": evidence.tasks_correct,
                 "error_category": evidence.error_category,
                 "feedback": evidence.feedback,
                 "next_action": evidence.next_action,
@@ -386,6 +407,12 @@ class DashboardSqlRepository:
             for entry in entries
         ]
 
+    def add_diagnostic(self, values: dict[str, object]) -> StudyLogEntryORM:
+        entry = StudyLogEntryORM(**values)
+        self.session.add(entry)
+        self.session.flush()
+        return entry
+
 
 class StudentSqlRepository:
     def __init__(self, session: Session) -> None:
@@ -497,12 +524,16 @@ class ScoreSqlRepository:
             if existing is not None:
                 return existing
         event = ScoreEventORM(**values)
-        # current_score must reflect the newest event by occurred_on (REQUIREMENTS §11):
-        # a backfilled older event must not regress the score.
+        # current_score reflects the newest *score-moving* event by occurred_on (§11):
+        # a backfilled older event must not regress it, and a topic diagnostic
+        # (topic_check) must not move it at all. The newest-by-date window therefore
+        # ignores non-moving kinds so a diagnostic can't shadow a real exam signal.
+        moves = score_event_moves_score(event.kind)
         prior_latest = self.session.scalar(
             select(func.max(ScoreEventORM.occurred_on))
             .where(ScoreEventORM.student_id == event.student_id)
             .where(ScoreEventORM.subject == event.subject)
+            .where(ScoreEventORM.kind.notin_(tuple(NON_SCORING_SCORE_EVENT_KINDS)))
         )
         is_newest = prior_latest is None or event.occurred_on >= prior_latest
         self.session.add(event)
@@ -521,7 +552,7 @@ class ScoreSqlRepository:
                 phase="foundation",
             )
             self.session.add(track)
-        elif is_newest:
+        elif is_newest and moves:
             track.current_score = event.score
         self.session.flush()
         return event

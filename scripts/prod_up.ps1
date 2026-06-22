@@ -40,5 +40,5 @@ try {
   Write-Host "Could not determine LAN IP automatically; using 127.0.0.1."
 }
 
-Write-Host "EGE Mentor LAN URL: http://$lanIp:8080"
-Write-Host "Health: http://$lanIp:8080/api/health"
+Write-Host "EGE Mentor LAN URL: http://$lanIp:8088"
+Write-Host "Health: http://$lanIp:8088/api/health"

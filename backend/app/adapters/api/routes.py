@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.adapters.api.dependencies import get_learning_service, require_api_token
 from app.adapters.api.schemas import (
@@ -9,6 +9,8 @@ from app.adapters.api.schemas import (
     ErrorEventOut,
     ManualDecisionIn,
     ManualReviewOut,
+    MentorNoteIn,
+    MentorNoteOut,
     MissionCreateIn,
     MissionOut,
     MissionUpdateIn,
@@ -17,6 +19,9 @@ from app.adapters.api.schemas import (
     ReviewResultIn,
     ScoreEventIn,
     ScoreEventOut,
+    SliceDrawOut,
+    SliceGradeIn,
+    SliceGradeOut,
     StudentOut,
     SubmitAttemptIn,
     SubmitAttemptOut,
@@ -137,6 +142,35 @@ def score_event(
     service: LearningService = Depends(get_learning_service),
 ) -> object:
     return service.record_score_event({**payload.model_dump(), "student_id": student_id})
+
+
+@protected_router.post("/students/{student_id}/mentor-notes", response_model=MentorNoteOut)
+def publish_mentor_note(
+    student_id: UUID,
+    payload: MentorNoteIn,
+    service: LearningService = Depends(get_learning_service),
+) -> object:
+    return service.publish_feedback({**payload.model_dump(), "student_id": student_id})
+
+
+@protected_router.get("/students/{student_id}/slices/draw", response_model=SliceDrawOut)
+def draw_slice(
+    student_id: UUID,
+    subject: Subject = Subject.MATH_PROFILE,
+    size: int = Query(default=8, ge=1, le=50),
+    service: LearningService = Depends(get_learning_service),
+) -> dict[str, object]:
+    return {"subject": subject, "items": service.draw_slice(subject, size)}
+
+
+@protected_router.post("/students/{student_id}/slices/grade", response_model=SliceGradeOut)
+def grade_slice(
+    student_id: UUID,
+    payload: SliceGradeIn,
+    service: LearningService = Depends(get_learning_service),
+) -> dict[str, object]:
+    items = [item.model_dump() for item in payload.items]
+    return service.grade_slice(student_id, payload.subject, items)
 
 
 @protected_router.post("/attempts", response_model=SubmitAttemptOut)

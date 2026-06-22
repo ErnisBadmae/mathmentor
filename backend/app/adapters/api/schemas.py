@@ -44,6 +44,11 @@ class MentorNoteOut(BaseModel):
     created_at: datetime
 
 
+class MentorNoteIn(BaseModel):
+    body: str = Field(min_length=1, max_length=20000)
+    topic_id: UUID | None = None
+
+
 class DashboardOut(BaseModel):
     tracks: list[TrackOut]
     clean_sheet_ratio: float
@@ -164,6 +169,8 @@ class SubmitAttemptIn(BaseModel):
     answer_text: str | None = Field(default=None, max_length=20000)
     code_text: str | None = Field(default=None, max_length=20000)
     time_spent_minutes: int | None = Field(default=None, ge=0, le=600)
+    tasks_total: int | None = Field(default=None, ge=0)
+    tasks_correct: int | None = Field(default=None, ge=0)
 
 
 class SubmitAttemptOut(BaseModel):
@@ -171,6 +178,8 @@ class SubmitAttemptOut(BaseModel):
     evidence_id: UUID
     status: EvidenceStatus
     score_percent: float
+    tasks_total: int | None = None
+    tasks_correct: int | None = None
     error_category: ErrorCategory
     feedback: str
     next_action: str
@@ -234,6 +243,8 @@ class ManualReviewOut(BaseModel):
     topic_title: str | None = None
     status: EvidenceStatus
     score_percent: float
+    tasks_total: int | None = None
+    tasks_correct: int | None = None
     error_category: ErrorCategory
     feedback: str
     next_action: str
@@ -246,6 +257,42 @@ class ManualReviewOut(BaseModel):
 class ManualDecisionIn(BaseModel):
     status: EvidenceStatus
     score_percent: float | None = Field(default=None, ge=0, le=100)
+    tasks_total: int | None = Field(default=None, ge=0)
+    tasks_correct: int | None = Field(default=None, ge=0)
     error_category: ErrorCategory | None = None
     feedback: str | None = None
     next_action: str | None = None
+
+
+class SliceTaskOut(BaseModel):
+    task_id: UUID
+    task_number: str | None = None
+    statement: str
+
+
+class SliceDrawOut(BaseModel):
+    subject: Subject
+    items: list[SliceTaskOut]
+
+
+class SliceAnswerIn(BaseModel):
+    task_id: UUID
+    answer_text: str | None = Field(default=None, max_length=2000)
+
+
+class SliceGradeIn(BaseModel):
+    subject: Subject
+    items: list[SliceAnswerIn] = Field(min_length=1, max_length=50)
+
+
+class SliceItemResultOut(BaseModel):
+    task_id: UUID
+    correct: bool
+
+
+class SliceGradeOut(BaseModel):
+    tasks_total: int
+    tasks_correct: int
+    percent: int
+    passed: bool
+    items: list[SliceItemResultOut]

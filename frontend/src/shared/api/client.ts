@@ -112,6 +112,17 @@ export type Mission = {
   timebox_minutes: number | null;
 };
 
+export type MissionDraft = {
+  subject: Subject;
+  title: string;
+  instructions?: string;
+  threshold_percent?: number;
+  topic_id?: string | null;
+  task_id?: string | null;
+  due_date?: string | null;
+  timebox_minutes?: number | null;
+};
+
 export type ErrorEvent = {
   id: string;
   subject: Subject;
@@ -132,15 +143,40 @@ export type ReviewItem = {
 
 export type ManualReview = {
   id: string;
+  attempt_id: string;
   mission_id: string;
   mission_title: string;
+  topic_id: string | null;
   topic_title: string | null;
   status: EvidenceStatus;
   score_percent: number;
+  tasks_total: number | null;
+  tasks_correct: number | null;
   error_category: ErrorCategory;
   feedback: string;
   next_action: string;
+  model_id: string;
+  prompt_version: string;
+  rubric_version: string;
   created_at: string;
+};
+
+export type ScoreEventDraft = {
+  subject: Subject;
+  score: number;
+  kind?: string;
+  occurred_on?: string | null;
+  note?: string | null;
+};
+
+export type ScoreEvent = {
+  id: string;
+  student_id: string;
+  subject: Subject;
+  score: number;
+  kind: string;
+  occurred_on: string;
+  note: string | null;
 };
 
 export type SubmitAttemptPayload = {
@@ -150,6 +186,8 @@ export type SubmitAttemptPayload = {
   answer_text?: string;
   code_text?: string;
   time_spent_minutes?: number;
+  tasks_total?: number;
+  tasks_correct?: number;
 };
 
 export type SubmitAttemptResult = {
@@ -157,6 +195,8 @@ export type SubmitAttemptResult = {
   evidence_id: string;
   status: EvidenceStatus;
   score_percent: number;
+  tasks_total: number | null;
+  tasks_correct: number | null;
   error_category: ErrorCategory;
   feedback: string;
   next_action: string;
@@ -165,6 +205,7 @@ export type SubmitAttemptResult = {
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8001/api';
 const BUNDLED_API_TOKEN = import.meta.env.VITE_API_TOKEN ?? '';
 const TOKEN_KEY = 'egeMentorApiToken';
+const OPERATOR_MODE_KEY = 'egeMentorOperatorMode';
 
 export function getStoredApiToken(): string {
   return BUNDLED_API_TOKEN || localStorage.getItem(TOKEN_KEY) || '';
@@ -172,6 +213,14 @@ export function getStoredApiToken(): string {
 
 export function setStoredApiToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function getOperatorMode(): boolean {
+  return localStorage.getItem(OPERATOR_MODE_KEY) === '1';
+}
+
+export function setOperatorMode(enabled: boolean): void {
+  localStorage.setItem(OPERATOR_MODE_KEY, enabled ? '1' : '0');
 }
 
 export function errorMessage(error: unknown): string {
@@ -211,6 +260,20 @@ export function getTodayMissions(studentId: string): Promise<Mission[]> {
   return request<Mission[]>(`/students/${studentId}/missions/today`);
 }
 
+export function createMission(studentId: string, payload: MissionDraft): Promise<Mission> {
+  return request<Mission>(`/students/${studentId}/missions`, {
+    method: 'POST',
+    body: JSON.stringify({ ...payload, student_id: studentId }),
+  });
+}
+
+export function updateMission(missionId: string, payload: Partial<MissionDraft>): Promise<Mission> {
+  return request<Mission>(`/missions/${missionId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getTopicLifecycle(studentId: string): Promise<TopicLifecycle[]> {
   return request<TopicLifecycle[]>(`/students/${studentId}/topics/lifecycle`);
 }
@@ -245,13 +308,65 @@ export function getManualReviews(studentId: string): Promise<ManualReview[]> {
 export function applyManualDecision(
   evidenceId: string,
   status: Exclude<EvidenceStatus, 'needs_manual_review'>,
+  extras?: { tasks_total?: number; tasks_correct?: number; score_percent?: number },
 ): Promise<SubmitAttemptResult> {
   return request<SubmitAttemptResult>(`/evidence/${evidenceId}/manual-decision`, {
     method: 'POST',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, ...extras }),
   });
 }
 
 export function submitAttempt(payload: SubmitAttemptPayload): Promise<SubmitAttemptResult> {
   return request<SubmitAttemptResult>('/attempts', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function recordScoreEvent(studentId: string, payload: ScoreEventDraft): Promise<ScoreEvent> {
+  return request<ScoreEvent>(`/students/${studentId}/score-events`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function publishMentorNote(
+  studentId: string,
+  payload: { body: string; topic_id?: string | null },
+): Promise<MentorNote> {
+  return request<MentorNote>(`/students/${studentId}/mentor-notes`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export type SliceTask = {
+  task_id: string;
+  task_number: string | null;
+  statement: string;
+};
+
+export type SliceResult = {
+  tasks_total: number;
+  tasks_correct: number;
+  percent: number;
+  passed: boolean;
+  items: Array<{ task_id: string; correct: boolean }>;
+};
+
+export function drawSlice(
+  studentId: string,
+  subject: Subject,
+  size: number,
+): Promise<{ subject: Subject; items: SliceTask[] }> {
+  return request<{ subject: Subject; items: SliceTask[] }>(
+    `/students/${studentId}/slices/draw?subject=${subject}&size=${size}`,
+  );
+}
+
+export function gradeSlice(
+  studentId: string,
+  payload: { subject: Subject; items: Array<{ task_id: string; answer_text: string }> },
+): Promise<SliceResult> {
+  return request<SliceResult>(`/students/${studentId}/slices/grade`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }

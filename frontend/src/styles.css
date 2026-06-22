@@ -57,12 +57,55 @@ p { margin: 0; }
 .tableRow { display: flex; justify-content: space-between; gap: 18px; padding: 12px 0; border-top: 1px solid #eee8dc; }
 .tableRow div:first-child { display: grid; gap: 4px; }
 .tableRow span, .tableRow small { color: #66726c; }
-.rowActions { display: flex; gap: 8px; align-items: center; }
+.rowActions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.rowActions input[type="number"] { width: 72px; padding: 7px 8px; }
 .state, .emptyPanel { color: #66726c; }
 .stateError { color: #a33a2d; }
 .progressBar { height: 6px; background: #e6eaf0; border-radius: 999px; overflow: hidden; margin-top: 6px; }
 .progressFill { height: 100%; background: #2d6cdf; border-radius: 999px; }
+
+/* Form controls — shared so every form reads the same (forms were previously unstyled). */
+input, select, textarea { font: inherit; color: #17201a; }
+input:not([type="radio"]):not([type="checkbox"]), select, textarea { border: 1px solid #d8d1c2; border-radius: 8px; padding: 9px 10px; background: #fff; }
+textarea { resize: vertical; min-height: 84px; }
+select { cursor: pointer; }
+.formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.formGrid label { display: grid; gap: 5px; align-content: start; }
+.formGrid label > span { font-size: 13px; font-weight: 600; color: #66726c; }
+.formGrid label input, .formGrid label select, .formGrid label textarea { width: 100%; }
+.fieldWide { grid-column: 1 / -1; }
+.formActions { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.formHint { grid-column: 1 / -1; color: #66726c; font-size: 13px; margin: -2px 0 2px; }
+
+/* Button variants — distinguish "accept" (primary) from "send back" (secondary). */
+.buttonSecondary { background: #fff; color: #216b5a; border: 1px solid #cfd8d2; }
+.buttonSecondary:hover:not(:disabled) { background: #eef4f1; }
+
+/* Status badges — replace per-page hardcoded colors with one tokenized vocabulary. */
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; }
+.badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.badge--confirmed { color: #1f7a4d; background: #e7f4ec; border-color: #cfe8da; }
+.badge--review { color: #1f5fa8; background: #e8f0fb; border-color: #d2e2f6; }
+.badge--work { color: #8a5d00; background: #fbf2da; border-color: #efdfac; }
+.badge--open { color: #5b6660; background: #eef0ec; border-color: #dfe2dc; }
+.badge--back { color: #b03a2e; background: #fbeae7; border-color: #f3d2cb; }
+
+/* Right-hand column of a row reads as a right-aligned stack (but leave action rows as flex). */
+.tableRow > div:last-child:not(.rowActions) { display: grid; gap: 4px; justify-items: end; align-content: start; text-align: right; }
+
+/* Current program phase + sidebar operator-mode toggle. */
+.panel--current { border-color: #2d6cdf; }
+.modeToggle { width: 100%; text-align: left; background: #244b40; color: #e8eee9; border: 1px solid #2f6f5f; border-radius: 8px; padding: 10px 12px; display: grid; gap: 2px; margin-bottom: 16px; cursor: pointer; }
+.modeToggle:hover { background: #2a574a; }
+.modeToggle strong { font-size: 13px; }
+.modeToggle span { font-size: 12px; color: #c8d8d1; }
+
+/* Knowledge slice: task cards with an answer field each. */
+.sliceTask { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid #eee8dc; }
+.sliceStatement { font-size: 15px; line-height: 1.45; color: #17201a; }
+.sliceTask input { max-width: 320px; }
+
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }
-  .metricGrid, .workLayout { grid-template-columns: 1fr; }
+  .metricGrid, .workLayout, .formGrid { grid-template-columns: 1fr; }
 }

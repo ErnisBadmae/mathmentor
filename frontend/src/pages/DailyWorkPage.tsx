@@ -65,6 +65,9 @@ export function DailyWorkPage() {
           {mutation.data ? (
             <div className={mutation.data.status === 'needs_manual_review' ? 'resultBox warningBox' : 'resultBox'}>
               <strong>{mutation.data.status === 'needs_manual_review' ? 'Нужна ручная проверка' : `Статус: ${mutation.data.status}`}</strong>
+              {mutation.data.tasks_total !== null && mutation.data.tasks_correct !== null ? (
+                <small>{mutation.data.tasks_correct}/{mutation.data.tasks_total}</small>
+              ) : null}
               <p>{mutation.data.feedback}</p>
               <small>{mutation.data.next_action}</small>
             </div>

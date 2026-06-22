@@ -2,6 +2,10 @@
 
 Compact bootstrap memory for Codex and other terminal agents working inside `egeMentor`.
 
+## Start Here
+
+Before reading anything else in this file, read `ACTIVE_TASK.md` (current goal/status/next steps) and the top entry of `SESSION_LOG.md` (most recent session). Both Codex and Claude Code share this single working cycle — do not keep a separate task log. At the end of a session, update `ACTIVE_TASK.md` and append a short entry to `SESSION_LOG.md`.
+
 ## Project Summary
 
 EGE Mentor is a family-pilot preparation system for Russian EGE profile mathematics and informatics.
@@ -183,3 +187,16 @@ Tools — read: `student_overview`, `program_progress`, `topic_lifecycle`, `diag
 - `backend/app/domain/policies.py`
 - `backend/app/application/use_cases.py`
 - `scripts/preview_tracker.py`
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+When the user types `/graphify`, invoke the `skill` tool with `skill: "graphify"` before doing anything else.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

@@ -170,6 +170,8 @@ class EvidenceORM(Base):
     )
     status: Mapped[EvidenceStatus] = mapped_column(Enum(EvidenceStatus, native_enum=False))
     score_percent: Mapped[float] = mapped_column(Float)
+    tasks_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tasks_correct: Mapped[int | None] = mapped_column(Integer, nullable=True)
     error_category: Mapped[ErrorCategory] = mapped_column(
         Enum(ErrorCategory, native_enum=False), index=True
     )

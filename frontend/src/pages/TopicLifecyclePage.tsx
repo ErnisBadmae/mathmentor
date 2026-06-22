@@ -1,11 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import {
-  errorMessage,
-  getCurrentStudent,
-  getTopicLifecycle,
-  type TopicLifecycle,
-  type TopicState,
-} from '../shared/api/client';
+import { errorMessage, getCurrentStudent, getTopicLifecycle, type TopicState } from '../shared/api/client';
 
 const STATE_LABEL: Record<TopicState, string> = {
   open: 'Не начата',
@@ -13,6 +7,14 @@ const STATE_LABEL: Record<TopicState, string> = {
   under_review: 'На повторении',
   confirmed: 'Подтверждена',
   back_to_work: 'Возврат провален',
+};
+
+const STATE_BADGE: Record<TopicState, string> = {
+  open: 'badge--open',
+  in_work: 'badge--work',
+  under_review: 'badge--review',
+  confirmed: 'badge--confirmed',
+  back_to_work: 'badge--back',
 };
 
 // Weak topics first: failed returns, then active work, then untouched; strong last.
@@ -23,10 +25,6 @@ const STATE_ORDER: Record<TopicState, number> = {
   under_review: 3,
   confirmed: 4,
 };
-
-function isWeak(topic: TopicLifecycle): boolean {
-  return topic.state !== 'confirmed' && topic.state !== 'under_review';
-}
 
 export function TopicLifecyclePage() {
   const studentQuery = useQuery({ queryKey: ['student', 'current'], queryFn: getCurrentStudent });
@@ -64,7 +62,7 @@ export function TopicLifecyclePage() {
                   </span>
                 </div>
                 <div>
-                  <b style={{ color: isWeak(topic) ? '#c0392b' : '#27ae60' }}>{STATE_LABEL[topic.state]}</b>
+                  <span className={`badge ${STATE_BADGE[topic.state]}`}>{STATE_LABEL[topic.state]}</span>
                   <small>
                     банк: {topic.tasks_in_bank} · решено: {topic.solved_count}
                     {topic.reviews_due_today > 0 ? ` · повторов: ${topic.reviews_due_today}` : ''}
