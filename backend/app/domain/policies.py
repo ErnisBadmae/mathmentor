@@ -54,6 +54,22 @@ def answer_is_correct(submitted: str | None, expected: str | None) -> bool:
     return normalize_answer(submitted) == normalize_answer(expected)
 
 
+def select_daily_queue(
+    open_count: int,
+    due_reviews: list,
+    back_to_work: list,
+    new_topics: list,
+    limit: int,
+) -> list:
+    """Состав дневной очереди дрилла (приоритет: due-повторы → back_to_work → новые темы).
+
+    Уже открытые daily-миссии (``open_count``, carry-over) считаются в лимит ПЕРВЫМИ —
+    долги не копим и новое не наваливаем сверх лимита. Возвращает упорядоченные ссылки на
+    то, что нужно до-создать (длиной не больше остатка бюджета). Чистая функция, без БД."""
+    budget = max(0, limit - open_count)
+    return ([*due_reviews, *back_to_work, *new_topics])[:budget]
+
+
 def compute_topic_state(
     active_missions: int,
     has_passed_evidence: bool,

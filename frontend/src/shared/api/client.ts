@@ -355,9 +355,11 @@ export function drawSlice(
   studentId: string,
   subject: Subject,
   size: number,
+  topicId?: string | null,
 ): Promise<{ subject: Subject; items: SliceTask[] }> {
+  const topicParam = topicId ? `&topic_id=${topicId}` : '';
   return request<{ subject: Subject; items: SliceTask[] }>(
-    `/students/${studentId}/slices/draw?subject=${subject}&size=${size}`,
+    `/students/${studentId}/slices/draw?subject=${subject}&size=${size}${topicParam}`,
   );
 }
 

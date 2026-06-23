@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     telegram_student_chat_id: str = ""
     # Прокси для Telegram, если прямой доступ закрыт (пусто — берём из env HTTPS_PROXY).
     telegram_proxy_url: str = ""
+    # Сколько задач в день собирает авто-очередь и во сколько (local time) утренний пуш.
+    daily_drill_size: int = 5
+    telegram_push_time: str = "16:00"
     public_api_base_url: str = "http://localhost:8001"
 
     @property

@@ -19,6 +19,7 @@ from app.domain.policies import (
     evidence_status,
     review_due_dates,
     review_result_to_status,
+    select_daily_queue,
 )
 from app.domain.program import PHASES, current_phase_key
 
@@ -89,9 +90,50 @@ class LearningService:
             }
         )
 
+    @staticmethod
+    def _review_card_id(mission: object) -> UUID | None:
+        """ID карточки повтора из source_ref ``daily:review:<uuid>`` (иначе None)."""
+        ref = getattr(mission, "source_ref", None) or ""
+        prefix = "daily:review:"
+        if ref.startswith(prefix):
+            try:
+                return UUID(ref[len(prefix) :])
+            except ValueError:
+                return None
+        return None
+
+    def _apply_review_drill_progression(
+        self,
+        mission: object,
+        evidence: object,
+        category: ErrorCategory,
+        feedback: str,
+        review_id: UUID,
+    ) -> None:
+        """Дрилл-повтор (origin ``daily:review``): закрываем ИСХОДНУЮ карточку, без новых
+        +7/+30. PASS → карточка DONE; FAIL → BACK_TO_WORK (сборщик передриллит свежей
+        задачей). Карточку трогаем только пока её статус DUE/BACK_TO_WORK — повторные/
+        устаревшие сабмиты последствий не плодят (шов №6)."""
+        self._uow.missions.mark_done(mission.id)
+        if evidence.status == EvidenceStatus.FAILED and category != ErrorCategory.NONE:
+            self._add_error_event(mission, evidence.attempt_id, evidence, feedback, category)
+        card = self._uow.reviews.get(review_id)
+        if card is None or card.status not in (ReviewStatus.DUE, ReviewStatus.BACK_TO_WORK):
+            return
+        new_status = (
+            ReviewStatus.DONE
+            if evidence.status == EvidenceStatus.PASSED
+            else ReviewStatus.BACK_TO_WORK
+        )
+        self._uow.reviews.mark_result(review_id, new_status)
+
     def _apply_progression(
         self, mission: object, evidence: object, category: ErrorCategory, feedback: str
     ) -> None:
+        review_id = self._review_card_id(mission)
+        if review_id is not None:
+            self._apply_review_drill_progression(mission, evidence, category, feedback, review_id)
+            return
         if evidence.status == EvidenceStatus.PASSED:
             self._uow.missions.mark_done(mission.id)
             if mission.topic_id is not None:
@@ -182,6 +224,94 @@ class LearningService:
             for mission in self._uow.missions.list_today(student_id)
             if self._is_drill(mission) and getattr(mission, "task", None) is not None
         ]
+
+    def build_daily_queue(self, student_id: UUID, limit: int = 5) -> dict[str, object]:
+        """Авто-сборщик дня: до ``limit`` дрилл-миссий, повторы вперёд, новые темы в остаток.
+
+        Уже открытые daily-миссии (carry-over) считаются в лимит первыми. Под каждый выбор
+        берётся СВЕЖАЯ (не назначавшаяся) задача темы; если её нет — тема идёт в ``shortage``,
+        а не пропускается тихо. Идемпотентно за день: уже открытый daily:-source_ref не дублим."""
+        today = self._today()
+        open_daily = [
+            m for m in self._uow.missions.list_today(student_id) if self._is_drill(m)
+        ]
+        open_refs = {m.source_ref for m in open_daily}
+
+        def _review_refs(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+            refs = []
+            for row in rows:
+                source_ref = f"daily:review:{row['id']}"
+                if source_ref not in open_refs:
+                    refs.append(
+                        {
+                            "topic_id": row["topic_id"],
+                            "title": row["topic_title"],
+                            "source_ref": source_ref,
+                        }
+                    )
+            return refs
+
+        due_refs = _review_refs(
+            self._uow.reviews.list_reviews(
+                student_id, status=ReviewStatus.DUE, due_on_or_before=today
+            )
+        )
+        back_to_work_refs = _review_refs(
+            self._uow.reviews.list_reviews(student_id, status=ReviewStatus.BACK_TO_WORK)
+        )
+        phase = current_phase_key(today)
+        review_topic_ids = {ref["topic_id"] for ref in (*due_refs, *back_to_work_refs)}
+        new_refs = []
+        for topic in sorted(
+            self._uow.topics.list_program(student_id),
+            key=lambda t: (t["program_order"] or 0, t["topic_title"]),
+        ):
+            source_ref = f"daily:new:{topic['topic_id']}"
+            if (
+                topic["phase"] == phase
+                and topic["state"] == TopicState.OPEN
+                and topic["tasks_in_bank"] > 0
+                and source_ref not in open_refs
+                and topic["topic_id"] not in review_topic_ids
+            ):
+                new_refs.append(
+                    {
+                        "topic_id": topic["topic_id"],
+                        "title": topic["topic_title"],
+                        "source_ref": source_ref,
+                    }
+                )
+
+        picks = select_daily_queue(len(open_daily), due_refs, back_to_work_refs, new_refs, limit)
+        filled: list[dict[str, object]] = []
+        shortage: list[dict[str, object]] = []
+        for ref in picks:
+            pool = self._uow.tasks.list_approved_for_topic(
+                ref["topic_id"], exclude_assigned_to=student_id
+            )
+            if not pool:
+                shortage.append(
+                    {"topic_id": ref["topic_id"], "title": ref["title"], "reason": "no_fresh_task"}
+                )
+                continue
+            task = pool[0]
+            mission = self.create_mission(
+                {
+                    "student_id": student_id,
+                    "subject": task.subject,
+                    "title": f"Дрилл: {ref['title']}",
+                    "instructions": "Реши и пришли краткий ответ.",
+                    "status": MissionStatus.ACTIVE,
+                    "ai_policy": AiPolicy.ATTEMPT_FIRST,
+                    "threshold_percent": 80.0,
+                    "topic_id": ref["topic_id"],
+                    "task_id": task.id,
+                    "due_date": today,
+                    "source_ref": ref["source_ref"],
+                }
+            )
+            filled.append(mission)
+        return {"filled": filled, "shortage": shortage}
 
     def _grade_exact_answer(self, answer_text: str | None, task: object) -> EvidenceDraft:
         """Вердикт дрилла: точное совпадение короткого ответа, мгновенно, без LLM."""
@@ -356,10 +486,13 @@ class LearningService:
         self._uow.commit()
         return event
 
-    def draw_slice(self, subject: Subject, size: int) -> list[dict[str, object]]:
+    def draw_slice(
+        self, subject: Subject, size: int, topic_id: UUID | None = None
+    ) -> list[dict[str, object]]:
         """Draw a knowledge slice: a random sample of approved, exact-answer tasks.
-        Returns statements only — the answer key never leaves the backend (§5)."""
-        pool = self._uow.tasks.list_gradable(subject)
+        ``topic_id`` scopes the срез to one topic. Returns statements only — the answer key
+        never leaves the backend (§5)."""
+        pool = self._uow.tasks.list_gradable(subject, topic_id)
         chosen = random.sample(pool, min(size, len(pool)))
         return [
             {"task_id": task.id, "task_number": task.task_number, "statement": task.statement}
@@ -374,6 +507,7 @@ class LearningService:
         topic_check (§11): it does not create a score event, so current_score is untouched."""
         now = datetime.now(UTC)
         results: list[dict[str, object]] = []
+        topic_ids: set[UUID] = set()
         correct = 0
         for item in items:
             task_id = item["task_id"]
@@ -382,6 +516,8 @@ class LearningService:
             task = self._uow.tasks.get(task_id)
             if task.status != TaskStatus.APPROVED or task.subject != subject:
                 raise ValueError("Slice item must reference an approved task of the subject.")
+            if task.topic_id is not None:
+                topic_ids.add(task.topic_id)
             is_correct = answer_is_correct(item.get("answer_text"), task.expected_answer)
             if is_correct:
                 correct += 1
@@ -403,13 +539,18 @@ class LearningService:
             results.append({"task_id": task.id, "correct": is_correct})
         total = len(items)
         fraction = correct / total if total else 0.0
+        label = SLICE_SUBJECT_LABEL.get(subject, subject.value)
+        if len(topic_ids) == 1:  # срез по одной теме — подписываем диагностику темой
+            topic = self._uow.topics.get(next(iter(topic_ids)))
+            if topic is not None:
+                label = topic.title
         self._uow.dashboard.add_diagnostic(
             {
                 "id": uuid4(),
                 "student_id": student_id,
                 "subject": subject,
                 "occurred_on": self._today(),
-                "topic_title": f"Срез — {SLICE_SUBJECT_LABEL.get(subject, subject.value)}",
+                "topic_title": f"Срез — {label}",
                 "tasks_total": total,
                 "tasks_correct": correct,
                 "percent_correct": fraction,

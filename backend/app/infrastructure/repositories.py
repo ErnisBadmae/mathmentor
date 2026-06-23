@@ -177,18 +177,43 @@ class TaskSqlRepository:
             for task, topic_title in rows
         ]
 
-    def list_gradable(self, subject: Subject) -> list[TaskORM]:
-        """Approved tasks with a non-empty exact answer — the pool for a knowledge slice."""
-        return list(
-            self.session.scalars(
-                select(TaskORM)
-                .where(TaskORM.subject == subject)
-                .where(TaskORM.status == TaskStatus.APPROVED)
-                .where(TaskORM.expected_answer.is_not(None))
-                .where(TaskORM.expected_answer != "")
-                .order_by(TaskORM.id)
-            ).all()
+    def list_gradable(self, subject: Subject, topic_id: UUID | None = None) -> list[TaskORM]:
+        """Approved tasks with a non-empty exact answer — the pool for a knowledge slice.
+        ``topic_id`` restricts the pool to one topic (срез по выбранной теме)."""
+        stmt = (
+            select(TaskORM)
+            .where(TaskORM.subject == subject)
+            .where(TaskORM.status == TaskStatus.APPROVED)
+            .where(TaskORM.expected_answer.is_not(None))
+            .where(TaskORM.expected_answer != "")
+            .order_by(TaskORM.id)
         )
+        if topic_id is not None:
+            stmt = stmt.where(TaskORM.topic_id == topic_id)
+        return list(self.session.scalars(stmt).all())
+
+    def list_approved_for_topic(
+        self, topic_id: UUID, exclude_assigned_to: UUID | None = None
+    ) -> list[TaskORM]:
+        """Approved exact-answer tasks for a topic. ``exclude_assigned_to`` drops any task
+        already linked to a mission of that student — 'fresh' = never assigned, not merely
+        unsolved (so a failed task does not come back as a new pick)."""
+        stmt = (
+            select(TaskORM)
+            .where(TaskORM.topic_id == topic_id)
+            .where(TaskORM.status == TaskStatus.APPROVED)
+            .where(TaskORM.expected_answer.is_not(None))
+            .where(TaskORM.expected_answer != "")
+            .order_by(TaskORM.id)
+        )
+        if exclude_assigned_to is not None:
+            assigned = (
+                select(MissionORM.task_id)
+                .where(MissionORM.student_id == exclude_assigned_to)
+                .where(MissionORM.task_id.is_not(None))
+            )
+            stmt = stmt.where(TaskORM.id.notin_(assigned))
+        return list(self.session.scalars(stmt).all())
 
 
 class AttemptSqlRepository:
@@ -501,6 +526,9 @@ class ReviewSqlRepository:
             }
             for item, topic_title, subject in rows
         ]
+
+    def get(self, review_id: UUID) -> ReviewItemORM | None:
+        return self.session.get(ReviewItemORM, review_id)
 
     def mark_result(self, review_id: UUID, status: ReviewStatus) -> ReviewItemORM:
         item = self.session.get(ReviewItemORM, review_id)

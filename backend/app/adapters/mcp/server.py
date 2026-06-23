@@ -164,6 +164,15 @@ def create_mission(
 
 
 @mcp.tool()
+def build_daily_queue(limit: int = 5, student_id: str = DEFAULT_STUDENT_ID) -> Any:
+    """Compose today's Telegram drill queue: repeats (due + back_to_work) first, then new
+    phase topics, up to ``limit``. Each pick gets a fresh (never-assigned) task; topics with
+    no fresh task land in ``shortage``. Idempotent per day. Returns {filled, shortage}."""
+    with SessionLocal() as session:
+        return _serialize(_service(session).build_daily_queue(UUID(student_id), limit))
+
+
+@mcp.tool()
 def update_mission(
     mission_id: str,
     title: str | None = None,

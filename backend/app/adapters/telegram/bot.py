@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import asyncio
 import os
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from app.application.use_cases import LearningService, RuleBasedReviewer
 from app.config import get_settings
@@ -57,9 +59,17 @@ def build_parent_digest(student_id: str = str(PILOT_STUDENT_ID)) -> str:
     )
 
 
-def _is_student_chat(message: Any) -> bool:
+async def _ensure_authorized(message: Any) -> bool:
+    """chat_id обязателен (шов №5): неавторизованному отвечаем его chat_id (для онбординга —
+    родитель впишет в TELEGRAM_STUDENT_CHAT_ID), но дриллы не выдаём."""
     configured = get_settings().telegram_student_chat_id
-    return not configured or str(message.chat.id) == str(configured)
+    if configured and str(message.chat.id) == str(configured):
+        return True
+    await message.answer(
+        f"Этот чат не авторизован. Ваш chat_id: {message.chat.id}.\n"
+        "Передайте его родителю — он добавит вас в настройки бота."
+    )
+    return False
 
 
 def _task_text(payload: dict[str, object]) -> str:
@@ -102,7 +112,7 @@ async def _send_next(message: Any) -> None:
 
 
 async def _on_start(message: Any) -> None:
-    if not _is_student_chat(message):
+    if not await _ensure_authorized(message):
         return
     _presented.pop(message.chat.id, None)
     await message.answer("Погнали! Решаем задачи по одной.")
@@ -110,7 +120,7 @@ async def _on_start(message: Any) -> None:
 
 
 async def _on_answer(message: Any) -> None:
-    if not _is_student_chat(message):
+    if not await _ensure_authorized(message):
         return
     chat_id = message.chat.id
     mission_id = _awaiting.get(chat_id)
@@ -129,6 +139,53 @@ async def _on_answer(message: Any) -> None:
     _awaiting.pop(chat_id, None)
     await message.answer(_verdict_text(result))
     await _send_next(message)
+
+
+def _seconds_until(hhmm: str, tz_name: str) -> float:
+    """Секунд до ближайшего HH:MM в локальной таймзоне (следующий день, если уже прошло)."""
+    tz = ZoneInfo(tz_name)
+    now = datetime.now(tz)
+    try:
+        hour, minute = (int(part) for part in hhmm.split(":"))
+    except ValueError:
+        hour, minute = 16, 0
+    target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if target <= now:
+        target += timedelta(days=1)
+    return (target - now).total_seconds()
+
+
+async def _morning_push(bot: Any) -> None:
+    """Идемпотентный утренний пуш: собрать день и позвать решать; сообщить о дефиците."""
+    settings = get_settings()
+    chat_id = int(settings.telegram_student_chat_id)
+    while True:
+        await asyncio.sleep(_seconds_until(settings.telegram_push_time, settings.local_timezone))
+        with SessionLocal() as session:
+            result = _service(session).build_daily_queue(
+                PILOT_STUDENT_ID, settings.daily_drill_size
+            )
+        _presented.pop(chat_id, None)
+        _awaiting.pop(chat_id, None)
+        filled = result.get("filled") or []
+        if filled:
+            await bot.send_message(
+                chat_id, f"Доброе утро! Задачи на сегодня готовы ({len(filled)}). Напиши /start."
+            )
+        else:
+            await bot.send_message(chat_id, "Доброе утро! Новых задач на сегодня нет.")
+        shortage = result.get("shortage") or []
+        if shortage:
+            titles = ", ".join(str(item["title"]) for item in shortage)
+            await bot.send_message(
+                chat_id, f"⚠️ Дефицит контента по темам: {titles}. Нужны новые задачи в банк."
+            )
+
+
+async def _run(dp: Any, bot: Any) -> None:
+    if get_settings().telegram_student_chat_id:
+        asyncio.create_task(_morning_push(bot))  # пуш только когда известен chat_id
+    await dp.start_polling(bot)
 
 
 def main() -> None:
@@ -152,7 +209,7 @@ def main() -> None:
     dp.message.register(_on_start, CommandStart())
     dp.message.register(_on_answer, F.text)
     bot = Bot(token=settings.telegram_bot_token, session=session)
-    asyncio.run(dp.start_polling(bot))
+    asyncio.run(_run(dp, bot))
 
 
 if __name__ == "__main__":

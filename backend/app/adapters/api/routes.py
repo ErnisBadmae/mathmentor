@@ -158,9 +158,10 @@ def draw_slice(
     student_id: UUID,
     subject: Subject = Subject.MATH_PROFILE,
     size: int = Query(default=8, ge=1, le=50),
+    topic_id: UUID | None = None,
     service: LearningService = Depends(get_learning_service),
 ) -> dict[str, object]:
-    return {"subject": subject, "items": service.draw_slice(subject, size)}
+    return {"subject": subject, "items": service.draw_slice(subject, size, topic_id)}
 
 
 @protected_router.post("/students/{student_id}/slices/grade", response_model=SliceGradeOut)
