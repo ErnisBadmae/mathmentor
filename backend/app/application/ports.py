@@ -43,6 +43,29 @@ class EvidenceReviewer(Protocol):
     async def review_attempt(self, attempt: AttemptForReview) -> EvidenceDraft: ...
 
 
+@dataclass(frozen=True)
+class AiAssessment:
+    """Сырой вывод ИИ-судьи. Без бизнес-политики (exact-авторитет, fallback, sanitize) — её
+    применяет ``LearningService``; здесь только мнение модели + провенанс.
+
+    ``extracted_answer`` — финальный ответ, который ИИ вытащил из решения ученика (формат
+    «покажи ход»): по нему сервис детерминированно заземляет вердикт. ``feedback`` уже
+    учитывает метод (если ответ верный, но ход неверный — ИИ это отмечает)."""
+
+    equivalent: bool
+    extracted_answer: str | None
+    feedback: str
+    model_id: str
+    prompt_version: str
+    rubric_version: str
+
+
+class ShortAnswerJudge(Protocol):
+    async def assess(
+        self, statement: str, correct_answer: str, student_answer: str | None
+    ) -> AiAssessment | None: ...
+
+
 class UnitOfWork(Protocol):
     students: "StudentRepository"
     missions: "MissionRepository"

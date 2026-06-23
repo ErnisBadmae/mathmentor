@@ -675,7 +675,9 @@ def test_grade_slice_records_diagnostic_and_errors_without_moving_score(seeded_s
         select(SubjectTrackORM).where(SubjectTrackORM.subject == Subject.MATH_PROFILE)
     ).current_score
 
-    result = service.grade_slice(seed_module.DEMO_STUDENT_ID, Subject.MATH_PROFILE, items)
+    result = asyncio.run(
+        service.grade_slice(seed_module.DEMO_STUDENT_ID, Subject.MATH_PROFILE, items)
+    )
 
     assert result["tasks_total"] == len(pool)
     assert result["tasks_correct"] == expected_correct
@@ -703,8 +705,10 @@ def test_grade_slice_rejects_unapproved_task(seeded_session):
         {"subject": Subject.MATH_PROFILE, "statement": "2+2?", "expected_answer": "4"}
     )
     with pytest.raises(ValueError):
-        service.grade_slice(
-            seed_module.DEMO_STUDENT_ID,
-            Subject.MATH_PROFILE,
-            [{"task_id": draft_task.id, "answer_text": "4"}],
+        asyncio.run(
+            service.grade_slice(
+                seed_module.DEMO_STUDENT_ID,
+                Subject.MATH_PROFILE,
+                [{"task_id": draft_task.id, "answer_text": "4"}],
+            )
         )

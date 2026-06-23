@@ -29,13 +29,25 @@ class FakeMessage:
         self.text = text
         self.replies: list[str] = []
 
-    async def answer(self, text: str) -> None:
+    async def answer(self, text: str, **_kwargs: object) -> None:
         self.replies.append(text)
+
+
+class FakeCallback:
+    def __init__(self, chat_id: int, data: str) -> None:
+        self.message = FakeMessage(chat_id)
+        self.data = data
+        self.answers: list[str] = []
+
+    async def answer(self, text: str = "", show_alert: bool = False) -> None:
+        self.answers.append(text)
 
 
 class FakeSettings:
     telegram_student_chat_id = "111"
+    telegram_extra_chat_ids = ""
     local_timezone = "Europe/Moscow"
+    authorized_chat_ids = ["111"]
 
     def llm_connection(self) -> None:
         return None
@@ -78,9 +90,35 @@ def _make_drill(session) -> None:
     )
 
 
+def _make_slice_topic(session) -> TopicORM:
+    svc = LearningService(SqlAlchemyUnitOfWork(session), RuleBasedReviewer())
+    topic = TopicORM(
+        id=uuid4(), subject=Subject.MATH_PROFILE, title="Срез тема", spec_year=2026,
+        task_number=None, phase="june_diagnostics", program_order=901,
+    )
+    session.add(topic)
+    session.commit()
+    for i in range(2):  # обе задачи с одним ключом "5" — ответ детерминирован независимо от порядка
+        url = f"https://example.org/slice-bot/{i}"
+        task = svc.add_task(
+            {
+                "subject": Subject.MATH_PROFILE,
+                "statement": f"срез задача {i}",
+                "expected_answer": "5",
+                "source": "official",
+                "source_url": url,
+                "source_ref": url,
+                "topic_id": topic.id,
+            }
+        )
+        svc.approve_task(task.id)
+    return topic
+
+
 def _patch_bot(monkeypatch, session_factory) -> None:
     bot._presented.clear()
     bot._awaiting.clear()
+    bot._srez.clear()
     monkeypatch.setattr(bot, "SessionLocal", session_factory)
     monkeypatch.setattr(bot, "get_settings", lambda: FakeSettings())
 
@@ -108,3 +146,30 @@ def test_authorized_drill_flow_sends_task_and_grades(seeded_session, session_fac
     answer = FakeMessage(111, text="4")
     asyncio.run(bot._on_answer(answer))
     assert any("Верно" in reply for reply in answer.replies)
+
+
+def test_slice_flow_subject_topic_then_grade(seeded_session, session_factory, monkeypatch):
+    topic = _make_slice_topic(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+
+    start = FakeMessage(111, text="/slice")
+    asyncio.run(bot._on_slice(start))
+    assert any("предмет" in reply.lower() for reply in start.replies)
+
+    subj = FakeCallback(111, "slice:subj:math_profile")
+    asyncio.run(bot._on_slice_subject(subj))
+    assert any("тему" in reply.lower() for reply in subj.message.replies)
+
+    pick = FakeCallback(111, f"slice:topic:{topic.id}")
+    asyncio.run(bot._on_slice_topic(pick))
+    assert any("Задача 1/2" in reply for reply in pick.message.replies)
+    assert all("5" != reply.strip() for reply in pick.message.replies)  # ключ не утёк
+
+    ans1 = FakeMessage(111, text="5")
+    asyncio.run(bot._on_answer(ans1))
+    assert any("Задача 2/2" in reply for reply in ans1.replies)
+
+    ans2 = FakeMessage(111, text="5")
+    asyncio.run(bot._on_answer(ans2))
+    assert any("Срез готов: 2/2" in reply and "зачёт" in reply for reply in ans2.replies)
+    assert 111 not in bot._srez  # сессия закрыта

@@ -1,5 +1,6 @@
 """Срез по выбранной теме: пул ограничен темой, диагностика подписана темой."""
 
+import asyncio
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -59,10 +60,12 @@ def test_grade_slice_labels_diagnostic_by_topic(seeded_session):
     topic = _topic_with_tasks(svc, seeded_session, "Вероятность сложение", ["5", "6"])
     items = svc.draw_slice(Subject.MATH_PROFILE, 10, topic_id=topic.id)
 
-    svc.grade_slice(
-        STUDENT,
-        Subject.MATH_PROFILE,
-        [{"task_id": item["task_id"], "answer_text": "0"} for item in items],
+    asyncio.run(
+        svc.grade_slice(
+            STUDENT,
+            Subject.MATH_PROFILE,
+            [{"task_id": item["task_id"], "answer_text": "0"} for item in items],
+        )
     )
 
     labels = [e.topic_title for e in seeded_session.scalars(select(StudyLogEntryORM)).all()]

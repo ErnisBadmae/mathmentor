@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.application.use_cases import LearningService, RuleBasedReviewer
+from app.application.use_cases import ExactOnlyJudge, LearningService, RuleBasedReviewer
 from app.config import get_settings
 from app.infrastructure.db import get_session
 from app.infrastructure.llm import OpenAICompatibleReviewer
@@ -23,4 +23,7 @@ def get_learning_service(session: Session = Depends(get_session)) -> Generator[L
     settings = get_settings()
     connection = settings.llm_connection()
     reviewer = OpenAICompatibleReviewer(connection) if connection else RuleBasedReviewer()
-    yield LearningService(SqlAlchemyUnitOfWork(session), reviewer, settings.local_timezone)
+    # Веб-срез детерминирован (ExactOnly): текст «проверятся по ключу» правдив, фронт не меняем.
+    yield LearningService(
+        SqlAlchemyUnitOfWork(session), reviewer, settings.local_timezone, judge=ExactOnlyJudge()
+    )

@@ -165,13 +165,13 @@ def draw_slice(
 
 
 @protected_router.post("/students/{student_id}/slices/grade", response_model=SliceGradeOut)
-def grade_slice(
+async def grade_slice(
     student_id: UUID,
     payload: SliceGradeIn,
     service: LearningService = Depends(get_learning_service),
 ) -> dict[str, object]:
     items = [item.model_dump() for item in payload.items]
-    return service.grade_slice(student_id, payload.subject, items)
+    return await service.grade_slice(student_id, payload.subject, items)
 
 
 @protected_router.post("/attempts", response_model=SubmitAttemptOut)

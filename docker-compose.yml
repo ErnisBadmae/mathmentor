@@ -39,5 +39,23 @@ services:
     ports:
       - "8088:80"
 
+  # Ученический тренажёр в Telegram (дрилл + срез + ИИ-оценка). Long-poll, без портов.
+  # Требует в .env: TELEGRAM_BOT_TOKEN, TELEGRAM_STUDENT_CHAT_ID и (если Telegram закрыт
+  # напрямую) TELEGRAM_PROXY_URL или HTTPS_PROXY.
+  bot:
+    build:
+      context: ./backend
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://ege:ege@postgres:5432/ege_mentor
+    command: ["python", "-m", "app.adapters.telegram.bot"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   ege_mentor_pg:

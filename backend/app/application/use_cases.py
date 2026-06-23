@@ -1,9 +1,17 @@
 import random
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from app.application.ports import AttemptForReview, EvidenceDraft, EvidenceReviewer, UnitOfWork
+from app.application.ports import (
+    AiAssessment,
+    AttemptForReview,
+    EvidenceDraft,
+    EvidenceReviewer,
+    ShortAnswerJudge,
+    UnitOfWork,
+)
 from app.domain.enums import (
     AiPolicy,
     ErrorCategory,
@@ -17,6 +25,7 @@ from app.domain.enums import (
 from app.domain.policies import (
     answer_is_correct,
     evidence_status,
+    normalize_answer,
     review_due_dates,
     review_result_to_status,
     select_daily_queue,
@@ -29,13 +38,39 @@ SLICE_SUBJECT_LABEL = {
 }
 
 
+@dataclass(frozen=True)
+class AnswerJudgment:
+    """Итог оценки короткого ответа после применения политики (exact-авторитет + ИИ)."""
+
+    correct: bool
+    feedback: str
+    grading_method: str  # exact | exact_fallback | llm_equivalent | llm_rejected
+    model_id: str | None = None
+    prompt_version: str | None = None
+    rubric_version: str | None = None
+
+
+class ExactOnlyJudge:
+    """Судья без ИИ: всегда None → сервис применяет только точное сравнение (детерминизм)."""
+
+    async def assess(
+        self, statement: str, correct_answer: str, student_answer: str | None
+    ) -> AiAssessment | None:
+        return None
+
+
 class LearningService:
     def __init__(
-        self, uow: UnitOfWork, reviewer: EvidenceReviewer, local_timezone: str = "Europe/Moscow"
+        self,
+        uow: UnitOfWork,
+        reviewer: EvidenceReviewer,
+        local_timezone: str = "Europe/Moscow",
+        judge: ShortAnswerJudge | None = None,
     ) -> None:
         self._uow = uow
         self._reviewer = reviewer
         self._local_timezone = local_timezone
+        self._judge: ShortAnswerJudge = judge or ExactOnlyJudge()
 
     def _today(self):
         return datetime.now(ZoneInfo(self._local_timezone)).date()
@@ -300,7 +335,7 @@ class LearningService:
                     "student_id": student_id,
                     "subject": task.subject,
                     "title": f"Дрилл: {ref['title']}",
-                    "instructions": "Реши и пришли краткий ответ.",
+                    "instructions": "Реши, кратко распиши ход решения и в конце укажи ответ.",
                     "status": MissionStatus.ACTIVE,
                     "ai_policy": AiPolicy.ATTEMPT_FIRST,
                     "threshold_percent": 80.0,
@@ -313,28 +348,60 @@ class LearningService:
             filled.append(mission)
         return {"filled": filled, "shortage": shortage}
 
-    def _grade_exact_answer(self, answer_text: str | None, task: object) -> EvidenceDraft:
-        """Вердикт дрилла: точное совпадение короткого ответа, мгновенно, без LLM."""
-        if answer_is_correct(answer_text, task.expected_answer):
-            return EvidenceDraft(
-                score_percent=100.0,
-                error_category=ErrorCategory.NONE,
-                feedback="Верно.",
-                next_action="Тема засчитана.",
-                model_id="exact-answer",
-                prompt_version="none",
-                rubric_version="ege-mentor-v1",
-                status=EvidenceStatus.PASSED,
+    async def _grade_answer(
+        self, statement: str, correct_answer: str, student_answer: str | None
+    ) -> AnswerJudgment:
+        """Политика оценки короткого ответа (application-слой). Exact-match авторитетен (эталон
+        верифицирован); ИИ может только вытащить эквивалентную форму на промахе exact; сбой/None ИИ
+        → детерминированный exact (fail-open). Провенанс ИИ-решения сохраняется."""
+        exact = answer_is_correct(student_answer, correct_answer)
+        assessment = await self._judge.assess(statement, correct_answer, student_answer)
+        if assessment is None:
+            return AnswerJudgment(
+                correct=exact,
+                feedback="Верно." if exact else "Неверно.",
+                grading_method="exact",
             )
+        provenance = (assessment.model_id, assessment.prompt_version, assessment.rubric_version)
+        # Заземление: exact на сыром ответе ИЛИ на финальном ответе, извлечённом ИИ из решения
+        # («покажи ход» — сырой текст обычно не совпадёт целиком, поэтому сверяем извлечённый).
+        extracted_ok = bool(assessment.extracted_answer) and answer_is_correct(
+            assessment.extracted_answer, correct_answer
+        )
+        grounded = exact or extracted_ok
+        correct = grounded or assessment.equivalent
+        if grounded and not assessment.equivalent:
+            # exact-заземление авторитетно; противоречащий ИИ-текст заменяем безопасным.
+            feedback = "Верно."
+        else:
+            feedback = self._sanitize_feedback(assessment.feedback, correct_answer)
+        if not feedback:
+            feedback = "Верно." if correct else "Неверно."
+        method = "exact" if grounded else ("llm_equivalent" if correct else "llm_rejected")
+        return AnswerJudgment(correct, feedback, method, *provenance)
+
+    @staticmethod
+    def _sanitize_feedback(feedback: str, correct_answer: str) -> str:
+        """Best-effort защита от утечки эталона в фидбеке (нормализованный ключ как подстрока)."""
+        key = normalize_answer(correct_answer)
+        if len(key) >= 2 and key in normalize_answer(feedback):
+            return "Близко — проверь ещё раз."
+        return feedback
+
+    @staticmethod
+    def _drill_draft(judgment: AnswerJudgment, task: object) -> EvidenceDraft:
+        """EvidenceDraft дрилла из вердикта политики (PASSED/FAILED + провенанс)."""
+        passed = judgment.correct
+        category = ErrorCategory.NONE if passed else (task.error_category or ErrorCategory.OTHER)
         return EvidenceDraft(
-            score_percent=0.0,
-            error_category=task.error_category or ErrorCategory.OTHER,
-            feedback="Неверный ответ.",
-            next_action="Повтори задачу и реши заново.",
-            model_id="exact-answer",
-            prompt_version="none",
-            rubric_version="ege-mentor-v1",
-            status=EvidenceStatus.FAILED,
+            score_percent=100.0 if passed else 0.0,
+            error_category=category,
+            feedback=judgment.feedback,
+            next_action="Тема засчитана." if passed else "Повтори задачу и реши заново.",
+            model_id=judgment.model_id or "exact-answer",
+            prompt_version=judgment.prompt_version or "none",
+            rubric_version=judgment.rubric_version or "ege-mentor-v1",
+            status=EvidenceStatus.PASSED if passed else EvidenceStatus.FAILED,
         )
 
     def list_errors(
@@ -499,17 +566,57 @@ class LearningService:
             for task in chosen
         ]
 
-    def grade_slice(
-        self, student_id: UUID, subject: Subject, items: list[dict[str, object]]
+    def list_slice_topics(self, student_id: UUID) -> list[dict[str, object]]:
+        """Темы с задачами в банке — для выбора темы среза (TG/сайт)."""
+        rows = self._uow.topics.list_program(student_id)
+        topics = [
+            {
+                "topic_id": row["topic_id"],
+                "title": row["topic_title"],
+                "subject": row["subject"],
+                "tasks_in_bank": row["tasks_in_bank"],
+            }
+            for row in rows
+            if row["tasks_in_bank"] > 0
+        ]
+        topics.sort(key=lambda t: (t["subject"], t["title"]))
+        return topics
+
+    async def judge_task_answer(
+        self, task_id: UUID, answer_text: str | None
     ) -> dict[str, object]:
-        """Grade a slice deterministically by exact-answer match (no LLM). Records one
-        aggregate study-log diagnostic (§17a) + an error event per miss (§13). A slice is a
-        topic_check (§11): it does not create a score event, so current_score is untouched."""
+        """Единая точка оценки одного ответа по задаче банка (ключ на сервере). Возвращает вердикт
+        + фидбек + grading_method + провенанс, без ключа. Используют срез (сайт+TG) и дрилл."""
+        if not isinstance(task_id, UUID):
+            task_id = UUID(str(task_id))
+        task = self._uow.tasks.get(task_id)
+        if task.status != TaskStatus.APPROVED:
+            raise ValueError("Slice task must be approved.")
+        judgment = await self._grade_answer(task.statement, task.expected_answer, answer_text)
+        return {
+            "task_id": task.id,
+            "answer_text": answer_text,
+            "correct": judgment.correct,
+            "feedback": judgment.feedback,
+            "grading_method": judgment.grading_method,
+            "model_id": judgment.model_id,
+            "prompt_version": judgment.prompt_version,
+            "rubric_version": judgment.rubric_version,
+        }
+
+    def record_slice(
+        self, student_id: UUID, subject: Subject, judged: list[dict[str, object]]
+    ) -> dict[str, object]:
+        """Единственная точка персистентности среза. Повторно грузит задачи и пересчитывает
+        детерминированный exact заново; доверяет только флагу ``llm_equivalent`` (server-produced,
+        без повторного ИИ). Пишет агрегатную диагностику + error-event на промах + JSON-детали для
+        аудита. Срез — topic_check: текущий балл/lifecycle не двигает."""
         now = datetime.now(UTC)
         results: list[dict[str, object]] = []
+        details: list[dict[str, object]] = []
         topic_ids: set[UUID] = set()
         correct = 0
-        for item in items:
+        for item in judged:
             task_id = item["task_id"]
             if not isinstance(task_id, UUID):
                 task_id = UUID(str(task_id))
@@ -518,7 +625,9 @@ class LearningService:
                 raise ValueError("Slice item must reference an approved task of the subject.")
             if task.topic_id is not None:
                 topic_ids.add(task.topic_id)
-            is_correct = answer_is_correct(item.get("answer_text"), task.expected_answer)
+            answer_text = item.get("answer_text")
+            exact = answer_is_correct(answer_text, task.expected_answer)
+            is_correct = exact or item.get("grading_method") == "llm_equivalent"
             if is_correct:
                 correct += 1
             else:
@@ -537,7 +646,19 @@ class LearningService:
                     }
                 )
             results.append({"task_id": task.id, "correct": is_correct})
-        total = len(items)
+            details.append(
+                {
+                    "task_id": str(task.id),
+                    "answer": answer_text,
+                    "correct": is_correct,
+                    "grading_method": item.get("grading_method"),
+                    "feedback": item.get("feedback"),
+                    "model_id": item.get("model_id"),
+                    "prompt_version": item.get("prompt_version"),
+                    "rubric_version": item.get("rubric_version"),
+                }
+            )
+        total = len(judged)
         fraction = correct / total if total else 0.0
         label = SLICE_SUBJECT_LABEL.get(subject, subject.value)
         if len(topic_ids) == 1:  # срез по одной теме — подписываем диагностику темой
@@ -555,6 +676,7 @@ class LearningService:
                 "tasks_correct": correct,
                 "percent_correct": fraction,
                 "note": None,
+                "details_json": details,
             }
         )
         self._uow.commit()
@@ -565,6 +687,20 @@ class LearningService:
             "passed": fraction >= 0.8,
             "items": results,
         }
+
+    async def grade_slice(
+        self, student_id: UUID, subject: Subject, items: list[dict[str, object]]
+    ) -> dict[str, object]:
+        """Батч-оценка среза (сайт): оценить каждый пункт через единый грейдер, затем persist.
+        На API-поверхности judge = ExactOnlyJudge → детерминированно по ключу (веб не меняем)."""
+        judged = [
+            await self.judge_task_answer(item["task_id"], item.get("answer_text")) for item in items
+        ]
+        result = self.record_slice(student_id, subject, judged)
+        feedback_by_id = {str(item["task_id"]): item["feedback"] for item in judged}
+        for row in result["items"]:
+            row["feedback"] = feedback_by_id.get(str(row["task_id"]), "")
+        return result
 
     def record_review_result(self, review_id: UUID, passed: bool) -> object:
         item = self._uow.reviews.mark_result(review_id, review_result_to_status(passed))
@@ -620,8 +756,11 @@ class LearningService:
         )
 
         if self._is_drill(mission) and task is not None and (task.expected_answer or "").strip():
-            # Часть-1 дрилл: мгновенная точная проверка, без LLM.
-            draft = self._grade_exact_answer(attempt.answer_text, task)
+            # Часть-1 дрилл: общий грейдер (exact-авторитет + ИИ-эквивалентность по политике).
+            judgment = await self._grade_answer(
+                task.statement, task.expected_answer, attempt.answer_text
+            )
+            draft = self._drill_draft(judgment, task)
         else:
             draft = await self._reviewer.review_attempt(
                 AttemptForReview(

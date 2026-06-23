@@ -75,3 +75,6 @@ cd backend
 cd ..\frontend
 npm.cmd run build
 ```
+
+cd C:\Users\badmaev_es\egeMentor\backend
+.\.venv312\Scripts\python.exe -m app.adapters.telegram.bot

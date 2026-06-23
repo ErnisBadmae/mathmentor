@@ -51,8 +51,10 @@ class Settings(BaseSettings):
     llama_cpp_timeout: float = 120
 
     telegram_bot_token: str = Field(default="", repr=False)
-    # Единственный ученик пилота: chat_id, которому бот шлёт дрилл (пусто — принимать любой чат).
+    # Ученик пилота: chat_id — цель утреннего пуша (пусто — пуш выключен).
     telegram_student_chat_id: str = ""
+    # Доп. chat_id для тестов (через запятую): авторизованы, но не цель пуша.
+    telegram_extra_chat_ids: str = ""
     # Прокси для Telegram, если прямой доступ закрыт (пусто — берём из env HTTPS_PROXY).
     telegram_proxy_url: str = ""
     # Сколько задач в день собирает авто-очередь и во сколько (local time) утренний пуш.
@@ -63,6 +65,14 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         return [item.strip() for item in self.api_cors_origins.split(",") if item.strip()]
+
+    @property
+    def authorized_chat_ids(self) -> list[str]:
+        """Чаты, которым бот выдаёт задачи: ученик + доп. тестовые chat_id."""
+        student = self.telegram_student_chat_id.strip()
+        ids = [student] if student else []
+        ids += [c.strip() for c in self.telegram_extra_chat_ids.split(",") if c.strip()]
+        return ids
 
     def llm_connection(self) -> LlmConnection | None:
         """Return the active provider's endpoint, or None when LLM review is disabled."""

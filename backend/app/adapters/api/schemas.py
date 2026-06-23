@@ -288,6 +288,7 @@ class SliceGradeIn(BaseModel):
 class SliceItemResultOut(BaseModel):
     task_id: UUID
     correct: bool
+    feedback: str = ""
 
 
 class SliceGradeOut(BaseModel):
