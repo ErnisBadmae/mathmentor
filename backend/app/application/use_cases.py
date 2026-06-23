@@ -154,6 +154,12 @@ class LearningService:
             self._mission_payload(mission) for mission in self._uow.missions.list_today(student_id)
         ]
 
+    @staticmethod
+    def _is_drill(mission: object) -> bool:
+        """Часть-1 дрилл (мгновенная точная проверка) помечается префиксом source_ref."""
+        source_ref = getattr(mission, "source_ref", None)
+        return bool(source_ref) and source_ref.startswith("daily:")
+
     def _mission_payload(self, mission: object) -> dict[str, object]:
         task = getattr(mission, "task", None)
         statement = task.statement if task is not None else None
@@ -167,6 +173,39 @@ class LearningService:
             "due_date": mission.due_date,
             "timebox_minutes": mission.timebox_minutes,
         }
+
+    def list_daily_drill(self, student_id: UUID) -> list[dict[str, object]]:
+        """Очередь Telegram-дрилла: только открытые daily:-миссии со связанной задачей.
+        Отдельная поверхность — чтобы в чат не попали части 2 / операторские миссии."""
+        return [
+            self._mission_payload(mission)
+            for mission in self._uow.missions.list_today(student_id)
+            if self._is_drill(mission) and getattr(mission, "task", None) is not None
+        ]
+
+    def _grade_exact_answer(self, answer_text: str | None, task: object) -> EvidenceDraft:
+        """Вердикт дрилла: точное совпадение короткого ответа, мгновенно, без LLM."""
+        if answer_is_correct(answer_text, task.expected_answer):
+            return EvidenceDraft(
+                score_percent=100.0,
+                error_category=ErrorCategory.NONE,
+                feedback="Верно.",
+                next_action="Тема засчитана.",
+                model_id="exact-answer",
+                prompt_version="none",
+                rubric_version="ege-mentor-v1",
+                status=EvidenceStatus.PASSED,
+            )
+        return EvidenceDraft(
+            score_percent=0.0,
+            error_category=task.error_category or ErrorCategory.OTHER,
+            feedback="Неверный ответ.",
+            next_action="Повтори задачу и реши заново.",
+            model_id="exact-answer",
+            prompt_version="none",
+            rubric_version="ege-mentor-v1",
+            status=EvidenceStatus.FAILED,
+        )
 
     def list_errors(
         self,
@@ -439,22 +478,26 @@ class LearningService:
             }
         )
 
-        draft = await self._reviewer.review_attempt(
-            AttemptForReview(
-                subject=mission.subject,
-                mission_title=mission.title,
-                topic_title=getattr(mission.topic, "title", None),
-                kind=attempt.kind,
-                mode=attempt.mode,
-                answer_text=attempt.answer_text,
-                code_text=attempt.code_text,
-                expected_answer=task.expected_answer
-                if task is not None
-                else mission.expected_answer,
-                threshold_percent=mission.threshold_percent,
-                instructions=self._review_instructions(mission, task),
+        if self._is_drill(mission) and task is not None and (task.expected_answer or "").strip():
+            # Часть-1 дрилл: мгновенная точная проверка, без LLM.
+            draft = self._grade_exact_answer(attempt.answer_text, task)
+        else:
+            draft = await self._reviewer.review_attempt(
+                AttemptForReview(
+                    subject=mission.subject,
+                    mission_title=mission.title,
+                    topic_title=getattr(mission.topic, "title", None),
+                    kind=attempt.kind,
+                    mode=attempt.mode,
+                    answer_text=attempt.answer_text,
+                    code_text=attempt.code_text,
+                    expected_answer=task.expected_answer
+                    if task is not None
+                    else mission.expected_answer,
+                    threshold_percent=mission.threshold_percent,
+                    instructions=self._review_instructions(mission, task),
+                )
             )
-        )
         score_percent, status = self._resolve_score(
             threshold_percent=mission.threshold_percent,
             reviewer_score_percent=draft.score_percent,

@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     llama_cpp_timeout: float = 120
 
     telegram_bot_token: str = Field(default="", repr=False)
+    # Единственный ученик пилота: chat_id, которому бот шлёт дрилл (пусто — принимать любой чат).
+    telegram_student_chat_id: str = ""
+    # Прокси для Telegram, если прямой доступ закрыт (пусто — берём из env HTTPS_PROXY).
+    telegram_proxy_url: str = ""
     public_api_base_url: str = "http://localhost:8001"
 
     @property

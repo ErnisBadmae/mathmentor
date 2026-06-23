@@ -138,9 +138,14 @@ def create_mission(
     task_id: str | None = None,
     threshold_percent: float = 80.0,
     due_date: str | None = None,
+    drill: bool = False,
     student_id: str = DEFAULT_STUDENT_ID,
 ) -> Any:
-    """Create an ACTIVE mission for the student (track edit). Tagged source=mcp:agent."""
+    """Create an ACTIVE mission for the student (track edit). Tagged source=mcp:agent.
+
+    Set drill=True for a part-1 Telegram drill: link an approved exact-answer task via
+    task_id; the attempt is then graded by exact match (instant, no LLM) and the mission
+    is delivered to the Telegram queue (source_ref=daily:manual)."""
     values = {
         "student_id": UUID(student_id),
         "subject": Subject(subject),
@@ -152,7 +157,7 @@ def create_mission(
         "topic_id": UUID(topic_id) if topic_id else None,
         "task_id": UUID(task_id) if task_id else None,
         "due_date": date.fromisoformat(due_date) if due_date else None,
-        "source_ref": "mcp:agent",
+        "source_ref": "daily:manual" if drill else "mcp:agent",
     }
     with SessionLocal() as session:
         return _serialize(_service(session).create_mission(values))
