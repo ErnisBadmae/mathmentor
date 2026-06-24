@@ -28,9 +28,15 @@ class FakeMessage:
         self.chat = FakeChat(chat_id)
         self.text = text
         self.replies: list[str] = []
+        self.reply_markups: list[object | None] = []
 
-    async def answer(self, text: str, **_kwargs: object) -> None:
+    async def answer(self, text: str, **kwargs: object) -> None:
         self.replies.append(text)
+        self.reply_markups.append(kwargs.get("reply_markup"))
+
+    async def edit_text(self, text: str, **kwargs: object) -> None:
+        self.replies.append(text)
+        self.reply_markups.append(kwargs.get("reply_markup"))
 
 
 class FakeCallback:
@@ -41,6 +47,14 @@ class FakeCallback:
 
     async def answer(self, text: str = "", show_alert: bool = False) -> None:
         self.answers.append(text)
+
+
+class FakeBot:
+    def __init__(self) -> None:
+        self.commands = []
+
+    async def set_my_commands(self, commands) -> None:
+        self.commands = commands
 
 
 class FakeSettings:
@@ -138,14 +152,96 @@ def test_authorized_drill_flow_sends_task_and_grades(seeded_session, session_fac
     _make_drill(seeded_session)
     _patch_bot(monkeypatch, session_factory)
 
-    start = FakeMessage(111)
-    asyncio.run(bot._on_start(start))
-    assert any("2+2" in reply for reply in start.replies)  # условие задачи пришло
-    assert all("4" != reply.strip() for reply in start.replies)  # ответ-ключ не утёк
+    today = FakeMessage(111)
+    asyncio.run(bot._on_today(today))
+    assert any("2+2" in reply for reply in today.replies)  # условие задачи пришло
+    assert all("4" != reply.strip() for reply in today.replies)  # ответ-ключ не утёк
 
     answer = FakeMessage(111, text="4")
     asyncio.run(bot._on_answer(answer))
     assert any("Верно" in reply for reply in answer.replies)
+
+
+def test_start_shows_menu_without_starting_drill(
+    seeded_session, session_factory, monkeypatch
+):
+    _make_drill(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+
+    message = FakeMessage(111)
+    asyncio.run(bot._on_start(message))
+
+    assert any("помогу" in reply.lower() for reply in message.replies)
+    assert all("2+2" not in reply for reply in message.replies)
+    assert message.reply_markups[-1] is not None
+
+
+def test_idle_text_does_not_start_drill(seeded_session, session_factory, monkeypatch):
+    _make_drill(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+
+    message = FakeMessage(111, text="привет")
+    asyncio.run(bot._on_answer(message))
+
+    assert any("нет активного задания" in reply.lower() for reply in message.replies)
+    assert all("2+2" not in reply for reply in message.replies)
+
+
+def test_progress_uses_dashboard_truth(seeded_session, session_factory, monkeypatch):
+    _patch_bot(monkeypatch, session_factory)
+
+    message = FakeMessage(111)
+    asyncio.run(bot._on_progress(message))
+
+    assert any("65 из 85" in reply for reply in message.replies)
+    assert any("50 из 85" in reply for reply in message.replies)
+    assert any("Код без подсказок: 40%" in reply for reply in message.replies)
+
+
+def test_registers_native_telegram_commands():
+    fake = FakeBot()
+
+    asyncio.run(bot._register_commands(fake))
+
+    assert [command.command for command in fake.commands] == [
+        "start",
+        "today",
+        "slice",
+        "progress",
+        "help",
+        "cancel",
+    ]
+
+
+def test_today_does_not_build_an_empty_queue(session_factory, monkeypatch):
+    _patch_bot(monkeypatch, session_factory)
+
+    message = FakeMessage(111)
+    asyncio.run(bot._on_today(message))
+
+    assert any("открытых заданий нет" in reply.lower() for reply in message.replies)
+    with session_factory() as session:
+        assert LearningService(
+            SqlAlchemyUnitOfWork(session), RuleBasedReviewer()
+        ).list_daily_drill(STUDENT) == []
+
+
+def test_menu_today_and_cancel_share_drill_state(
+    seeded_session, session_factory, monkeypatch
+):
+    _make_drill(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+
+    callback = FakeCallback(111, "menu:today")
+    asyncio.run(bot._on_menu(callback))
+    assert any("2+2" in reply for reply in callback.message.replies)
+    assert callback.answers == [""]
+    assert 111 in bot._awaiting
+
+    cancel = FakeMessage(111, text="/cancel")
+    asyncio.run(bot._on_cancel(cancel))
+    assert 111 not in bot._awaiting
+    assert any("остановлен" in reply.lower() for reply in cancel.replies)
 
 
 def test_slice_flow_subject_topic_then_grade(seeded_session, session_factory, monkeypatch):

@@ -14,6 +14,7 @@ Run from ``backend/`` with the ``[bot]`` extra installed:
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from datetime import datetime, timedelta
 from typing import Any
@@ -35,6 +36,16 @@ from app.infrastructure.repositories import SqlAlchemyUnitOfWork
 # One student in the family pilot (the all-zero UUID the frontend/seed/MCP use).
 PILOT_STUDENT_ID = UUID("00000000-0000-0000-0000-000000000000")
 SLICE_SIZE = 5  # сколько задач в срезе по теме (фактически ≤ банка темы)
+BOT_COMMANDS = (
+    ("start", "Главное меню"),
+    ("today", "Задания на сегодня"),
+    ("slice", "Срез по теме"),
+    ("progress", "Мой прогресс"),
+    ("help", "Как пользоваться ботом"),
+    ("cancel", "Остановить текущий режим"),
+)
+
+logger = logging.getLogger(__name__)
 
 # Cache only (DB is the source of truth via list_daily_drill): which drill missions were
 # already shown this run, and which one each chat is currently answering. Survivable across
@@ -110,6 +121,35 @@ def _verdict_text(result: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def _home_keyboard() -> Any:
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📚 Сегодня", callback_data="menu:today")],
+            [InlineKeyboardButton(text="🧪 Срез по теме", callback_data="menu:slice")],
+            [InlineKeyboardButton(text="📊 Прогресс", callback_data="menu:progress")],
+        ]
+    )
+
+
+async def _show_home(message: Any, text: str = "Выбери, что хочешь сделать:") -> None:
+    await message.answer(text, reply_markup=_home_keyboard())
+
+
+def _progress_text(data: dict[str, object]) -> str:
+    lines = ["📊 Твой прогресс"]
+    for track in data.get("tracks", []):
+        subject = track["subject"]
+        label = SLICE_SUBJECT_LABEL.get(subject, getattr(subject, "value", str(subject)))
+        current = float(track["current_score"])
+        target = float(track["target_score"])
+        lines.append(f"{label}: {current:g} из {target:g}")
+    lines.append(f"Повторы на сегодня: {data.get('due_reviews', 0)}")
+    lines.append(f"Код без подсказок: {float(data.get('clean_sheet_ratio', 0)):.0%}")
+    return "\n".join(lines)
+
+
 async def _send_next(message: Any) -> None:
     chat_id = message.chat.id
     with SessionLocal() as session:
@@ -118,7 +158,7 @@ async def _send_next(message: Any) -> None:
     nxt = next((d for d in drills if d["id"] not in presented), None)
     if nxt is None:
         _awaiting.pop(chat_id, None)
-        await message.answer("На сегодня задачи закончились 🎉")
+        await _show_home(message, "На сегодня открытых заданий нет.")
         return
     mission_id = nxt["id"]
     assert isinstance(mission_id, UUID)
@@ -130,9 +170,55 @@ async def _send_next(message: Any) -> None:
 async def _on_start(message: Any) -> None:
     if not await _ensure_authorized(message):
         return
-    _presented.pop(message.chat.id, None)
-    await message.answer("Погнали! Решаем задачи по одной.")
+    await _show_home(
+        message,
+        "Привет! Я помогу пройти задания на сегодня, сделать срез по теме "
+        "и посмотреть прогресс.\n\nСначала реши сам, затем пришли ход решения и ответ.",
+    )
+
+
+async def _on_today(message: Any) -> None:
+    if not await _ensure_authorized(message):
+        return
+    chat_id = message.chat.id
+    if chat_id in _srez:
+        await message.answer("Сейчас идёт срез. Заверши его или используй /cancel.")
+        return
+    _presented.pop(chat_id, None)
+    _awaiting.pop(chat_id, None)
     await _send_next(message)
+
+
+async def _on_progress(message: Any) -> None:
+    if not await _ensure_authorized(message):
+        return
+    with SessionLocal() as session:
+        data = _service(session).get_dashboard(PILOT_STUDENT_ID)
+    await message.answer(_progress_text(data), reply_markup=_home_keyboard())
+
+
+async def _on_help(message: Any) -> None:
+    if not await _ensure_authorized(message):
+        return
+    await _show_home(
+        message,
+        "Как пользоваться ботом:\n"
+        "• Сегодня — подготовленные задания и повторы.\n"
+        "• Срез по теме — 5 задач с результатом в конце.\n"
+        "• Прогресс — текущие баллы и повторы.\n\n"
+        "Ответ присылай текстом: кратко распиши решение и в конце укажи ответ. "
+        "/cancel остановит текущий режим.",
+    )
+
+
+async def _on_menu(callback: Any) -> None:
+    if not _is_authorized(callback.message.chat.id):
+        await callback.answer("Не авторизовано", show_alert=True)
+        return
+    await callback.answer()
+    action = callback.data.split(":", 1)[1]
+    handlers = {"today": _on_today, "slice": _on_slice, "progress": _on_progress}
+    await handlers[action](callback.message)
 
 
 async def _on_answer(message: Any) -> None:
@@ -144,7 +230,7 @@ async def _on_answer(message: Any) -> None:
         return
     mission_id = _awaiting.get(chat_id)
     if mission_id is None:
-        await _send_next(message)
+        await _show_home(message, "Сейчас нет активного задания. Выбери действие:")
         return
     with SessionLocal() as session:
         result = await _service(session).submit_attempt(
@@ -190,11 +276,19 @@ def _topic_keyboard(topics: list[dict[str, object]]) -> Any:
         ]
         for topic in topics
     ]
+    rows.append([InlineKeyboardButton(text="← К предметам", callback_data="slice:back")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 async def _on_slice(message: Any) -> None:
     if not await _ensure_authorized(message):
+        return
+    chat_id = message.chat.id
+    if chat_id in _srez:
+        await message.answer("Срез уже идёт. Заверши его или используй /cancel.")
+        return
+    if chat_id in _awaiting:
+        await message.answer("Сейчас идёт задание дня. Заверши его или используй /cancel.")
         return
     with SessionLocal() as session:
         topics = _service(session).list_slice_topics(PILOT_STUDENT_ID)
@@ -224,7 +318,20 @@ async def _on_slice_subject(callback: Any) -> None:
     if not topics:
         await callback.message.answer("По предмету нет тем с задачами.")
         return
-    await callback.message.answer("Выбери тему:", reply_markup=_topic_keyboard(topics))
+    await callback.message.edit_text("Выбери тему:", reply_markup=_topic_keyboard(topics))
+
+
+async def _on_slice_back(callback: Any) -> None:
+    if not _is_authorized(callback.message.chat.id):
+        await callback.answer("Не авторизовано", show_alert=True)
+        return
+    await callback.answer()
+    with SessionLocal() as session:
+        topics = _service(session).list_slice_topics(PILOT_STUDENT_ID)
+    subjects = list(dict.fromkeys(topic["subject"] for topic in topics))
+    await callback.message.edit_text(
+        "Срез по теме. Выбери предмет:", reply_markup=_subject_keyboard(subjects)
+    )
 
 
 async def _on_slice_topic(callback: Any) -> None:
@@ -248,6 +355,7 @@ async def _on_slice_topic(callback: Any) -> None:
         return
     _awaiting.pop(chat_id, None)  # срез приоритетнее дрилла
     _srez[chat_id] = {"subject": topic["subject"], "items": items, "idx": 0, "judged": []}
+    await callback.message.edit_text(f"Срез по теме: {topic['title']}")
     await callback.message.answer(
         f"Срез: {topic['title']} — {len(items)} задач(и). /cancel — отмена."
     )
@@ -286,17 +394,34 @@ async def _handle_srez_answer(message: Any, chat_id: int) -> None:
     verdict = "зачёт ✅" if result["passed"] else "недобор"
     await message.answer(
         f"Срез готов: {result['tasks_correct']}/{result['tasks_total']} "
-        f"({result['percent']}%) — {verdict}."
+        f"({result['percent']}%) — {verdict}.",
+        reply_markup=_home_keyboard(),
     )
 
 
 async def _on_cancel(message: Any) -> None:
     if not await _ensure_authorized(message):
         return
-    if _srez.pop(message.chat.id, None) is not None:
-        await message.answer("Срез отменён.")
-    else:
-        await message.answer("Нечего отменять.")
+    chat_id = message.chat.id
+    active = _srez.pop(chat_id, None) is not None or chat_id in _awaiting
+    _awaiting.pop(chat_id, None)
+    _presented.pop(chat_id, None)
+    await _show_home(message, "Текущий режим остановлен." if active else "Нет активного режима.")
+
+
+async def _on_unknown_command(message: Any) -> None:
+    if not await _ensure_authorized(message):
+        return
+    await _show_home(message, "Не знаю такую команду. Выбери действие:")
+
+
+async def _on_unsupported(message: Any) -> None:
+    if not await _ensure_authorized(message):
+        return
+    if message.chat.id in _srez or message.chat.id in _awaiting:
+        await message.answer("Пока я принимаю решение только текстом.")
+        return
+    await _show_home(message, "Выбери действие, затем пришли решение текстом:")
 
 
 def _seconds_until(hhmm: str, tz_name: str) -> float:
@@ -328,19 +453,32 @@ async def _morning_push(bot: Any) -> None:
         filled = result.get("filled") or []
         if filled:
             await bot.send_message(
-                chat_id, f"Доброе утро! Задачи на сегодня готовы ({len(filled)}). Напиши /start."
+                chat_id,
+                f"Задачи на сегодня готовы ({len(filled)}).",
+                reply_markup=_home_keyboard(),
             )
         else:
-            await bot.send_message(chat_id, "Доброе утро! Новых задач на сегодня нет.")
+            await bot.send_message(
+                chat_id, "Новых задач на сегодня нет.", reply_markup=_home_keyboard()
+            )
         shortage = result.get("shortage") or []
         if shortage:
             titles = ", ".join(str(item["title"]) for item in shortage)
-            await bot.send_message(
-                chat_id, f"⚠️ Дефицит контента по темам: {titles}. Нужны новые задачи в банк."
-            )
+            logger.warning("Telegram daily queue shortage: %s", titles)
+
+
+async def _register_commands(bot: Any) -> None:
+    from aiogram.types import BotCommand
+
+    commands = [
+        BotCommand(command=command, description=description)
+        for command, description in BOT_COMMANDS
+    ]
+    await bot.set_my_commands(commands)
 
 
 async def _run(dp: Any, bot: Any) -> None:
+    await _register_commands(bot)
     if get_settings().telegram_student_chat_id:
         asyncio.create_task(_morning_push(bot))  # пуш только когда известен chat_id
     await dp.start_polling(bot)
@@ -365,11 +503,18 @@ def main() -> None:
     session = AiohttpSession(proxy=proxy) if proxy else None
     dp = Dispatcher()
     dp.message.register(_on_start, CommandStart())
+    dp.message.register(_on_today, Command("today"))
     dp.message.register(_on_slice, Command("slice"))
+    dp.message.register(_on_progress, Command("progress"))
+    dp.message.register(_on_help, Command("help"))
     dp.message.register(_on_cancel, Command("cancel"))
+    dp.message.register(_on_unknown_command, F.text.startswith("/"))
     dp.message.register(_on_answer, F.text)
+    dp.message.register(_on_unsupported)
+    dp.callback_query.register(_on_menu, F.data.startswith("menu:"))
     dp.callback_query.register(_on_slice_subject, F.data.startswith("slice:subj:"))
     dp.callback_query.register(_on_slice_topic, F.data.startswith("slice:topic:"))
+    dp.callback_query.register(_on_slice_back, F.data == "slice:back")
     bot = Bot(token=settings.telegram_bot_token, session=session)
     asyncio.run(_run(dp, bot))
 
