@@ -314,6 +314,8 @@ class MentorNoteORM(Base):
     body: Mapped[str] = mapped_column(Text)
     source_ref: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    # Когда заметка доставлена ученику в Telegram (NULL — ещё не доставлена). Идемпотентность пуша.
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     topic: Mapped[TopicORM | None] = relationship()
 
 

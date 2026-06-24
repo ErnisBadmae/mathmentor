@@ -465,6 +465,18 @@ async def _morning_push(bot: Any) -> None:
         if shortage:
             titles = ", ".join(str(item["title"]) for item in shortage)
             logger.warning("Telegram daily queue shortage: %s", titles)
+        await _deliver_mentor_notes(bot, chat_id)
+
+
+async def _deliver_mentor_notes(bot: Any, chat_id: int) -> None:
+    """Доставка наставнических заметок (агент пишет их через publish_feedback). Идемпотентно по
+    delivered_at: помечаем сразу после успешной отправки, чтобы повтор не дублировал."""
+    with SessionLocal() as session:
+        notes = _service(session).list_undelivered_notes(PILOT_STUDENT_ID)
+    for note in notes:
+        await bot.send_message(chat_id, f"💬 От наставника:\n\n{note['body']}")
+        with SessionLocal() as session:
+            _service(session).mark_notes_delivered([note["id"]])
 
 
 async def _register_commands(bot: Any) -> None:

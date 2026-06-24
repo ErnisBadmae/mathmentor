@@ -1,8 +1,8 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -613,6 +613,24 @@ class MentorNoteSqlRepository:
             }
             for note in notes
         ]
+
+    def list_undelivered(self, student_id: UUID) -> list[dict[str, object]]:
+        notes = self.session.scalars(
+            select(MentorNoteORM)
+            .where(MentorNoteORM.student_id == student_id)
+            .where(MentorNoteORM.delivered_at.is_(None))
+            .order_by(MentorNoteORM.created_at.asc())
+        ).all()
+        return [{"id": note.id, "body": note.body} for note in notes]
+
+    def mark_delivered(self, note_ids: list[UUID]) -> None:
+        if not note_ids:
+            return
+        self.session.execute(
+            update(MentorNoteORM)
+            .where(MentorNoteORM.id.in_(note_ids))
+            .values(delivered_at=datetime.now(UTC))
+        )
 
 
 class TopicSqlRepository:

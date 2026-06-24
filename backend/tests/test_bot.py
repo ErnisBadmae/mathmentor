@@ -52,9 +52,13 @@ class FakeCallback:
 class FakeBot:
     def __init__(self) -> None:
         self.commands = []
+        self.sent: list[str] = []
 
     async def set_my_commands(self, commands) -> None:
         self.commands = commands
+
+    async def send_message(self, chat_id: int, text: str, **kwargs: object) -> None:
+        self.sent.append(text)
 
 
 class FakeSettings:
@@ -196,6 +200,23 @@ def test_progress_uses_dashboard_truth(seeded_session, session_factory, monkeypa
     assert any("65 из 85" in reply for reply in message.replies)
     assert any("50 из 85" in reply for reply in message.replies)
     assert any("Код без подсказок: 40%" in reply for reply in message.replies)
+
+
+def test_mentor_notes_delivered_once(seeded_session, session_factory, monkeypatch):
+    # агент опубликовал заметку → бот доставляет её ученику ровно один раз (идемпотентно)
+    LearningService(SqlAlchemyUnitOfWork(seeded_session), RuleBasedReviewer()).publish_feedback(
+        {"student_id": STUDENT, "body": "Молодец, дробные неравенства теперь идут!"}
+    )
+    _patch_bot(monkeypatch, session_factory)
+    fake = FakeBot()
+
+    asyncio.run(bot._deliver_mentor_notes(fake, 111))
+    assert any("дробные неравенства" in text for text in fake.sent)
+    assert any("От наставника" in text for text in fake.sent)
+
+    fake.sent.clear()
+    asyncio.run(bot._deliver_mentor_notes(fake, 111))  # повтор не дублирует
+    assert fake.sent == []
 
 
 def test_registers_native_telegram_commands():

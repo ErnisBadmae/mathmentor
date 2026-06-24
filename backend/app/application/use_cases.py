@@ -224,6 +224,14 @@ class LearningService:
             "created_at": note.created_at,
         }
 
+    def list_undelivered_notes(self, student_id: UUID) -> list[dict[str, object]]:
+        """Наставнические заметки, ещё не доставленные ученику в Telegram (старые вперёд)."""
+        return self._uow.mentor_notes.list_undelivered(student_id)
+
+    def mark_notes_delivered(self, note_ids: list[UUID]) -> None:
+        self._uow.mentor_notes.mark_delivered(note_ids)
+        self._uow.commit()
+
     def get_current_student(self) -> object:
         return self._uow.students.get_current()
 
