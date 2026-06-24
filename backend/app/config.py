@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     telegram_student_chat_id: str = ""
     # Доп. chat_id для тестов (через запятую): авторизованы, но не цель пуша.
     telegram_extra_chat_ids: str = ""
+    # Чат родителя-контролёра: пинг при доставке заметки ученику (пусто — пинг выключен).
+    telegram_parent_chat_id: str = ""
     # Прокси для Telegram, если прямой доступ закрыт (пусто — берём из env HTTPS_PROXY).
     telegram_proxy_url: str = ""
     # Сколько задач в день собирает авто-очередь и во сколько (local time) утренний пуш.

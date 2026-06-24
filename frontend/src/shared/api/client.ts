@@ -36,6 +36,7 @@ export type MentorNote = {
   topic_title: string | null;
   source_ref: string | null;
   created_at: string;
+  delivered_at: string | null;
 };
 
 export type Dashboard = {

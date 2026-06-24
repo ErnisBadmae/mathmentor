@@ -610,6 +610,7 @@ class MentorNoteSqlRepository:
                 "topic_title": note.topic.title if note.topic is not None else None,
                 "source_ref": note.source_ref,
                 "created_at": note.created_at,
+                "delivered_at": note.delivered_at,
             }
             for note in notes
         ]

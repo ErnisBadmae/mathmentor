@@ -439,44 +439,72 @@ def _seconds_until(hhmm: str, tz_name: str) -> float:
 
 
 async def _morning_push(bot: Any) -> None:
-    """Идемпотентный утренний пуш: собрать день и позвать решать; сообщить о дефиците."""
+    """Ежедневный супервайзер пуша: будит в telegram_push_time. Сбой одной итерации логируем и
+    продолжаем — иначе одна ошибка Telegram/DB остановила бы все будущие пуши до рестарта."""
     settings = get_settings()
     chat_id = int(settings.telegram_student_chat_id)
     while True:
         await asyncio.sleep(_seconds_until(settings.telegram_push_time, settings.local_timezone))
-        with SessionLocal() as session:
-            result = _service(session).build_daily_queue(
-                PILOT_STUDENT_ID, settings.daily_drill_size
-            )
-        _presented.pop(chat_id, None)
-        _awaiting.pop(chat_id, None)
-        filled = result.get("filled") or []
-        if filled:
-            await bot.send_message(
-                chat_id,
-                f"Задачи на сегодня готовы ({len(filled)}).",
-                reply_markup=_home_keyboard(),
-            )
-        else:
-            await bot.send_message(
-                chat_id, "Новых задач на сегодня нет.", reply_markup=_home_keyboard()
-            )
-        shortage = result.get("shortage") or []
-        if shortage:
-            titles = ", ".join(str(item["title"]) for item in shortage)
-            logger.warning("Telegram daily queue shortage: %s", titles)
-        await _deliver_mentor_notes(bot, chat_id)
+        try:
+            await _run_daily_push(bot, chat_id)
+        except Exception:
+            logger.exception("Morning push iteration failed; will retry next cycle")
+
+
+async def _run_daily_push(bot: Any, chat_id: int) -> None:
+    """Одна итерация: собрать день, позвать решать, сообщить о дефиците, доставить заметки."""
+    with SessionLocal() as session:
+        result = _service(session).build_daily_queue(
+            PILOT_STUDENT_ID, get_settings().daily_drill_size
+        )
+    _presented.pop(chat_id, None)
+    _awaiting.pop(chat_id, None)
+    filled = result.get("filled") or []
+    if filled:
+        await bot.send_message(
+            chat_id, f"Задачи на сегодня готовы ({len(filled)}).", reply_markup=_home_keyboard()
+        )
+    else:
+        await bot.send_message(
+            chat_id, "Новых задач на сегодня нет.", reply_markup=_home_keyboard()
+        )
+    shortage = result.get("shortage") or []
+    if shortage:
+        titles = ", ".join(str(item["title"]) for item in shortage)
+        logger.warning("Telegram daily queue shortage: %s", titles)
+    await _deliver_mentor_notes(bot, chat_id)
+
+
+def _split_for_telegram(text: str, limit: int = 4096) -> list[str]:
+    """Telegram отклоняет сообщения длиннее 4096 символов — режем длинную заметку на части."""
+    return [text[i : i + limit] for i in range(0, len(text), limit)] or [""]
 
 
 async def _deliver_mentor_notes(bot: Any, chat_id: int) -> None:
-    """Доставка наставнических заметок (агент пишет их через publish_feedback). Идемпотентно по
-    delivered_at: помечаем сразу после успешной отправки, чтобы повтор не дублировал."""
+    """Доставка наставнических заметок (агент пишет их через publish_feedback). At-least-once:
+    повтор после успешной доставки заметку не шлёт; редкий дубль возможен только при краше между
+    отправкой и commit — для семейного пилота допустимо."""
+    parent_chat = get_settings().telegram_parent_chat_id.strip()
     with SessionLocal() as session:
         notes = _service(session).list_undelivered_notes(PILOT_STUDENT_ID)
     for note in notes:
-        await bot.send_message(chat_id, f"💬 От наставника:\n\n{note['body']}")
+        for chunk in _split_for_telegram(f"💬 От наставника:\n\n{note['body']}"):
+            await bot.send_message(chat_id, chunk)
         with SessionLocal() as session:
             _service(session).mark_notes_delivered([note["id"]])
+        if parent_chat:
+            await _notify_parent(bot, parent_chat, str(note["body"]))
+
+
+async def _notify_parent(bot: Any, parent_chat: str, body: str) -> None:
+    """Контролёру-родителю — пинг о доставке заметки ученику. Best-effort: сбой пинга не влияет
+    на доставку ученику (она уже зафиксирована в delivered_at)."""
+    preview = body if len(body) <= 200 else body[:200] + "…"
+    text = f"📨 Заметка наставника доставлена ученику:\n\n{preview}"
+    try:
+        await bot.send_message(int(parent_chat), text)
+    except Exception:
+        logger.exception("Failed to notify parent about mentor note delivery")
 
 
 async def _register_commands(bot: Any) -> None:

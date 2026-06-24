@@ -42,6 +42,7 @@ class MentorNoteOut(BaseModel):
     topic_title: str | None = None
     source_ref: str | None = None
     created_at: datetime
+    delivered_at: datetime | None = None
 
 
 class MentorNoteIn(BaseModel):

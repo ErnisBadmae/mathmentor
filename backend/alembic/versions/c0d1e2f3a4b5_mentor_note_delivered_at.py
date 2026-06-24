@@ -22,6 +22,9 @@ def upgrade() -> None:
     op.add_column(
         "mentor_notes", sa.Column("delivered_at", sa.DateTime(timezone=True), nullable=True)
     )
+    # Существующие заметки уже видны в дашборде — помечаем доставленными, чтобы upgrade не
+    # разослал в TG старьё (фича доставляет только заметки, опубликованные после деплоя).
+    op.execute("UPDATE mentor_notes SET delivered_at = created_at WHERE delivered_at IS NULL")
 
 
 def downgrade() -> None:

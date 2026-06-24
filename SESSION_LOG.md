@@ -4,6 +4,83 @@
 
 ---
 
+## 2026-06-24 — Контролёрская видимость заметок (что отправлено ребёнку)
+
+Статус: реализовано, тесты зелёные; едет тем же деплоем
+
+- Запрос: родитель хочет верхнеуровнево видеть, какой анализ ИИ сделал и отправил ли его ребёнку + историю. Решение по AskUserQuestion: показывать в обоих каналах; отдельный approve-гейт в БД не нужен (я и так спрашиваю ОК перед публикацией).
+- Данные уже были (`source_ref`=кто, `created_at`=когда, `body`=что, `delivered_at`=отправлено ли) — не хватало вывода статуса доставки наружу.
+- Дашборд: `list_recent`/`MentorNoteOut` отдают `delivered_at`; на странице «Обратная связь наставника» бейдж «✅ отправлено ученику <дата> / ⏳ ожидает». Полная история + контент + статус в одном месте.
+- Telegram: новый `telegram_parent_chat_id`; при доставке заметки ученику родителю уходит пинг «📨 …доставлена ученику: <превью>» (`_notify_parent`, best-effort — сбой пинга не влияет на доставку ученику).
+- Гейт публикации остаётся ручным (агент → ОК пользователя → публикация → авто-доставка утром).
+
+Проверка: `pytest backend` — **115 passed** (+`test_parent_pinged_on_delivery`); ruff чист; фронт `tsc --noEmit` ок. Открытый хвост: задать `TELEGRAM_PARENT_CHAT_ID` в `.env`; едет общим деплоем (миграция `c0d1e2f3a4b5` + рестарт).
+
+## 2026-06-24 — Release-smoke живого стека + ответ про e2e
+
+Статус: смок-скрипт готов и прогнан против live (RED — деплой ещё не сделан, это и ожидалось)
+
+- Смок расслоили: (1) логика доставки/грейдинга — уже e2e в pytest (FakeBot+реальный сервис/БД); (2) живые границы — `scripts/release_smoke.py` (exit code, read-only); (3) реальная отправка ученику — ручной one-shot, в автотест не прячем (необратимый outward).
+- `release_smoke.py`: API `/api/health`, миграции (код-head vs `alembic_version` в БД), бот `getMe` (read-only, не сообщение), живой short-answer judge против Qwen. БД не мутирует, ученику не пишет.
+- Прогон против текущего live: health OK; getMe OK (`@egemathandinformbot`); живой judge OK (Qwen отвечает, equivalent=True); **миграции FAIL** — БД на `b8e4f1a2c3d9`, код-head `c0d1e2f3a4b5` → смок корректно ловит «не задеплоено».
+- `docker exec` в прод-контейнер заблокирован классификатором (remote-shell в прод — отдельная авторизация); живой смок сделал по HTTP/БД-коннекту/Telegram getMe, без shell в контейнер.
+
+Проверка: `ruff` на `release_smoke.py` чист; смок exit=1 (RED по миграциям, ожидаемо до деплоя). Открытый хвост: деплой (commit→rebuild→`alembic upgrade head`→рестарт) переведёт смок в GREEN; затем ручная доставка заметки в родительский чат и публикация актуального текста Yliana.
+
+Status: capable of tool calling; use an existing coding-agent runtime before building a custom agent.
+
+- Runtime reports `n_ctx=262144`, one execution slot, and Chat Completions support; `/v1/responses` is absent.
+- A forced tool-call probe returned a valid `read_file({"path":"README.md"})` call in about 1.5 seconds.
+- The main constraint is the single slot shared with product grading, not context size.
+- Preferred pilot: bounded Aider worker with auto-commit disabled, exact file scope, and main-agent diff review; 10 shadow tasks before any direct write authority.
+- A shared MCP wrapper is deferred until the CLI pilot demonstrates useful acceptance rate and latency.
+
+## 2026-06-24 — Будущая схема делегирования local Qwen
+
+Статус: архитектура согласована концептуально, не реализована
+
+- Codex/Claude остаются владельцами требований, плана, архитектурных решений, review и итоговой проверки.
+- Один общий stdio MCP `dev-helper` вызывает локальный Qwen для строго ограниченных задач: подготовить unified diff по allowlist файлов, запустить allowlisted checks, сжать логи в JSON; без commit/push/произвольного shell/секретов.
+- Начальный режим — shadow: Qwen только предлагает patch, основной агент проверяет и применяет. Прямые workspace-write рассматривать после серии измеренных успешных запусков.
+- Codex может иметь project custom agent, но текущий Qwen Chat-Completions endpoint не гарантирует требуемый Codex Responses API; MCP работает и в Codex, и в установленном Claude Code 2.1.187.
+
+Проверка: актуальный Codex manual — custom agents + MCP; локальный `claude --help`/`claude mcp --help` — custom agents и stdio MCP доступны. Открытый хвост — реализовывать после live-hardening отдельной задачей.
+
+## 2026-06-24 — Pre-live правки доставки заметок (по review)
+
+Статус: все 4 пункта review закрыты, тесты зелёные; готово к deploy+smoke
+
+- P1 супервайзер: `_morning_push` обёрнут в try/except (итерация вынесена в `_run_daily_push`) — сбой Telegram/DB логируется, цикл живёт, будущие пуши не умирают.
+- P1 миграция: `c0d1e2f3a4b5` бэкфилит `delivered_at = created_at` для существующих строк — заметка от 18.06 после upgrade НЕ уйдёт (доставляем только опубликованное после деплоя).
+- P1 длина: `_split_for_telegram` режет текст на части ≤4096 (лимит Telegram), длинная заметка доставку не срывает.
+- P2: формулировка доставки исправлена на at-least-once (редкий дубль при краше между send и commit допустим для пилота).
+- Черновик заметки НЕ публиковал: live ещё на старом коде, текст про «починено» был бы преждевременным.
+
+Проверка: `pytest backend` — **114 passed** (+`test_long_mentor_note_is_split_under_telegram_limit`). ruff чист на изменённых файлах. Открытый хвост: deploy (`alembic upgrade head` + рестарт bot) → live-smoke → потом актуальная заметка Yliana.
+
+## 2026-06-24 — Решение по scenario/release gates
+
+Статус: гейты нужны на внешних границах; общий framework сейчас не нужен
+
+- `_mask_answer`, Fraction и `record_slice` уже покрыты обычным pytest; оборачивать их в `Scenario/CheckResult` — дублировать runner и ухудшать диагностику.
+- Скопированный `tests/guards/scenario_gate.py` не подключён, содержит document-AI терминологию и дублирует уже существующий `backend/scripts/llm_review_gate.py`; не коммитить/удалить.
+- Нужен узкий release-smoke с exit code для живого стека: API health, Alembic current=head, bot/getMe/config и live short-answer judge против Qwen без DB-мутаций/сообщений ученику.
+- Реальную доставку Telegram оставить ручным post-deploy smoke в родительский chat_id; outward send нельзя прятать внутри автоматического теста.
+
+Проверка: root `tests/guards/scenario_gate.py` не имеет потребителей; deterministic regressions уже в `backend/tests/test_grader.py`; live EvidenceReviewer gate уже существует. Открытый хвост — выбрать минимальный release-smoke после pre-live фиксов.
+
+## 2026-06-24 — Code review доставки наставнических заметок
+
+Статус: архитектура подходит пилоту; перед live нужны правки
+
+- Решение «агент пишет человеческий текст → бот доставляет» сохраняет backend детерминированным и переиспользует student-facing `mentor_notes`; отдельный генератор аналитики сейчас не нужен.
+- `_morning_push` запущен как необслуживаемый background task: исключение Telegram/DB завершит цикл и остановит все будущие утренние пуши до рестарта.
+- Миграция оставляет legacy-строки с `delivered_at=NULL`; в live уже есть одна заметка от 18.06, которая автоматически уйдёт после upgrade, если её явно не backfill/не одобрить.
+- API допускает заметку до 20k символов, а доставка не ограничивает и не разбивает текст; длинная заметка сорвёт send. `send→mark` даёт at-least-once, а не строго exactly-once (crash-window допускает дубль).
+- Черновик не публиковать до deploy+smoke: он утверждает, что баг уже исправлен для ребёнка, хотя live ещё на миграции `b8e4f1a2c3d9`.
+
+Проверка: commit `22b4647`, live: 1 legacy mentor note, Alembic `b8e4f1a2c3d9`. Открытый хвост — исправить три pre-live пункта, затем миграция/restart/smoke.
+
 ## 2026-06-24 — Доставка наставнических заметок в TG
 
 Статус: реализовано, тесты зелёные; нужна миграция на live + рестарт бота

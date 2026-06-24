@@ -53,17 +53,20 @@ class FakeBot:
     def __init__(self) -> None:
         self.commands = []
         self.sent: list[str] = []
+        self.sent_chat_ids: list[int] = []
 
     async def set_my_commands(self, commands) -> None:
         self.commands = commands
 
     async def send_message(self, chat_id: int, text: str, **kwargs: object) -> None:
         self.sent.append(text)
+        self.sent_chat_ids.append(chat_id)
 
 
 class FakeSettings:
     telegram_student_chat_id = "111"
     telegram_extra_chat_ids = ""
+    telegram_parent_chat_id = ""
     local_timezone = "Europe/Moscow"
     authorized_chat_ids = ["111"]
 
@@ -217,6 +220,36 @@ def test_mentor_notes_delivered_once(seeded_session, session_factory, monkeypatc
     fake.sent.clear()
     asyncio.run(bot._deliver_mentor_notes(fake, 111))  # повтор не дублирует
     assert fake.sent == []
+
+
+def test_parent_pinged_on_delivery(seeded_session, session_factory, monkeypatch):
+    # при доставке заметки ученику родитель-контролёр получает пинг (видит, что и когда ушло)
+    LearningService(SqlAlchemyUnitOfWork(seeded_session), RuleBasedReviewer()).publish_feedback(
+        {"student_id": STUDENT, "body": "Срез по вероятности: 1/3, разбираем тему."}
+    )
+    _patch_bot(monkeypatch, session_factory)
+    monkeypatch.setattr(FakeSettings, "telegram_parent_chat_id", "222")
+    fake = FakeBot()
+
+    asyncio.run(bot._deliver_mentor_notes(fake, 111))
+    assert 111 in fake.sent_chat_ids  # ученик получил заметку
+    assert 222 in fake.sent_chat_ids  # родитель получил пинг
+    assert any("доставлена ученику" in text for text in fake.sent)
+
+
+def test_long_mentor_note_is_split_under_telegram_limit(
+    seeded_session, session_factory, monkeypatch
+):
+    # заметка длиннее лимита Telegram (4096) режется на части, доставка не срывается
+    LearningService(SqlAlchemyUnitOfWork(seeded_session), RuleBasedReviewer()).publish_feedback(
+        {"student_id": STUDENT, "body": "А" * 9000}
+    )
+    _patch_bot(monkeypatch, session_factory)
+    fake = FakeBot()
+
+    asyncio.run(bot._deliver_mentor_notes(fake, 111))
+    assert len(fake.sent) == 3  # 9000 + префикс → 4096 + 4096 + остаток
+    assert all(len(text) <= 4096 for text in fake.sent)
 
 
 def test_registers_native_telegram_commands():

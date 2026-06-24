@@ -61,6 +61,12 @@ export function DashboardPage() {
               </div>
               <div>
                 <small>{new Date(note.created_at).toLocaleDateString('ru-RU')}</small>
+                <br />
+                <small>
+                  {note.delivered_at
+                    ? `✅ отправлено ученику ${new Date(note.delivered_at).toLocaleDateString('ru-RU')}`
+                    : '⏳ ожидает отправки'}
+                </small>
               </div>
             </article>
           )) : <p className="muted">Пока нет заметок от наставника.</p>}
