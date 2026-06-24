@@ -26,6 +26,7 @@ from app.domain.policies import (
     answer_is_correct,
     evidence_status,
     normalize_answer,
+    numeric_mismatch,
     review_due_dates,
     review_result_to_status,
     select_daily_queue,
@@ -365,28 +366,48 @@ class LearningService:
         provenance = (assessment.model_id, assessment.prompt_version, assessment.rubric_version)
         # Заземление: exact на сыром ответе ИЛИ на финальном ответе, извлечённом ИИ из решения
         # («покажи ход» — сырой текст обычно не совпадёт целиком, поэтому сверяем извлечённый).
-        extracted_ok = bool(assessment.extracted_answer) and answer_is_correct(
-            assessment.extracted_answer, correct_answer
-        )
-        grounded = exact or extracted_ok
-        correct = grounded or assessment.equivalent
-        if grounded and not assessment.equivalent:
-            # exact-заземление авторитетно; противоречащий ИИ-текст заменяем безопасным.
+        extracted = assessment.extracted_answer
+        extracted_ok = bool(extracted) and answer_is_correct(extracted, correct_answer)
+        # Приоритет: raw exact → raw числовое несовпадение (стоп) → извлечённое заземление →
+        # извлечённое числовое несовпадение (стоп) → мнение ИИ. Доказуемое число авторитетнее ИИ;
+        # сырое число важнее извлечения (иначе ИИ «извлекает» эталон из неверного 0,667 → ложно).
+        if exact:
+            correct = True
+        elif numeric_mismatch(student_answer, correct_answer):
+            correct = False
+        elif extracted_ok:
+            correct = True
+        elif numeric_mismatch(extracted, correct_answer):  # extracted=None → mismatch False
+            correct = False
+        else:
+            correct = assessment.equivalent
+        if correct and not assessment.equivalent:
+            # вердикт по заземлению авторитетен; противоречащий ИИ-текст заменяем безопасным.
             feedback = "Верно."
         else:
-            feedback = self._sanitize_feedback(assessment.feedback, correct_answer)
+            feedback = self._mask_answer(assessment.feedback, correct_answer, correct)
         if not feedback:
             feedback = "Верно." if correct else "Неверно."
-        method = "exact" if grounded else ("llm_equivalent" if correct else "llm_rejected")
+        # "exact" только для raw exact; извлечённо-заземлённый → llm_equivalent (так record_slice
+        # доверяет верному «покажи ход»-ответу, у которого сырой текст ≠ ключу).
+        method = "exact" if exact else ("llm_equivalent" if correct else "llm_rejected")
         return AnswerJudgment(correct, feedback, method, *provenance)
 
     @staticmethod
-    def _sanitize_feedback(feedback: str, correct_answer: str) -> str:
-        """Best-effort защита от утечки эталона в фидбеке (нормализованный ключ как подстрока)."""
+    def _mask_answer(feedback: str, correct_answer: str, correct: bool) -> str:
+        """Сохраняем разбор ИИ, маскируя сам эталон (`…`). Голая строка — лишь когда маскировка
+        не очистила текст (формат не совпал), чтобы никогда не отдать эталон дословно."""
         key = normalize_answer(correct_answer)
-        if len(key) >= 2 and key in normalize_answer(feedback):
-            return "Близко — проверь ещё раз."
-        return feedback
+        if len(key) < 2 or key not in normalize_answer(feedback):
+            return feedback
+        raw = correct_answer.strip()
+        masked = feedback
+        for form in {raw, raw.replace(",", "."), raw.replace(".", ",")}:
+            if form:
+                masked = masked.replace(form, "…")
+        if key in normalize_answer(masked):
+            return "Верно." if correct else "Близко — проверь ещё раз."
+        return masked
 
     @staticmethod
     def _drill_draft(judgment: AnswerJudgment, task: object) -> EvidenceDraft:

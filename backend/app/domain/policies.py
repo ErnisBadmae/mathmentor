@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from fractions import Fraction
 
 from app.domain.enums import AttemptKind, AttemptMode, EvidenceStatus, ReviewStatus, TopicState
 
@@ -48,10 +49,31 @@ def normalize_answer(value: str) -> str:
     return "".join(value.strip().casefold().replace(",", ".").split())
 
 
+def _as_fraction(value: str | None) -> Fraction | None:
+    """Скаляр как точная дробь: '1/2','0,5','-3','2.50' → Fraction; иначе None (нечисловое/None).
+    Fraction(s) парсит и дроби, и десятичные напрямую — Decimal не нужен."""
+    if not value:
+        return None
+    s = value.strip().casefold().replace(",", ".").replace(" ", "")
+    try:
+        return Fraction(s)
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
 def answer_is_correct(submitted: str | None, expected: str | None) -> bool:
     if not submitted or not expected:
         return False
+    a, b = _as_fraction(submitted), _as_fraction(expected)
+    if a is not None and b is not None:
+        return a == b  # 0,5 == 1/2 (детерминированно, без ИИ)
     return normalize_answer(submitted) == normalize_answer(expected)
+
+
+def numeric_mismatch(submitted: str | None, expected: str | None) -> bool:
+    """Оба значения числовые и НЕ равны — ИИ не вправе переопределить (0,667 != 2/3)."""
+    a, b = _as_fraction(submitted), _as_fraction(expected)
+    return a is not None and b is not None and a != b
 
 
 def select_daily_queue(

@@ -48,7 +48,8 @@ def test_exact_correct_is_authoritative_over_ai(seeded_session):
 
 
 def test_exact_miss_ai_equivalent_accepts_with_provenance(seeded_session):
-    judgment = _grade(seeded_session, MockJudge(True, "1/2 это 0.5"), "0.5", "1/2")
+    # нечисловая эквивалентность (интервал vs неравенство) — здесь ИИ-мост реально нужен
+    judgment = _grade(seeded_session, MockJudge(True, "то же множество"), "(2;+∞)", "x>2")
     assert judgment.correct is True
     assert judgment.grading_method == "llm_equivalent"
     assert judgment.model_id == "mock-model" and judgment.prompt_version == "p1"
@@ -61,15 +62,34 @@ def test_exact_miss_ai_rejects(seeded_session):
 
 
 def test_exact_only_judge_is_deterministic_fail_open(seeded_session):
-    # без ИИ эквивалентная форма не принимается (детерминизм), но нормализация работает
-    assert _grade(seeded_session, ExactOnlyJudge(), "0.5", "1/2").correct is False
+    # без ИИ числовая эквивалентность ловится точно (Fraction), нечисловая — нет
+    assert _grade(seeded_session, ExactOnlyJudge(), "0.5", "1/2").correct is True
+    assert _grade(seeded_session, ExactOnlyJudge(), "(2;+∞)", "x>2").correct is False
     norm = _grade(seeded_session, ExactOnlyJudge(), "0.5", "0,5")
     assert norm.correct is True and norm.grading_method == "exact"
 
 
 def test_sanitize_strips_leaked_key(seeded_session):
     judgment = _grade(seeded_session, MockJudge(False, "смотри ответ это 0.5 рядом"), "0.5", "7")
-    assert "0.5" not in judgment.feedback  # утёкший эталон вырезан
+    assert "0.5" not in judgment.feedback  # утёкший эталон замаскирован
+    assert "рядом" in judgment.feedback  # но разбор сохранён, не затёрт целиком
+
+
+def test_correct_feedback_not_contradicted(seeded_session):
+    # регресс: верный ответ не превращается в противоречивое «Близко — проверь ещё раз.»
+    judge = MockJudge(equivalent=True, feedback="Верно, 0.5 — правильно")
+    judgment = _grade(seeded_session, judge, "0.5", "0.5")
+    assert judgment.correct is True
+    assert judgment.feedback != "Близко — проверь ещё раз."
+    assert "правильно" in judgment.feedback  # разбор сохранён (эталон замаскирован)
+
+
+def test_ai_cannot_override_numeric_mismatch(seeded_session):
+    # ИИ говорит «эквивалентно» и даже «извлёк» эталон, но сырое число доказуемо ≠ ключу
+    judge = MockJudge(equivalent=True, feedback="ок", extracted="2/3")
+    judgment = _grade(seeded_session, judge, "2/3", "0,667")
+    assert judgment.correct is False
+    assert judgment.grading_method == "llm_rejected"
 
 
 def test_show_work_grounds_verdict_on_extracted_answer(seeded_session):
@@ -77,7 +97,8 @@ def test_show_work_grounds_verdict_on_extracted_answer(seeded_session):
     judge = MockJudge(equivalent=True, feedback="метод ок", extracted="12")
     judgment = _grade(seeded_session, judge, "12", "...раскрыл, получил x=12", statement="13: ...")
     assert judgment.correct is True
-    assert judgment.grading_method == "exact"  # заземление на извлечённый финальный ответ
+    # сырой текст ≠ ключу, заземление по извлечённому → llm_equivalent (для record_slice)
+    assert judgment.grading_method == "llm_equivalent"
 
 
 def test_show_work_flags_right_answer_wrong_method(seeded_session):
@@ -138,3 +159,14 @@ def test_record_slice_reverifies_exact_and_persists_details(seeded_session):
     ).first()
     assert entry.details_json is not None and len(entry.details_json) == 2
     assert {d["grading_method"] for d in entry.details_json} == {"llm_rejected", "llm_equivalent"}
+
+
+def test_record_slice_counts_extracted_correct(seeded_session):
+    # «покажи ход»: сырой текст ≠ ключу, но извлечён верный финал → grading_method=llm_equivalent →
+    # record_slice засчитывает верным, без ложного error-event (регресс Дефекта B).
+    t1, _ = _two_tasks(seeded_session)  # expected_answer "5"
+    svc = _svc(seeded_session, MockJudge(equivalent=True, extracted="5"))
+    judged = asyncio.run(svc.judge_task_answer(t1.id, "расписала и получила x=5"))
+    assert judged["correct"] is True and judged["grading_method"] == "llm_equivalent"
+    result = svc.record_slice(STUDENT, Subject.MATH_PROFILE, [judged])
+    assert result["tasks_correct"] == 1
