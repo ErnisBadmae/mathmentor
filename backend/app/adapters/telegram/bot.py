@@ -147,8 +147,10 @@ def _progress_text(data: dict[str, object], phase: dict[str, object] | None = No
         lines.append(f"{label}: {current:g} из {target:g}")
     if phase is not None:
         cov = phase["coverage"]
+        # in_progress включает under_review — вычитаем, чтобы корзины не пересекались.
+        in_work = cov["in_progress"] - cov["under_review"]
         lines.append(
-            f"Темы: в работе {cov['in_progress']} (на повторении {cov['under_review']}) · "
+            f"Темы: в работе {in_work} · на повторении {cov['under_review']} · "
             f"подтверждено {cov['confirmed']}"
         )
     lines.append(f"Повторы на сегодня: {data.get('due_reviews', 0)}")

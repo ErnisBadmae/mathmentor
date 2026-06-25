@@ -41,6 +41,9 @@ export function ProgramPage() {
         const touched = phase.coverage.total
           ? Math.round(((phase.coverage.total - phase.coverage.open) / phase.coverage.total) * 100)
           : 0;
+        // in_progress включает under_review; «в работе» = активные минус ушедшие на повторение,
+        // чтобы корзины не пересекались (в работе + на повторении + подтверждено + не начато = всего).
+        const inWork = phase.coverage.in_progress - phase.coverage.under_review;
         return (
         <div className={phase.is_current ? 'panel panel--current' : 'panel'} key={phase.key}>
           <div className="pageHeader" style={{ marginBottom: 8 }}>
@@ -49,7 +52,7 @@ export function ProgramPage() {
               {phase.is_current ? ' · сейчас' : ''}
             </h2>
             <p style={{ margin: 0 }}>
-              в работе {phase.coverage.in_progress} · на повторении {phase.coverage.under_review} ·
+              в работе {inWork} · на повторении {phase.coverage.under_review} ·
               подтверждено {phase.coverage.confirmed} · не начато {phase.coverage.open} из{' '}
               {phase.coverage.total}
             </p>
