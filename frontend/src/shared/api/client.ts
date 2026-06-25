@@ -88,7 +88,7 @@ export type ProgramPhase = {
   end_date: string;
   is_current: boolean;
   percent: number;
-  coverage: { confirmed: number; in_progress: number; open: number; total: number };
+  coverage: { confirmed: number; in_progress: number; under_review: number; open: number; total: number };
   topics: ProgramTopic[];
 };
 

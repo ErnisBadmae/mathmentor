@@ -95,6 +95,7 @@ class ProgramTopicOut(BaseModel):
 class ProgramCoverageOut(BaseModel):
     confirmed: int
     in_progress: int
+    under_review: int
     open: int
     total: int
 

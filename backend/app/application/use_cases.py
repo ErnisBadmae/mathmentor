@@ -493,6 +493,9 @@ class LearningService:
                     "coverage": {
                         "confirmed": confirmed,
                         "in_progress": sum(1 for t in topics if t["state"] in in_progress_states),
+                        "under_review": sum(
+                            1 for t in topics if t["state"] == TopicState.UNDER_REVIEW
+                        ),
                         "open": sum(1 for t in topics if t["state"] == TopicState.OPEN),
                         "total": total,
                     },

@@ -137,7 +137,7 @@ async def _show_home(message: Any, text: str = "Выбери, что хочеш�
     await message.answer(text, reply_markup=_home_keyboard())
 
 
-def _progress_text(data: dict[str, object]) -> str:
+def _progress_text(data: dict[str, object], phase: dict[str, object] | None = None) -> str:
     lines = ["📊 Твой прогресс"]
     for track in data.get("tracks", []):
         subject = track["subject"]
@@ -145,8 +145,16 @@ def _progress_text(data: dict[str, object]) -> str:
         current = float(track["current_score"])
         target = float(track["target_score"])
         lines.append(f"{label}: {current:g} из {target:g}")
+    if phase is not None:
+        cov = phase["coverage"]
+        lines.append(
+            f"Темы: в работе {cov['in_progress']} (на повторении {cov['under_review']}) · "
+            f"подтверждено {cov['confirmed']}"
+        )
     lines.append(f"Повторы на сегодня: {data.get('due_reviews', 0)}")
     lines.append(f"Код без подсказок: {float(data.get('clean_sheet_ratio', 0)):.0%}")
+    lines.append("")
+    lines.append("Тема засчитана не когда «понял на 100%», а когда решил верно и прошёл повтор.")
     return "\n".join(lines)
 
 
@@ -193,8 +201,11 @@ async def _on_progress(message: Any) -> None:
     if not await _ensure_authorized(message):
         return
     with SessionLocal() as session:
-        data = _service(session).get_dashboard(PILOT_STUDENT_ID)
-    await message.answer(_progress_text(data), reply_markup=_home_keyboard())
+        service = _service(session)
+        data = service.get_dashboard(PILOT_STUDENT_ID)
+        phases = service.list_program_progress(PILOT_STUDENT_ID)
+    current_phase = next((p for p in phases if p["is_current"]), None)
+    await message.answer(_progress_text(data, current_phase), reply_markup=_home_keyboard())
 
 
 async def _on_help(message: Any) -> None:
