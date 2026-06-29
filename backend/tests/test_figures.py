@@ -5,7 +5,8 @@ import importlib.util
 
 import pytest
 
-from app.domain.figures import NEG, POS, parse_interval_answer, render_number_line
+from app.domain.figures import NEG, POS, parse_interval_answer
+from app.infrastructure.figures_render import render_number_line
 
 
 def test_parses_brackets_and_unions():
@@ -33,7 +34,6 @@ def test_unparseable_answers_return_none():
 @pytest.mark.skipif(
     importlib.util.find_spec("matplotlib") is None, reason="matplotlib not installed"
 )
-def test_render_returns_png_and_svg():
-    png, svg = render_number_line(parse_interval_answer("(1; 9)"), "(1; 9)")
+def test_render_returns_png():
+    png = render_number_line(parse_interval_answer("(1; 9)"), "(1; 9)")
     assert png[:8] == b"\x89PNG\r\n\x1a\n"  # PNG magic
-    assert "<svg" in svg

@@ -246,7 +246,8 @@ async def _on_answer(message: Any) -> None:
         await _show_home(message, "Сейчас нет активного задания. Выбери действие:")
         return
     with SessionLocal() as session:
-        result = await _service(session).submit_attempt(
+        service = _service(session)
+        result = await service.submit_attempt(
             {
                 "mission_id": mission_id,
                 "kind": AttemptKind.TEXT,
@@ -254,8 +255,18 @@ async def _on_answer(message: Any) -> None:
                 "answer_text": message.text or "",
             }
         )
+        # Post-attempt разбор: если ответ задачи — интервал, показываем его на
+        # числовой прямой. Эталон раскрывается только сейчас, после попытки.
+        figure = service.drill_solution_figure(mission_id)
     _awaiting.pop(chat_id, None)
     await message.answer(_verdict_text(result))
+    if figure is not None:
+        from aiogram.types import BufferedInputFile
+
+        await message.answer_photo(
+            BufferedInputFile(figure, filename="solution.png"),
+            caption="📐 Решение на числовой прямой",
+        )
     await _send_next(message)
 
 

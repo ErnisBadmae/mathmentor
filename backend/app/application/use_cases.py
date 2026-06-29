@@ -22,6 +22,7 @@ from app.domain.enums import (
     TaskStatus,
     TopicState,
 )
+from app.domain.figures import parse_interval_answer
 from app.domain.policies import (
     answer_is_correct,
     evidence_status,
@@ -542,6 +543,20 @@ class LearningService:
         task = self._uow.tasks.approve(task_id)
         self._uow.commit()
         return task
+
+    def drill_solution_figure(self, mission_id: UUID) -> bytes | None:
+        """Post-attempt разбор: a number-line PNG of the solution set when the
+        task's answer is an interval (inequalities/ОДЗ); None otherwise. Called
+        only after the attempt is recorded, so revealing the solution set is the
+        разбор, not a pre-attempt leak. Renderer lives in infrastructure."""
+        mission = self._uow.missions.get_for_attempt(mission_id)
+        task = self._uow.tasks.get(mission.task_id) if mission.task_id is not None else None
+        intervals = parse_interval_answer(getattr(task, "expected_answer", None))
+        if intervals is None:
+            return None
+        from app.infrastructure.figures_render import render_number_line
+
+        return render_number_line(intervals, task.expected_answer)
 
     def create_mission(self, values: dict[str, object]) -> object:
         mission = self._uow.missions.create({**self._prepare_task_link(values), "id": uuid4()})

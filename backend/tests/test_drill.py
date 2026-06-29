@@ -6,9 +6,11 @@
 """
 
 import asyncio
+import importlib.util
 from datetime import date
 from uuid import UUID
 
+import pytest
 from sqlalchemy import select
 
 from app.application.ports import AttemptForReview, EvidenceDraft
@@ -108,6 +110,26 @@ def test_correct_drill_passes_and_schedules_reviews(seeded_session):
         select(ReviewItemORM).where(ReviewItemORM.source_evidence_id == result["evidence_id"])
     ).all()
     assert len(reviews) == 2  # +7 / +30 spaced review cards
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("matplotlib") is None, reason="matplotlib not installed"
+)
+def test_drill_solution_figure_for_interval_answer(seeded_session):
+    # post-attempt разбор: интервальный ответ -> PNG числовой прямой
+    svc = service(seeded_session)
+    task, topic = _approved_task(svc, seeded_session, "(1; 9)", None)
+    mission_id = _drill_mission(svc, topic, task)
+    png = svc.drill_solution_figure(mission_id)
+    assert png is not None and png[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_drill_solution_figure_none_for_scalar_answer(seeded_session):
+    # скалярный ответ уравнения -> фигуры нет (никогда не рисуем неверное)
+    svc = service(seeded_session)
+    task, topic = _approved_task(svc, seeded_session, "5", None)
+    mission_id = _drill_mission(svc, topic, task)
+    assert svc.drill_solution_figure(mission_id) is None
 
 
 def test_wrong_drill_fails_with_task_error_category(seeded_session):
