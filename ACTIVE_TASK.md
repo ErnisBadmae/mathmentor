@@ -3,16 +3,16 @@
 ## Current Snapshot (2026-07-01)
 
 - Goal: add a safe local-Qwen execution harness for small, falsifiable overnight tasks.
-- Status: Qwen harness is calibrated and documented; probability visuals are integrated; sandbox MCP/student-flow simulator covers interval visuals, probability bar chart, and probability 2x2-table visuals for read-only Qwen reports.
+- Status: Qwen harness is calibrated and documented; probability visuals are integrated; sandbox MCP/student-flow simulator covers interval visuals, probability bar chart, probability 2x2-table wrong answers, and probability 2x2-table correct-answer happy path for read-only Qwen reports.
 - Done:
   - ported the night-runner queue shape to egeMentor-local paths;
   - added `files_allowed` enforcement before acceptance/commit;
   - fixed venv autodetect to ignore broken venvs without `pyvenv.cfg`;
   - moved run artifacts to external `C:\tmp\egeMentor-qwen-runs` and made reports per-run.
   - added a main-worktree contamination check around live executor runs.
-- Current Qwen queue task: `T-report-visualization-surface` uses sandbox MCP `run_student_simulation`, reports supported visual kinds/source_refs/tests including probability bar-chart/2x2-table cases, and may not edit files.
-- Verification: simulator direct run OK with 6 cases; focused simulator/probability tests `13 passed`; backend pytest `156 passed`; frontend `npm.cmd run build` green; `night_runner.py --dry-run` GREEN.
-- Next: after committing, run one live Qwen report against the expanded simulator; if GREEN, move to the next synthetic flow expansion (slice/review-card sandbox).
+- Current Qwen queue tasks: six read-only Qwen reports are queued after plumbing: visualization surface, slice/review lifecycle, Telegram learner flow, bank/content coverage, analytics/digest, and release-smoke readiness. Any file change by Qwen makes a report task RED.
+- Verification: simulator direct run OK with 7 cases; focused MCP/simulator tests `2 passed`; backend pytest `156 passed`; frontend `npm.cmd run build` green; `release_smoke.py` compiles; `night_runner.py --dry-run` GREEN across all queued tasks.
+- Next: commit this queue update, then the operator can run `backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py` and leave it running. Morning-review raw reports before acting on Qwen findings.
 
 ## Current Snapshot (2026-06-30)
 

@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-07-01 - Night queue expanded for read-only synthetic QA
+
+Status: implemented and verified locally; ready for operator live run.
+
+- Added `probability_table_neither_correct_answer` to the sandbox simulator: correct probability table answer now verifies `passed`, mission `done`, and post-attempt `probability` visual.
+- Updated MCP/simulator tests and visualization report acceptance for the probability correct-answer happy path.
+- Expanded `backend/scripts/night_queue.json` from one report into six read-only Qwen reports: visualization, slice/review lifecycle, Telegram learner flow, bank/content coverage, analytics/digest, and release-smoke readiness.
+- All new Qwen tasks are `kind=report`; runner will mark them RED if Qwen edits any file.
+
+Verification: simulator direct run OK with 7 cases; MCP/simulator tests `2 passed`; backend suite `156 passed`; frontend build green; `release_smoke.py` py_compile green; night-runner dry-run GREEN across all queued tasks.
+
+Open tail: run live `backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py`; morning-review raw reports before changing product code.
+
 ## 2026-07-01 - Synthetic tester coverage expanded for probability tables
 
 Status: implemented and verified locally.

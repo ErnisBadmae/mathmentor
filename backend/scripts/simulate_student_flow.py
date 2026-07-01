@@ -208,6 +208,14 @@ def build_report() -> dict[str, object]:
             ),
             _run_case(
                 session,
+                name="probability_table_neither_correct_answer",
+                task=probability_task_b,
+                answer="0,05",
+                expected_status=EvidenceStatus.PASSED,
+                expected_visual_kind="probability",
+            ),
+            _run_case(
+                session,
                 name="probability_table_only_a_wrong_answer",
                 task=probability_task_c,
                 answer="0,30",
