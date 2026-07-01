@@ -317,7 +317,7 @@ def test_drill_solution_visual_unparseable_robust_returns_correct_only(seeded_se
     assert visual is not None
     assert isinstance(visual, VisualAid)
     assert visual.png[:8] == b"\x89PNG\r\n\x1a\n"
-    assert "твой ответ" not in visual.caption
+    assert "не удалось распознать" in visual.caption
 
 
 def test_parse_interval_answer_from_text_short_caption():

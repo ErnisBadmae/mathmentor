@@ -23,5 +23,9 @@ def test_student_flow_simulator_script():
     assert payload["ok"] is True
     cases = {case["name"]: case for case in payload["cases"]}
     assert cases["interval_wrong_overlay"]["visual_kind"] == "number_line"
+    assert cases["interval_correct_answer"]["status"] == "passed"
+    assert cases["interval_correct_answer"]["mission_status"] == "done"
+    assert cases["interval_correct_answer"]["visual_kind"] == "number_line"
     assert cases["interval_unparseable_answer"]["visual_kind"] == "number_line"
+    assert "не удалось распознать" in cases["interval_unparseable_answer"]["visual_caption"]
     assert cases["probability_wrong_answer"]["visual_kind"] == "probability"

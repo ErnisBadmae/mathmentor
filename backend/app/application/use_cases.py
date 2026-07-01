@@ -687,7 +687,10 @@ class LearningService:
             caption = "Синее — решение, оранжевое — твой ответ"
         else:
             png = render_number_line(expected_intervals, label="Решение")
-            caption = "Решение на числовой прямой"
+            if student_answer:
+                caption = "Решение на числовой прямой; твой ответ не удалось распознать как интервал"
+            else:
+                caption = "Решение на числовой прямой"
 
         return VisualAid(kind="number_line", png=png, caption=caption)
 

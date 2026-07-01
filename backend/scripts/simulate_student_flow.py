@@ -176,6 +176,14 @@ def build_report() -> dict[str, object]:
             ),
             _run_case(
                 session,
+                name="interval_correct_answer",
+                task=interval_task,
+                answer="(1; 9)",
+                expected_status=EvidenceStatus.PASSED,
+                expected_visual_kind="number_line",
+            ),
+            _run_case(
+                session,
                 name="interval_unparseable_answer",
                 task=interval_task,
                 answer="примерно между числами",

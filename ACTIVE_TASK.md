@@ -12,7 +12,7 @@
   - added a main-worktree contamination check around live executor runs.
 - Current Qwen queue task: `T-report-visualization-surface` uses sandbox MCP `run_student_simulation`, reports supported visual kinds/source_refs/tests, and may not edit files.
 - Verification: backend pytest `156 passed`; frontend `npm.cmd run build` green; `night_runner.py --dry-run` GREEN.
-- Next: commit/stash the current dirty working package before running live Qwen report; runner now blocks live executor when main checkout is dirty.
+- Next: run live Qwen report again after committing this small follow-up, or move to the next synthetic flow expansion (slice/review-card sandbox).
 
 ## Current Snapshot (2026-06-30)
 

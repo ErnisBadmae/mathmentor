@@ -56,6 +56,18 @@ Live Qwen report `report-161442.md`: GREEN. Qwen used the sandbox surface, chang
 
 Open tail: decide which Qwen findings to address first; stale auto worktrees from earlier calibration can be cleaned after review.
 
+## 2026-07-01 - Synthetic tester finding fixed: passed case + unparseable caption
+
+Status: implemented and verified locally.
+
+- Added `interval_correct_answer` to `simulate_student_flow.py`: correct interval answer now verifies `passed`, mission `done`, and post-attempt `number_line` visual.
+- Changed unparseable interval caption to explain why no orange overlay appears: the answer could not be recognized as an interval.
+- Updated drill and simulator tests for the new behavior.
+
+Verification: simulator direct run OK with 4 cases; focused tests `18 passed`; backend suite `156 passed`; frontend build green; night-runner dry-run GREEN.
+
+Open tail: next sandbox expansion candidate is slice/review-card flow, not another renderer.
+
 ## 2026-07-01 - Probability visual spike integrated narrowly
 
 Status: implemented and verified locally.
