@@ -65,3 +65,83 @@ def parse_interval_answer(answer: str | None) -> list[Interval] | None:
             return None  # unknown form -> safe: no figure
         out.append(iv)
     return out or None
+
+
+def parse_interval_answer_from_text(text: str | None) -> list[Interval] | None:
+    """Robust interval extraction from raw Telegram text that may include
+    conversational prefixes/suffixes like "ответ", "х принадлежит", "решение:",
+    line breaks, etc.
+
+    Strategy:
+    1. Try the existing ``parse_interval_answer`` first (exact clean input).
+    2. If text contains an "ответ" marker, parse only the substring after the
+        last "ответ"/"ответ:" marker — the student's answer is the last
+        occurrence.
+    3. If no "ответ" marker, extract bracket/paren cluster(s) from the whole
+        text, join adjacent ones with ∪ for union parsing.
+    4. Support common Russian variants: х принадлежит, x∈, бесконечность, беск.
+
+    Returns None when no interval can be recovered (caller shows no figure).
+    """
+    if not text:
+        return None
+
+    # Fast-path: clean input already handled by the strict parser.
+    result = parse_interval_answer(text)
+    if result is not None:
+        return result
+
+    # Normalise common Russian infinity variants so the bracket search sees
+    # consistent tokens.
+    for v in ("бесконечность", "беск", "беск.", "∞", "inf"):
+        text = text.replace(v, "∞")
+
+    # If an "ответ" marker exists, take only the substring after the last one.
+    answer_marker_positions = []
+    for marker in ("ответ:", "ответ ", "ответ"):
+        idx = text.rfind(marker)
+        if idx != -1:
+            answer_marker_positions.append(idx)
+    if answer_marker_positions:
+        text = text[max(answer_marker_positions) + len("ответ"):].strip()
+
+    # If no answer marker, strip everything after section keywords (solution,
+    # explanation, etc.) so we don't accidentally parse numbers from the
+    # solution text.
+    if not answer_marker_positions:
+        for kw in ("\nреш", "\nответ", "\nперев", "\nпокаж", "\nпровер"):
+            idx = text.find(kw)
+            if idx != -1:
+                text = text[:idx]
+
+        # Strip "решение:", "x=", "х=" prefixes.
+        for kw in ("решение:", "решение", "x=", "х="):
+            text = text.replace(kw, " ").replace("  ", " ").strip()
+
+    import re
+
+    # Find all bracket/paren groups that contain a semicolon (interval hallmark).
+    single = re.findall(r'[\(\[][^()\[\]]*;[^()\[\]]*[\)\]]', text)
+    if not single:
+        return None
+
+    # Join adjacent bracket groups separated by "и" or just whitespace to form
+    # unions: e.g. "(-∞; -2) и [1; +∞)" -> "(-∞; -2) ∪ [1; +∞)".
+    joined = []
+    for s in single:
+        if joined:
+            joined.append(" ∪ ")
+        joined.append(s)
+
+    combined = "".join(joined)
+    parsed = parse_interval_answer(combined)
+    if parsed is not None:
+        return parsed
+
+    # Fallback: try each individual candidate.
+    for cand in single:
+        parsed = parse_interval_answer(cand)
+        if parsed is not None:
+            return parsed
+
+    return None

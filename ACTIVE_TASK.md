@@ -1,5 +1,17 @@
 # Active Task
 
+## Current Snapshot (2026-06-30)
+
+- Goal: improve pilot service reliability and analytics after the product/pedagogy review.
+- Status: implemented the first two high-leverage items: safer exact-answer grading and a read-only weekly digest.
+- Done:
+  - grouped integer answers such as `7.776` are accepted for integer keys like `7776`;
+  - decimal approximations such as `0.667` still do not override exact numeric mismatch;
+  - diagnostics expose whether solution details were captured;
+  - `LearningService.weekly_digest()` and MCP `weekly_digest` summarize recent attempts, active days, slices, errors, reviews, and manual queue.
+- Verification: backend pytest `124 passed`; frontend `npm.cmd run build` green.
+- Next: review the weekly mentor-note draft from the 2026-06-23..2026-06-30 digest; do not publish to TG until the operator approves the text. Then clear the 2 old manual-review OДЗ items.
+
 > Короткая текущая карточка. История/детали — `SESSION_LOG.md` (верх) и
 > код/контракты — канонические docs в `docs/` и `AGENTS.md`.
 

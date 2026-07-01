@@ -8,6 +8,7 @@ from sqlalchemy import select
 from app.application.ports import AiAssessment
 from app.application.use_cases import ExactOnlyJudge, LearningService, RuleBasedReviewer
 from app.domain.enums import Subject
+from app.domain.policies import answer_is_correct, numeric_mismatch
 from app.infrastructure.models import StudyLogEntryORM, TopicORM
 from app.infrastructure.repositories import SqlAlchemyUnitOfWork
 from scripts import seed as seed_module
@@ -92,6 +93,18 @@ def test_ai_cannot_override_numeric_mismatch(seeded_session):
     assert judgment.grading_method == "llm_rejected"
 
 
+def test_grouped_integer_answer_is_not_numeric_mismatch(seeded_session):
+    assert answer_is_correct("7.776", "7776") is True
+    assert numeric_mismatch("7.776", "7776") is False
+    assert _grade(seeded_session, ExactOnlyJudge(), "7776", "7.776").correct is True
+
+
+def test_decimal_approximation_still_not_treated_as_thousands(seeded_session):
+    assert answer_is_correct("0.667", "667") is False
+    assert answer_is_correct("0.667", "2/3") is False
+    assert numeric_mismatch("0.667", "2/3") is True
+
+
 def test_show_work_grounds_verdict_on_extracted_answer(seeded_session):
     # ученик прислал ход решения; сырой текст ≠ ключу, но ИИ извлёк финальный ответ "12"
     judge = MockJudge(equivalent=True, feedback="метод ок", extracted="12")
@@ -170,3 +183,31 @@ def test_record_slice_counts_extracted_correct(seeded_session):
     assert judged["correct"] is True and judged["grading_method"] == "llm_equivalent"
     result = svc.record_slice(STUDENT, Subject.MATH_PROFILE, [judged])
     assert result["tasks_correct"] == 1
+
+
+def test_weekly_digest_uses_existing_learning_events(seeded_session):
+    t1, _ = _two_tasks(seeded_session)
+    svc = _svc(seeded_session, ExactOnlyJudge())
+    svc.record_slice(
+        STUDENT,
+        Subject.MATH_PROFILE,
+        [
+            {
+                "task_id": t1.id,
+                "answer_text": "0",
+                "grading_method": "llm_rejected",
+                "feedback": "wrong",
+                "model_id": None,
+                "prompt_version": None,
+                "rubric_version": None,
+            }
+        ],
+    )
+
+    digest = svc.weekly_digest(STUDENT)
+
+    assert digest["period"]["days"] == 7
+    assert digest["diagnostics"]["count"] >= 1
+    assert digest["diagnostics"]["captured"] >= 1
+    assert digest["errors"]["count"] >= 1
+    assert digest["manual_reviews_pending"] >= 0

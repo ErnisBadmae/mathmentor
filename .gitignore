@@ -19,3 +19,4 @@ backups/
 *.egg-info/
 .claude/settings.local.json
 graphify-out/
+scripts/temp_png/

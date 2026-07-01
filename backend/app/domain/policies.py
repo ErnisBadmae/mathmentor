@@ -1,3 +1,4 @@
+import re
 from datetime import date, timedelta
 from fractions import Fraction
 
@@ -61,17 +62,35 @@ def _as_fraction(value: str | None) -> Fraction | None:
         return None
 
 
+_GROUPED_INTEGER_RE = re.compile(r"^[+-]?[1-9]\d{0,2}(?:\.\d{3})+$")
+
+
+def _as_grouped_integer(value: str | None) -> int | None:
+    """Thousands-grouped integer: 7.776 -> 7776, but 0.667 stays decimal."""
+    if not value:
+        return None
+    s = value.strip().replace(" ", "")
+    if not _GROUPED_INTEGER_RE.fullmatch(s):
+        return None
+    return int(s.replace(".", ""))
+
+
 def answer_is_correct(submitted: str | None, expected: str | None) -> bool:
     if not submitted or not expected:
         return False
     a, b = _as_fraction(submitted), _as_fraction(expected)
     if a is not None and b is not None:
+        grouped = _as_grouped_integer(submitted)
+        if grouped is not None and b.denominator == 1 and abs(b.numerator) >= 1000:
+            return grouped == b.numerator
         return a == b  # 0,5 == 1/2 (детерминированно, без ИИ)
     return normalize_answer(submitted) == normalize_answer(expected)
 
 
 def numeric_mismatch(submitted: str | None, expected: str | None) -> bool:
-    """Оба значения числовые и НЕ равны — ИИ не вправе переопределить (0,667 != 2/3)."""
+    """Both values are numeric and not equivalent under exact-answer policy."""
+    if answer_is_correct(submitted, expected):
+        return False
     a, b = _as_fraction(submitted), _as_fraction(expected)
     return a is not None and b is not None and a != b
 

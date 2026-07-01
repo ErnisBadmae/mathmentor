@@ -255,17 +255,17 @@ async def _on_answer(message: Any) -> None:
                 "answer_text": message.text or "",
             }
         )
-        # Post-attempt разбор: если ответ задачи — интервал, показываем его на
-        # числовой прямой. Эталон раскрывается только сейчас, после попытки.
-        figure = service.drill_solution_figure(mission_id)
+        # Post-attempt разбор: если ответ задачи — интервал, показываем
+        # числовую прямую (правильное решение + ответ ученика).
+        visual = service.drill_solution_visual(mission_id, message.text or None)
     _awaiting.pop(chat_id, None)
     await message.answer(_verdict_text(result))
-    if figure is not None:
+    if visual is not None:
         from aiogram.types import BufferedInputFile
 
         await message.answer_photo(
-            BufferedInputFile(figure, filename="solution.png"),
-            caption="📐 Решение на числовой прямой",
+            BufferedInputFile(visual.png, filename="solution.png"),
+            caption=f"\U0001f4ca {visual.caption}",
         )
     await _send_next(message)
 

@@ -108,6 +108,12 @@ def attempt_history(
 
 
 @mcp.tool()
+def weekly_digest(student_id: str = DEFAULT_STUDENT_ID, days: int = 7) -> Any:
+    """Last N days: attempts, active days, slices, errors, reviews, manual queue."""
+    return _read(lambda s: s.weekly_digest(UUID(student_id), days))
+
+
+@mcp.tool()
 def reviews(student_id: str = DEFAULT_STUDENT_ID) -> Any:
     """Spaced-review queue (+7/+30)."""
     return _read(lambda s: s.list_reviews(UUID(student_id)))

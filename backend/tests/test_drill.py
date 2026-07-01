@@ -14,7 +14,8 @@ import pytest
 from sqlalchemy import select
 
 from app.application.ports import AttemptForReview, EvidenceDraft
-from app.application.use_cases import LearningService
+from app.application.use_cases import LearningService, VisualAid
+from app.domain.figures import NEG, POS, parse_interval_answer_from_text
 from app.domain.enums import (
     AiPolicy,
     AttemptKind,
@@ -175,3 +176,125 @@ def test_list_daily_drill_excludes_non_drill_missions(seeded_session):
     ).all()
     assert non_drill  # sanity: seed created plain missions
     assert all(m.id not in ids for m in non_drill)
+
+
+# ---- drill_solution_visual tests ----
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("matplotlib") is None, reason="matplotlib not installed"
+)
+def test_drill_solution_visual_interval_only(seeded_session):
+    """Only expected_answer is an interval -> VisualAid with correct solution only."""
+    svc = service(seeded_session)
+    task, topic = _approved_task(svc, seeded_session, "(1; 9)", None)
+    mission_id = _drill_mission(svc, topic, task)
+
+    # No student answer provided
+    visual = svc.drill_solution_visual(mission_id, None)
+    assert visual is not None
+    assert isinstance(visual, VisualAid)
+    assert visual.kind == "number_line"
+    assert visual.png[:8] == b"\x89PNG\r\n\x1a\n"
+    assert "Решение" in visual.caption
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("matplotlib") is None, reason="matplotlib not installed"
+)
+def test_drill_solution_visual_both_intervals(seeded_session):
+    """Both expected and student answers are parseable intervals -> both drawn."""
+    svc = service(seeded_session)
+    task, topic = _approved_task(svc, seeded_session, "(1; 9)", None)
+    mission_id = _drill_mission(svc, topic, task)
+
+    visual = svc.drill_solution_visual(mission_id, student_answer="(2; 7)")
+    assert visual is not None
+    assert isinstance(visual, VisualAid)
+    assert visual.kind == "number_line"
+    assert visual.png[:8] == b"\x89PNG\r\n\x1a\n"
+    assert "твой ответ" in visual.caption
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("matplotlib") is None, reason="matplotlib not installed"
+)
+def test_drill_solution_visual_unparseable_student(seeded_session):
+    """Unparseable student answer -> only correct interval shown."""
+    svc = service(seeded_session)
+    task, topic = _approved_task(svc, seeded_session, "(1; 9)", None)
+    mission_id = _drill_mission(svc, topic, task)
+
+    visual = svc.drill_solution_visual(mission_id, student_answer="как-то так")
+    assert visual is not None
+    assert isinstance(visual, VisualAid)
+    assert visual.png[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("matplotlib") is None, reason="matplotlib not installed"
+)
+def test_drill_solution_visual_scalar_returns_none(seeded_session):
+    """Scalar expected answer -> no visual aid."""
+    svc = service(seeded_session)
+    task, topic = _approved_task(svc, seeded_session, "5", None)
+    mission_id = _drill_mission(svc, topic, task)
+
+    visual = svc.drill_solution_visual(mission_id, student_answer="5")
+    assert visual is None
+
+
+def test_drill_solution_figure_still_works_as_wrapper(seeded_session):
+    """drill_solution_figure returns PNG bytes via the new visual path."""
+    svc = service(seeded_session)
+    task, topic = _approved_task(svc, seeded_session, "(1; 9)", None)
+    mission_id = _drill_mission(svc, topic, task)
+
+    png = svc.drill_solution_figure(mission_id)
+    assert png is not None and png[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("matplotlib") is None, reason="matplotlib not installed"
+)
+def test_drill_solution_visual_robust_text_parsing(seeded_session):
+    """Real TG text with prefixes should parse and produce overlay."""
+    svc = service(seeded_session)
+    task, topic = _approved_task(svc, seeded_session, "(1; 9)", None)
+    mission_id = _drill_mission(svc, topic, task)
+
+    raw = "ответ х принадлежит (2; 7)\nрешение: подставим значения и проверим"
+    visual = svc.drill_solution_visual(mission_id, raw)
+    assert visual is not None
+    assert isinstance(visual, VisualAid)
+    assert visual.png[:8] == b"\x89PNG\r\n\x1a\n"
+    assert "твой ответ" in visual.caption
+    # Caption must NOT contain the full raw text
+    assert "подставим" not in visual.caption
+    assert "проверим" not in visual.caption
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("matplotlib") is None, reason="matplotlib not installed"
+)
+def test_drill_solution_visual_unparseable_robust_returns_correct_only(seeded_session):
+    """Unparseable student text -> correct-only PNG, not None."""
+    svc = service(seeded_session)
+    task, topic = _approved_task(svc, seeded_session, "(1; 9)", None)
+    mission_id = _drill_mission(svc, topic, task)
+
+    visual = svc.drill_solution_visual(mission_id, student_answer="что-то вроде 3 или 4")
+    assert visual is not None
+    assert isinstance(visual, VisualAid)
+    assert visual.png[:8] == b"\x89PNG\r\n\x1a\n"
+    assert "твой ответ" not in visual.caption
+
+
+def test_parse_interval_answer_from_text_short_caption():
+    """Caption should not contain raw long text."""
+    raw = "ответ х принадлежит (-бесконечность; -2) и [1; +бесконечность)\nрешение: переносим, возводим в квадрат, получаем неравенство..."
+    parsed = parse_interval_answer_from_text(raw)
+    assert parsed == [
+        (NEG, False, -2.0, False),
+        (1.0, True, POS, False),
+    ]

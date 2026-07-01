@@ -428,6 +428,8 @@ class DashboardSqlRepository:
                 "tasks_correct": entry.tasks_correct,
                 "percent": entry.percent_correct,
                 "note": entry.note,
+                "captured": bool(entry.details_json),
+                "captured_items": len(entry.details_json or []),
             }
             for entry in entries
         ]

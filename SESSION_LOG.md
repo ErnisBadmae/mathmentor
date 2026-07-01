@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-06-30 - Weekly digest run and mentor-note draft
+
+Status: digest read from DB; note drafted in chat, not published to TG.
+
+- Period 2026-06-23..2026-06-30: 6 attempts, 2 active days, 4 passed attempts, pass rate 0.67.
+- Diagnostics: 3 slices, all captured with details; probability moved from 1/3 to 5/5, powers/roots stayed 3/5.
+- Errors: 6 recent, mostly `other` plus 2 old `probability_double_count`; latest powers/roots errors include the `7776`/`7.776` issue now fixed in code.
+- Manual queue still has 2 old OДЗ items from 2026-06-17.
+
+Verification: read-only service calls through current `LearningService.weekly_digest`, `list_manual_reviews`, `list_attempt_history`; no DB writes.
+
+Open tail: operator should approve/edit the mentor-note text before publishing; then close the two old manual-review items if they are known correct/incorrect.
+
+## 2026-06-30 - Judge reliability + weekly digest
+
+Status: implemented and verified locally.
+
+- Fixed exact-answer policy for grouped integer notation: `7.776` now matches key `7776`, while `0.667` still does not match `2/3` or `667`.
+- Added `weekly_digest` in `LearningService` and MCP: attempts, active days, pass rate, touched topics, diagnostics capture status, errors, reviews, manual queue.
+- Extended diagnostics rows with `captured` / `captured_items` derived from existing `details_json`; no migration or new tables.
+- Added regression tests for grouped integers, decimal approximation guard, and digest data from existing slice/error events.
+
+Verification: `backend\.venv312\Scripts\python.exe -m pytest backend\tests -q` -> 124 passed, 1 existing Starlette/httpx warning; `npm.cmd run build` in `frontend` -> green.
+
+Open tail: use MCP `weekly_digest` for the next weekly mentor note; feedback compression and complex-practice track remain deferred until observed need.
+
 ## 2026-06-29 — Заметка по срезу 28.06 опубликована и доставлена Ульяне
 
 Статус: на сайте + доставлена в TG (`delivered_at`=29.06 06:59)

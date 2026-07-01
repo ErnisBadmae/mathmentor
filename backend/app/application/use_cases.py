@@ -1,6 +1,6 @@
 import random
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -22,7 +22,7 @@ from app.domain.enums import (
     TaskStatus,
     TopicState,
 )
-from app.domain.figures import parse_interval_answer
+from app.domain.figures import parse_interval_answer, parse_interval_answer_from_text
 from app.domain.policies import (
     answer_is_correct,
     evidence_status,
@@ -33,6 +33,15 @@ from app.domain.policies import (
     select_daily_queue,
 )
 from app.domain.program import PHASES, current_phase_key
+
+
+@dataclass
+class VisualAid:
+    """A post-attempt visual aid delivered to the learner."""
+    kind: str           # e.g. "number_line"
+    png: bytes          # raw PNG bytes
+    caption: str        # displayed caption (e.g. "Решение vs Ваш ответ")
+
 
 SLICE_SUBJECT_LABEL = {
     Subject.MATH_PROFILE: "Профматематика",
@@ -513,6 +522,92 @@ class LearningService:
     ) -> list[dict[str, object]]:
         return self._uow.evidence.list_attempt_history(student_id, topic_id, limit)
 
+    def weekly_digest(self, student_id: UUID, days: int = 7) -> dict[str, object]:
+        """Read-only pilot analytics from existing attempts, slices, errors, and reviews."""
+        days = max(1, min(int(days), 90))
+        now = datetime.now(UTC)
+        since = now - timedelta(days=days)
+        since_date = since.date()
+
+        def _aware(value: object) -> datetime | None:
+            if not isinstance(value, datetime):
+                return None
+            return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+        def _enum_value(value: object) -> str:
+            return getattr(value, "value", str(value))
+
+        attempts = [
+            row
+            for row in self.list_attempt_history(student_id, limit=500)
+            if (created_at := _aware(row.get("created_at"))) is not None and created_at >= since
+        ]
+        passed_attempts = sum(1 for row in attempts if row.get("status") == EvidenceStatus.PASSED)
+        topics_touched = sorted(
+            {
+                str(row.get("topic_title") or row.get("topic_id"))
+                for row in attempts
+                if row.get("topic_title") or row.get("topic_id")
+            }
+        )
+
+        diagnostics = [
+            row
+            for row in self.list_diagnostics(student_id)
+            if row.get("occurred_on") is not None and row["occurred_on"] >= since_date
+        ]
+        captured_diagnostics = sum(1 for row in diagnostics if row.get("captured"))
+
+        errors = [
+            row
+            for row in self.list_errors(student_id)
+            if (created_at := _aware(row.get("created_at"))) is not None and created_at >= since
+        ]
+        error_counts: dict[str, int] = {}
+        for row in errors:
+            category = _enum_value(row.get("category"))
+            error_counts[category] = error_counts.get(category, 0) + 1
+
+        review_counts: dict[str, int] = {}
+        for row in self.list_reviews(student_id):
+            status = _enum_value(row.get("status"))
+            review_counts[status] = review_counts.get(status, 0) + 1
+
+        return {
+            "period": {"days": days, "since": since_date, "until": now.date()},
+            "engagement": {
+                "attempts": len(attempts),
+                "active_days": len(
+                    {
+                        created_at.date()
+                        for row in attempts
+                        if (created_at := _aware(row.get("created_at"))) is not None
+                    }
+                ),
+            },
+            "learning": {
+                "passed_attempts": passed_attempts,
+                "pass_rate": round(passed_attempts / len(attempts), 2) if attempts else None,
+                "topics_touched": topics_touched,
+            },
+            "diagnostics": {
+                "count": len(diagnostics),
+                "captured": captured_diagnostics,
+                "score_only": len(diagnostics) - captured_diagnostics,
+                "recent": diagnostics[:5],
+            },
+            "errors": {
+                "count": len(errors),
+                "by_category": [
+                    {"category": category, "count": count}
+                    for category, count in sorted(error_counts.items())
+                ],
+                "recent": errors[:5],
+            },
+            "reviews": review_counts,
+            "manual_reviews_pending": len(self.list_manual_reviews(student_id)),
+        }
+
     def list_tasks(self, status: TaskStatus | None = None) -> list[dict[str, object]]:
         return self._uow.tasks.list_tasks(status)
 
@@ -544,19 +639,48 @@ class LearningService:
         self._uow.commit()
         return task
 
-    def drill_solution_figure(self, mission_id: UUID) -> bytes | None:
-        """Post-attempt разбор: a number-line PNG of the solution set when the
-        task's answer is an interval (inequalities/ОДЗ); None otherwise. Called
-        only after the attempt is recorded, so revealing the solution set is the
+    def drill_solution_visual(
+        self, mission_id: UUID, student_answer: str | None = None
+    ) -> VisualAid | None:
+        """Post-attempt visual aid: a number-line PNG comparing the correct
+        solution (blue) with the student's answer (orange) when both are
+        parseable intervals. If only the expected answer is parseable, render
+        only the correct solution. Returns None for scalar answers or when
+        the task has no expected_answer.
+
+        Called only after the attempt is recorded so the solution set is the
         разбор, not a pre-attempt leak. Renderer lives in infrastructure."""
         mission = self._uow.missions.get_for_attempt(mission_id)
         task = self._uow.tasks.get(mission.task_id) if mission.task_id is not None else None
-        intervals = parse_interval_answer(getattr(task, "expected_answer", None))
-        if intervals is None:
+        expected_answer = getattr(task, "expected_answer", None)
+        expected_intervals = parse_interval_answer(expected_answer)
+        if expected_intervals is None:
             return None
+
         from app.infrastructure.figures_render import render_number_line
 
-        return render_number_line(intervals, task.expected_answer)
+        student_intervals = parse_interval_answer_from_text(student_answer) if student_answer else None
+
+        if student_intervals is not None:
+            png = render_number_line(
+                expected_intervals,
+                label="Решение",
+                student_intervals=student_intervals,
+                student_label="Ответ",
+            )
+            caption = "Синее — решение, оранжевое — твой ответ"
+        else:
+            png = render_number_line(expected_intervals, label="Решение")
+            caption = "Решение на числовой прямой"
+
+        return VisualAid(kind="number_line", png=png, caption=caption)
+
+    def drill_solution_figure(self, mission_id: UUID) -> bytes | None:
+        """Backward-compatible wrapper: renders the correct solution only (no
+        student answer overlay). Kept for tests and any caller that does not
+        have a student_answer to pass."""
+        visual = self.drill_solution_visual(mission_id)
+        return visual.png if visual is not None else None
 
     def create_mission(self, values: dict[str, object]) -> object:
         mission = self._uow.missions.create({**self._prepare_task_link(values), "id": uuid4()})
