@@ -20,3 +20,4 @@ backups/
 .claude/settings.local.json
 graphify-out/
 scripts/temp_png/
+.night-runs/

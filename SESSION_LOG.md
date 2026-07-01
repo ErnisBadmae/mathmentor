@@ -4,6 +4,83 @@
 
 ---
 
+## 2026-07-01 - Night-runner dry-run for local Qwen harness
+
+Status: egeMentor harness port tested in dry-run; first live Qwen smoke found an isolation/config issue.
+
+- Added egeMentor-local `backend/scripts/night_queue.json`: one acceptance-only plumbing task and one tiny Qwen sandbox-doc task.
+- Hardened `backend/scripts/night_runner.py`: `files_allowed` is enforced, untracked files are counted, commit failure turns the task RED, and broken venvs without `pyvenv.cfg` are ignored.
+- Run artifacts now go to ignored `.night-runs/` with per-run report names.
+- Dry-run report: `T-night-plumbing-tests` GREEN with `backend/tests/test_figures.py` -> 13 passed; prompt-dependent sandbox task skipped by design.
+- First live report `report-123842.md`: plumbing GREEN, sandbox RED because Qwen claimed the file was created but the isolated worktree had no changes.
+- A stray `docs/NIGHT_RUNNER_SANDBOX.md` appeared in the main worktree; removed it and added a main-worktree contamination check around executor runs.
+- Second live report `report-124445.md`: isolation was clean, but sandbox stayed RED because Qwen wrote `docs/NIGHT_RUNNER_SANDBOX.md` as UTF-16; queue acceptance now rejects UTF-16 BOM and requires exact two-line UTF-8 content.
+- Third live report `report-125020.md`: Qwen wrote UTF-8 but creative markdown instead of exact content. Replaced the sandbox-doc task with `T-qwen-write-probe`: one file, one machine-token line, exact UTF-8 acceptance.
+- Fourth live report `report-125401.md`: Qwen made no changes and claimed the prompt missed the token after a multiline instruction. The probe prompt is now one line, with the token inline, and runner reports a prompt preview for future debugging.
+- Fifth live report `report-125830.md`: Qwen wrote the exact probe token, but into the main worktree; contamination guard blocked the run. Root cause: worktrees were nested under `.night-runs/` inside the repo, so OpenCode/file tools could resolve the parent checkout. Runner now uses external `C:\tmp\egeMentor-qwen-runs`.
+- Sixth live report `report-132447.md`: external worktree isolation held, but Qwen wrote `\ufeff-NoNewlineQWEN_WRITE_PROBE_OK`. Queue now forbids PowerShell-style writers/`-NoNewline`, asks for Python `Path.write_text(..., encoding='utf-8')`, and rejects UTF-8 BOM explicitly.
+- Seventh live report `report-134418.md`: GREEN. Qwen wrote exact UTF-8 probe file in the external worktree, acceptance passed, `test_figures.py` passed, and runner committed `bc08955` on `auto/2026-07-01-134418/T-qwen-write-probe`.
+
+Verification: `backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py --dry-run` -> GREEN; `backend\.venv312\Scripts\python.exe -m py_compile backend\scripts\night_runner.py` -> green; `git worktree list` / `git branch --list "auto/*"` show no leftovers.
+
+Open tail: morning-review auto branch `auto/2026-07-01-134418/T-qwen-write-probe`, then replace the probe queue with a real but low-risk report/mechanical task.
+
+## 2026-07-01 - Night queue switched from probe to report task
+
+Status: implemented and dry-run verified.
+
+- Morning-review of `auto/2026-07-01-134418/T-qwen-write-probe`: branch contains only test artifact `docs/QWEN_WRITE_PROBE.txt`; do not merge into product.
+- `backend/scripts/night_runner.py` now supports `kind=report`: Qwen may produce raw-output reports, but any file change makes the task RED.
+- `backend/scripts/night_queue.json` now contains `T-report-visualization-surface`, a read-only report over the current visualization implementation and tests.
+- Added `backend/scripts/simulate_student_flow.py`: in-memory sandbox flow for interval overlay, unparseable interval answer, and probability visual; no prod DB and no Telegram.
+- Added `backend/tests/test_student_simulation.py` so the simulator stays under the normal test suite.
+- Updated `T-report-visualization-surface` to run the simulator and summarize visual kinds/source_refs/tests as raw-output report.
+
+Verification: simulator OK; focused tests `28 passed`; backend suite `155 passed`; frontend build green; `night_runner.py --dry-run` -> GREEN.
+
+Open tail: operator may run live report task manually; deploy/smoke of `api` + `bot` remains an operator/Codex action, not a Qwen task.
+
+## 2026-07-01 - Sandbox MCP for synthetic tester
+
+Status: implemented and verified locally; live Qwen report should wait for clean main checkout.
+
+- Added `backend/app/adapters/mcp/sandbox_server.py` with `run_student_simulation()` only. It exposes no prod DB, no Telegram, and no write tools.
+- Refactored `backend/scripts/simulate_student_flow.py` to provide `build_report()` / `run_json()` for script and MCP reuse.
+- Added `backend/tests/test_mcp_sandbox.py`.
+- Updated `T-report-visualization-surface` so Qwen acts as synthetic tester through sandbox MCP/function and reports raw flow observations.
+- Hardened `night_runner.py`: live executor is BLOCKED when the main checkout is dirty, preventing Qwen from staging/touching the active work package.
+
+Verification: sandbox MCP direct call OK; simulator OK; MCP/simulator tests `2 passed`; backend suite `156 passed`; frontend build green; night-runner dry-run GREEN.
+
+Open tail: current working tree is intentionally dirty with the visual/harness package, so live Qwen report will be BLOCKED until this package is committed or stashed.
+
+## 2026-07-01 - Probability visual spike integrated narrowly
+
+Status: implemented and verified locally.
+
+- Reviewed Qwen probability spike and integrated it only after interval parsing fails, using source_ref-gated `parse_probability_visual_spec`.
+- `LearningService.drill_solution_visual` now returns `VisualAid(kind="probability")` for the three known probability seed tasks; unknown scalar tasks still return `None`.
+- Telegram needs no separate change because it already sends any returned `VisualAid`.
+- Added drill integration tests for known probability visual and unknown scalar fallback.
+
+Verification: `backend\.venv312\Scripts\python.exe -m pytest backend\tests -q` -> 154 passed, 1 existing Starlette/httpx warning; `npm.cmd run build` in `frontend` -> green.
+
+Open tail: deploy/observe whether probability visuals reduce `PROBABILITY_DOUBLE_COUNT`; do not generalize parser beyond known source_refs until more tasks justify it.
+
+## 2026-07-01 - Docker deploy and release smoke after visuals
+
+Status: deployed locally; live boundaries green.
+
+- Rebuilt/recreated `bot`; compose also recreated `api` from the shared backend image. `web` and `postgres` stayed running.
+- Ran `alembic upgrade head` in `api`; no pending migration output.
+- Host `release_smoke.py` hit Windows/proxy access error on Telegram, so the equivalent smoke was run inside the `bot` container with `PUBLIC_API_BASE_URL=http://api:8001`.
+- Container smoke GREEN: API health OK, migrations at `c0d1e2f3a4b5`, bot `getMe` OK, live Qwen short-answer judge OK.
+- `api`, `bot`, and `web` all running with RestartCount=0.
+
+Verification command: `docker compose exec -T -e PUBLIC_API_BASE_URL=http://api:8001 bot python scripts/release_smoke.py` -> GREEN.
+
+Open tail: manual Telegram smoke remains: send `/today`, answer an interval drill if available, and verify post-attempt visual image/caption.
+
 ## 2026-06-30 - Weekly digest run and mentor-note draft
 
 Status: digest read from DB; note drafted in chat, not published to TG.

@@ -1,5 +1,19 @@
 # Active Task
 
+## Current Snapshot (2026-07-01)
+
+- Goal: add a safe local-Qwen execution harness for small, falsifiable overnight tasks.
+- Status: Qwen harness is calibrated and documented; probability visuals are integrated; sandbox MCP/student-flow simulator is available for read-only Qwen reports.
+- Done:
+  - ported the night-runner queue shape to egeMentor-local paths;
+  - added `files_allowed` enforcement before acceptance/commit;
+  - fixed venv autodetect to ignore broken venvs without `pyvenv.cfg`;
+  - moved run artifacts to external `C:\tmp\egeMentor-qwen-runs` and made reports per-run.
+  - added a main-worktree contamination check around live executor runs.
+- Current Qwen queue task: `T-report-visualization-surface` uses sandbox MCP `run_student_simulation`, reports supported visual kinds/source_refs/tests, and may not edit files.
+- Verification: backend pytest `156 passed`; frontend `npm.cmd run build` green; `night_runner.py --dry-run` GREEN.
+- Next: commit/stash the current dirty working package before running live Qwen report; runner now blocks live executor when main checkout is dirty.
+
 ## Current Snapshot (2026-06-30)
 
 - Goal: improve pilot service reliability and analytics after the product/pedagogy review.

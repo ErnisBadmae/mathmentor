@@ -60,6 +60,36 @@ def _approved_task(svc: LearningService, session, answer: str, category: ErrorCa
         }
     )
     svc.approve_task(task.id)
+    if task.topic_id is not None:
+        topic = session.get(TopicORM, task.topic_id)
+    return task, topic
+
+
+def _approved_task_with_source_ref(
+    svc: LearningService,
+    session,
+    *,
+    statement: str,
+    answer: str,
+    source_ref: str,
+    category: ErrorCategory | None = None,
+):
+    topic = session.scalar(select(TopicORM).where(TopicORM.title == VECTORS))
+    task = svc.add_task(
+        {
+            "subject": Subject.MATH_PROFILE,
+            "statement": statement,
+            "expected_answer": answer,
+            "source": "official",
+            "source_url": f"https://example.org/{source_ref}",
+            "source_ref": source_ref,
+            "topic_id": topic.id,
+            "error_category": category,
+        }
+    )
+    svc.approve_task(task.id)
+    if task.topic_id is not None:
+        topic = session.get(TopicORM, task.topic_id)
     return task, topic
 
 
@@ -298,3 +328,45 @@ def test_parse_interval_answer_from_text_short_caption():
         (NEG, False, -2.0, False),
         (1.0, True, POS, False),
     ]
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("matplotlib") is None, reason="matplotlib not installed"
+)
+def test_drill_solution_visual_probability_task(seeded_session):
+    """Known probability source_ref -> post-attempt probability visual."""
+    svc = service(seeded_session)
+    statement = (
+        "В коробке 30 шаров: 12 красных, 8 синих и 10 зелёных. "
+        "Найдите вероятность достать красный или синий шар."
+    )
+    task, topic = _approved_task_with_source_ref(
+        svc,
+        seeded_session,
+        statement=statement,
+        answer="2/3",
+        source_ref="corpus:probability:task-a",
+        category=ErrorCategory.PROBABILITY_DOUBLE_COUNT,
+    )
+    mission_id = _drill_mission(svc, topic, task)
+
+    visual = svc.drill_solution_visual(mission_id, student_answer="1/2")
+    assert visual is not None
+    assert visual.kind == "probability"
+    assert visual.png[:8] == b"\x89PNG\r\n\x1a\n"
+    assert visual.caption == "Схема к задаче на вероятность"
+
+
+def test_drill_solution_visual_unknown_scalar_still_none(seeded_session):
+    """Scalar tasks without a known probability source_ref keep old behavior."""
+    svc = service(seeded_session)
+    task, topic = _approved_task_with_source_ref(
+        svc,
+        seeded_session,
+        statement="Найдите длину вектора (3; 4).",
+        answer="5",
+        source_ref="corpus:unknown:task",
+    )
+    mission_id = _drill_mission(svc, topic, task)
+
+    assert svc.drill_solution_visual(mission_id, student_answer="5") is None

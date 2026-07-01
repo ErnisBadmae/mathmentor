@@ -32,6 +32,7 @@ from app.domain.policies import (
     review_result_to_status,
     select_daily_queue,
 )
+from app.domain.probability_visual import parse_probability_visual_spec
 from app.domain.program import PHASES, current_phase_key
 
 
@@ -652,10 +653,25 @@ class LearningService:
         разбор, not a pre-attempt leak. Renderer lives in infrastructure."""
         mission = self._uow.missions.get_for_attempt(mission_id)
         task = self._uow.tasks.get(mission.task_id) if mission.task_id is not None else None
+        if task is None:
+            return None
+
         expected_answer = getattr(task, "expected_answer", None)
         expected_intervals = parse_interval_answer(expected_answer)
         if expected_intervals is None:
-            return None
+            spec = parse_probability_visual_spec(
+                task.statement, task.expected_answer, task.source_ref
+            )
+            if spec is None:
+                return None
+            from app.infrastructure.figures_render import render_probability_visual
+
+            png = render_probability_visual(spec)
+            return VisualAid(
+                kind="probability",
+                png=png,
+                caption="Схема к задаче на вероятность",
+            )
 
         from app.infrastructure.figures_render import render_number_line
 

@@ -11,8 +11,12 @@ from __future__ import annotations
 
 import io
 import math
+from typing import TYPE_CHECKING
 
 from app.domain.figures import NEG, POS, Interval
+
+if TYPE_CHECKING:
+    from app.domain.probability_visual import ProbabilityVisualSpec
 
 
 def _dot(ax, x: float, closed: bool, color: str, y: float) -> None:
@@ -97,3 +101,172 @@ def render_number_line(
     fig.savefig(buf, format="png", dpi=130, bbox_inches="tight")
     plt.close(fig)
     return buf.getvalue()
+
+
+# ── Probability visualisation renderers (spike) ──────────────────────────────
+
+
+def render_probability_bar_chart(spec: ProbabilityVisualSpec) -> bytes:
+    """Render task-4013: three disjoint colour groups as a bar chart.
+
+    Bars for "красные" and "синие" are highlighted (darker);
+    "зелёные" is muted. A line marks P(красные или синие) = sum.
+    """
+    import matplotlib
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+
+    matplotlib.use("Agg")
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.set_title("Шары в коробке", fontsize=13, pad=12)
+
+    counts = [
+        (spec.group_a_count or 0, spec.label_a or "группа A", "#e74c3c", "#c0392b"),
+        (spec.group_b_count or 0, spec.label_b or "группа B", "#3498db", "#2980b9"),
+        (spec.group_c_count or 0, spec.label_c or "группа C", "#95a5a6", "#7f8c8d"),
+    ]
+
+    bar_width = 0.4
+    x = [0.5, 1.5, 2.5]
+    heights = [c[0] for c in counts]
+    max_h = max(heights) if heights else 10
+
+    # Y-axis: normalised to probability (0..1)
+    total = spec.total_count or 1
+    heights_norm = [h / total for h in heights]
+
+    bars = []
+    for i, (count, label, light_color, dark_color) in enumerate(counts):
+        if i < 2:
+            bar_color = dark_color
+        else:
+            bar_color = dark_color
+        bar = ax.bar(x[i], heights_norm[i], bar_width, color=bar_color,
+                      edgecolor="#333", linewidth=1, alpha=0.8)
+        bars.append(bar)
+        # Count label
+        ax.text(x[i], heights_norm[i] + 0.02, str(count),
+                ha="center", va="bottom", fontsize=9, color="#333")
+        # X label
+        ax.text(x[i], -0.04, label, ha="center", va="top", fontsize=8, color="#666")
+
+    ax.set_ylim(0, max(heights_norm) + 0.15)
+    ax.set_yticks([0, 0.25, 0.5, 0.75, 1.0])
+    ax.set_yticklabels(["0", "0.25", "0.5", "0.75", "1"])
+    ax.set_xticks(x)
+    ax.set_xticklabels([])
+    ax.set_ylabel("Вероятность", fontsize=9, color="#888")
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def render_probability_2x2_table(spec: ProbabilityVisualSpec) -> bytes:
+    """Render a 2x2 contingency table for probability tasks 4014/4015.
+
+    Rows: A / not-A.  Columns: B / not-B.  Cells: only_a, only_b, both, neither.
+
+    One cell is highlighted based on ``spec.highlight_cell``:
+
+    - ``"neither"`` — task 4014: answer is the "neither" cell
+    - ``"only_a"``  — task 4015: answer is the "only A" cell
+
+    Values are formatted with Russian decimal comma for consistency.
+    """
+    import matplotlib
+    import matplotlib.pyplot as plt
+
+    matplotlib.use("Agg")
+
+    def _fmt(v: float) -> str:
+        return f"{v:.2f}"
+
+    labels = spec.label_a or "A", spec.label_b or "B"
+    only_a = _fmt(spec.cell_only_a) if spec.cell_only_a is not None else ""
+    only_b = _fmt(spec.cell_only_b) if spec.cell_only_b is not None else ""
+    both = _fmt(spec.cell_both) if spec.cell_both is not None else ""
+    neither = _fmt(spec.cell_neither) if spec.cell_neither is not None else ""
+
+    row_labels = [f"{labels[0]}", f"не {labels[0]}"]
+    col_labels = [f"{labels[1]}", f"не {labels[1]}"]
+
+    # Data matrix: rows = A / not-A, cols = B / not-B
+    #   A ∩ B       A \ B       = both / only_a
+    #   B \ A      ~(A U B)    = only_b / neither
+    data = [[both, only_a], [only_b, neither]]
+
+    fig, ax = plt.subplots(figsize=(5, 3))
+    ax.axis("off")
+
+    if spec.highlight_cell == "neither":
+        title = f"P(ни одного) = {neither}  (1 - P(A U B))"
+    elif spec.highlight_cell == "only_a":
+        title = f"P({labels[0]} без {labels[1]}) = {only_a}  (P(A) - P(A n B))"
+    else:
+        title = f"Таблица 2x2: P({labels[0]}), P({labels[1]})"
+
+    ax.set_title(title, fontsize=12, pad=12)
+
+    # Build table with highlighted cell
+    cell_colors = [
+        ["#f0f0f0", "#f0f0f0"],  # row 0: both, only_a
+        ["#f0f0f0", "#f0f0f0"],  # row 1: only_b, neither
+    ]
+    if spec.highlight_cell == "neither":
+        cell_colors[1][1] = "#d4edda"
+    elif spec.highlight_cell == "only_a":
+        cell_colors[0][1] = "#d4edda"
+
+    # cellColours must be 2D: 2 data rows x 2 cols (labels don't use it)
+    colour_grid = [[cell_colors[r][c] for c in range(2)] for r in range(2)]
+
+    table = ax.table(
+        cellText=data,
+        rowLabels=row_labels,
+        colLabels=col_labels,
+        cellColours=colour_grid,
+        cellLoc="center",
+        loc="center",
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(11)
+    table.scale(1, 2.2)
+
+    # Style header cells (row 0 = column labels, col -1 = row labels)
+    for (r, c), cell in table.get_celld().items():
+        if r == 0 or c == -1:
+            cell.set_facecolor("#e8e8e8")
+            cell.set_text_props(fontweight="bold")
+
+    # Data cells (loc='center'): (1,0)=both, (1,1)=only_a, (2,0)=only_b, (2,1)=neither
+    # Use set_cellprops to override cellColours for the highlight cell
+    if spec.highlight_cell == "neither":
+        table[(2, 1)].set_facecolor("#28a745")
+        table[(2, 1)].set_text_props(color="white", fontweight="bold")
+    elif spec.highlight_cell == "only_a":
+        table[(1, 1)].set_facecolor("#28a745")
+        table[(1, 1)].set_text_props(color="white", fontweight="bold")
+
+    # Force redraw so set_facecolor takes effect over cellColours
+    fig.canvas.draw()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def render_probability_visual(spec: ProbabilityVisualSpec) -> bytes:
+    """Dispatch to the correct probability chart renderer.
+
+    Spike: only ``"bar_chart"`` and ``"table_2x2"`` are supported.
+    Unknown chart_type raises ``ValueError``.
+    """
+    if spec.chart_type == "bar_chart":
+        return render_probability_bar_chart(spec)
+    if spec.chart_type == "table_2x2":
+        return render_probability_2x2_table(spec)
+    raise ValueError(f"Unsupported probability chart_type: {spec.chart_type}")

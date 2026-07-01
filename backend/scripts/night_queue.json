@@ -1,0 +1,24 @@
+[
+  {
+    "id": "T-night-plumbing-tests",
+    "kind": "run",
+    "comment": "Dry-run-safe task: no executor, only verifies worktree + venv pytest plumbing.",
+    "prompt": null,
+    "acceptance": [
+      ["{PY}", "-m", "pytest", "backend/tests/test_figures.py", "-q"]
+    ],
+    "timeout": 300
+  },
+  {
+    "id": "T-report-visualization-surface",
+    "kind": "report",
+    "comment": "Read-only report: Qwen summarizes current visualization surface and simulator output; runner rejects any file changes.",
+    "prompt": "Read only. Do not edit files. Act as a synthetic tester using only the sandbox surface. Run `python -c \"from app.adapters.mcp.sandbox_server import run_student_simulation; import json; print(json.dumps(run_student_simulation(), ensure_ascii=False, indent=2))\"` from the backend worktree, then inspect backend/app/adapters/mcp/sandbox_server.py, backend/scripts/simulate_student_flow.py, backend/app/application/use_cases.py, backend/app/domain/probability_visual.py, and backend/app/infrastructure/figures_render.py. Report in plain text: 1) what sandbox MCP tool exists, 2) which learner-flow cases it covers, 3) which visual kinds are supported, 4) any UX/flow rough edges visible from raw output. Keep it under 50 lines. Do not create or modify any file.",
+    "acceptance": [
+      ["{PY}", "-c", "from app.adapters.mcp.sandbox_server import run_student_simulation; r=run_student_simulation(); assert r['ok'] is True; assert {c['visual_kind'] for c in r['cases']} == {'number_line', 'probability'}"],
+      ["{PY}", "backend/scripts/simulate_student_flow.py"],
+      ["{PY}", "-m", "pytest", "backend/tests/test_probability_visual.py", "backend/tests/test_drill.py", "-q"]
+    ],
+    "timeout": 900
+  }
+]

@@ -165,6 +165,26 @@ The first DB-backed LAN v1 slice is implemented. Next work should harden pilot u
   backend files changed. Codex does not receive that hook: run verification once per
   revision, but do not repeat it when a fresh hook result already covers the same changes.
 
+## Local Qwen Executor Boundary
+
+Treat local Qwen/OpenCode through `backend/scripts/night_runner.py` as a bounded executor,
+not as an architect or junior developer. Use it only for low-risk, machine-checkable work:
+
+- read-only reports, smoke checks, latency snapshots, and coverage/diff snapshots;
+- single-file mechanical edits with strict `files_allowed`;
+- fixture/YAML/doc-table additions from an explicit template;
+- keyword/marker additions where the expected diff is obvious;
+- formatting or trivial lint fixes covered by gates.
+
+Do not give Qwen architecture, source-of-truth contracts, policy semantics, gate design,
+multi-file refactors, imports, runtime contract changes, migrations, write-path changes,
+new capabilities, UX/product decisions, or anything requiring judgment-heavy review.
+
+Calibration rule: if writing the task spec takes longer than doing the edit, do it in
+Codex/Claude. If morning review finds a false-green, remove that task class from the Qwen
+queue. Qwen output is accepted only through raw logs, exact commands, diff review, and
+machine gates; self-report is not evidence. See `docs/AGENT_EXECUTOR_HARNESS.md`.
+
 ## MCP Server (agent as senior mentor)
 
 An MCP server exposes this project's data and track edits so an agent (Claude/Codex) can act as the senior mentor — read student state/progress/history and edit missions/tasks/scores/reviews — **without any paid cloud LLM API in the backend**. It is a thin adapter over `LearningService` (`backend/app/adapters/mcp/server.py`); the local model stays the per-attempt evaluator.

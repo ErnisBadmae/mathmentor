@@ -78,3 +78,38 @@ npm.cmd run build
 
 cd C:\Users\badmaev_es\egeMentor\backend
 .\.venv312\Scripts\python.exe -m app.adapters.telegram.bot
+
+Что я сделал:
+
+- Пересобрал и перезапустил bot:
+
+  docker compose up -d --build bot
+  Compose также пересоздал api, потому что образ backend общий.
+
+- Прогнал миграции:
+
+  docker compose exec -T api alembic upgrade head
+
+- Проверил контейнеры:
+  - api running, restart=0
+  - bot running, restart=0
+  - web running, restart=0
+  - postgres healthy
+
+- Проверил Telegram getMe из контейнера через proxy: OK, бот @egemathandinformbot.
+- Прогнал release smoke из контейнера бота:
+
+  docker compose exec -T -e PUBLIC_API_BASE_URL=http://api:8001 bot python scripts/release_smoke.py
+  Результат: GREEN
+  - API health OK
+  - migrations at head
+  - bot getMe OK
+  - live Qwen judge OK
+
+Команды на будущее:
+
+docker compose up -d --build api bot
+docker compose exec -T api alembic upgrade head
+docker compose ps
+docker compose logs bot --tail=80
+docker compose exec -T -e PUBLIC_API_BASE_URL=http://api:8001 bot python scripts/release_smoke.py
