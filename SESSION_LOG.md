@@ -52,7 +52,9 @@ Status: implemented and verified locally; live Qwen report should wait for clean
 
 Verification: sandbox MCP direct call OK; simulator OK; MCP/simulator tests `2 passed`; backend suite `156 passed`; frontend build green; night-runner dry-run GREEN.
 
-Open tail: current working tree is intentionally dirty with the visual/harness package, so live Qwen report will be BLOCKED until this package is committed or stashed.
+Live Qwen report `report-161442.md`: GREEN. Qwen used the sandbox surface, changed no files, and gates passed (`test_figures.py`, sandbox MCP assertion, simulator script, probability/drill tests). Reported rough edges: unparseable interval answer lacks learner-facing reason, no passed-case visual scenario in simulator, sandbox covers only drill exact path, seed monkeypatch is fragile, and `probability` visual kind hides chart subtype.
+
+Open tail: decide which Qwen findings to address first; stale auto worktrees from earlier calibration can be cleaned after review.
 
 ## 2026-07-01 - Probability visual spike integrated narrowly
 
