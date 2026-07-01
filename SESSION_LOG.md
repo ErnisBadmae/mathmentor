@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-07-01 - Synthetic tester coverage expanded for probability tables
+
+Status: implemented and verified locally.
+
+- Addressed the actionable finding from live Qwen report `report-163515.md`: sandbox flow covered probability bar chart only, not the 2x2-table renderer.
+- `simulate_student_flow.py` now exercises all three source-ref-gated probability visuals: task-a bar chart, task-b `neither` 2x2 table, and task-c `only_a` 2x2 table.
+- Updated sandbox/script tests to assert all three probability cases.
+- Strengthened `T-report-visualization-surface` acceptance so a future Qwen GREEN requires the probability bar-chart and both 2x2-table cases.
+- Deferred non-actionable/low-priority Qwen notes: PNG magic wording and repeated `matplotlib.use("Agg")`.
+
+Verification: simulator direct run OK with 6 cases; focused simulator/probability tests `13 passed`; backend suite `156 passed`; frontend build green; night-runner dry-run GREEN.
+
+Open tail: commit this follow-up, then run one live Qwen report against the expanded simulator.
+
 ## 2026-07-01 - Night-runner dry-run for local Qwen harness
 
 Status: egeMentor harness port tested in dry-run; first live Qwen smoke found an isolation/config issue.

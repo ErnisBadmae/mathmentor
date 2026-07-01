@@ -28,4 +28,6 @@ def test_student_flow_simulator_script():
     assert cases["interval_correct_answer"]["visual_kind"] == "number_line"
     assert cases["interval_unparseable_answer"]["visual_kind"] == "number_line"
     assert "не удалось распознать" in cases["interval_unparseable_answer"]["visual_caption"]
-    assert cases["probability_wrong_answer"]["visual_kind"] == "probability"
+    assert cases["probability_bar_chart_wrong_answer"]["visual_kind"] == "probability"
+    assert cases["probability_table_neither_wrong_answer"]["visual_kind"] == "probability"
+    assert cases["probability_table_only_a_wrong_answer"]["visual_kind"] == "probability"

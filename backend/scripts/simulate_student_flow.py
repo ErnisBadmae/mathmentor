@@ -83,12 +83,10 @@ def _ensure_interval_task(session) -> TaskORM:
     return task
 
 
-def _probability_task(session) -> TaskORM:
-    task = session.scalar(
-        select(TaskORM).where(TaskORM.source_ref == "corpus:probability:task-a")
-    )
+def _probability_task(session, source_ref: str) -> TaskORM:
+    task = session.scalar(select(TaskORM).where(TaskORM.source_ref == source_ref))
     if task is None:
-        raise RuntimeError("seed did not create probability task-a")
+        raise RuntimeError(f"seed did not create {source_ref}")
     if task.status != TaskStatus.APPROVED:
         _service(session).approve_task(task.id)
     return task
@@ -164,7 +162,9 @@ def build_report() -> dict[str, object]:
     session = _seeded_session()
     try:
         interval_task = _ensure_interval_task(session)
-        probability_task = _probability_task(session)
+        probability_task_a = _probability_task(session, "corpus:probability:task-a")
+        probability_task_b = _probability_task(session, "corpus:probability:task-b")
+        probability_task_c = _probability_task(session, "corpus:probability:task-c")
         cases = [
             _run_case(
                 session,
@@ -192,9 +192,25 @@ def build_report() -> dict[str, object]:
             ),
             _run_case(
                 session,
-                name="probability_wrong_answer",
-                task=probability_task,
+                name="probability_bar_chart_wrong_answer",
+                task=probability_task_a,
                 answer="1/2",
+                expected_status=EvidenceStatus.FAILED,
+                expected_visual_kind="probability",
+            ),
+            _run_case(
+                session,
+                name="probability_table_neither_wrong_answer",
+                task=probability_task_b,
+                answer="0,10",
+                expected_status=EvidenceStatus.FAILED,
+                expected_visual_kind="probability",
+            ),
+            _run_case(
+                session,
+                name="probability_table_only_a_wrong_answer",
+                task=probability_task_c,
+                answer="0,30",
                 expected_status=EvidenceStatus.FAILED,
                 expected_visual_kind="probability",
             ),
