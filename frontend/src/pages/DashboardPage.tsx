@@ -1,8 +1,34 @@
 import { useQuery } from '@tanstack/react-query';
-import { errorMessage, getCurrentStudent, getDashboard, getDiagnostics } from '../shared/api/client';
+import {
+  errorMessage,
+  getCurrentStudent,
+  getDashboard,
+  getDiagnostics,
+  getScoreEvents,
+  type ScoreEvent,
+  type Subject,
+} from '../shared/api/client';
 
 function subjectLabel(subject: string) {
   return subject === 'math_profile' ? 'Профильная математика' : 'Информатика';
+}
+
+function scoreKindLabel(kind: string) {
+  const labels: Record<string, string> = {
+    baseline: 'Базлайн',
+    exam_variant: 'Пробник',
+    exam_like_slice: 'Мини-вариант',
+    weekly_variant: 'Недельный вариант',
+    topic_check: 'Срез темы',
+  };
+  return labels[kind] ?? kind;
+}
+
+function scoreDelta(current: ScoreEvent, previous: ScoreEvent | undefined) {
+  if (!previous) return null;
+  const delta = current.score - previous.score;
+  if (delta === 0) return 'без изменений';
+  return `${delta > 0 ? '+' : ''}${delta}`;
 }
 
 export function DashboardPage() {
@@ -18,9 +44,22 @@ export function DashboardPage() {
     queryFn: () => getDiagnostics(studentId ?? ''),
     enabled: Boolean(studentId),
   });
+  const scoreEventsQuery = useQuery({
+    queryKey: ['score-events', studentId],
+    queryFn: () => getScoreEvents(studentId ?? ''),
+    enabled: Boolean(studentId),
+  });
   const mentorNotes = data?.mentor_notes ?? [];
   const topErrors = data?.top_errors ?? [];
   const diagnostics = diagnosticsQuery.data ?? [];
+  const scoreEvents = scoreEventsQuery.data ?? [];
+  const scoreEventsBySubject = scoreEvents.reduce<Record<Subject, ScoreEvent[]>>(
+    (acc, event) => {
+      acc[event.subject].push(event);
+      return acc;
+    },
+    { math_profile: [], informatics: [] },
+  );
 
   if (studentQuery.isLoading || isLoading) return <div className="state">Загрузка...</div>;
   if (studentQuery.error || error) return <div className="state stateError">{errorMessage(studentQuery.error || error)}</div>;
@@ -49,6 +88,42 @@ export function DashboardPage() {
           <strong>{data?.due_reviews ?? 0}</strong>
           <small>Карточек к повторению</small>
         </article>
+      </div>
+      <div className="panel">
+        <h2>Тренд баллов</h2>
+        {scoreEventsQuery.error ? (
+          <p className="muted">{errorMessage(scoreEventsQuery.error)}</p>
+        ) : data?.tracks.length ? (
+          <div className="tableList">
+            {data.tracks.map((track) => {
+              const events = scoreEventsBySubject[track.subject];
+              const latest = events[0];
+              const previous = events[1];
+              const delta = latest ? scoreDelta(latest, previous) : null;
+              return (
+                <article className="tableRow" key={track.subject}>
+                  <div>
+                    <strong>{subjectLabel(track.subject)}</strong>
+                    {latest ? (
+                      <span>
+                        {scoreKindLabel(latest.kind)} · {new Date(latest.occurred_on).toLocaleDateString('ru-RU')}
+                        {latest.note ? ` · ${latest.note}` : ''}
+                      </span>
+                    ) : (
+                      <span>Пробников пока нет.</span>
+                    )}
+                  </div>
+                  <div>
+                    <b>{track.current_score}/{track.target_score}</b>
+                    <small>{delta ? `Дельта: ${delta}` : `До цели: ${track.score_gap}`}</small>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="muted">Пока нет score events.</p>
+        )}
       </div>
       <div className="panel">
         <h2>Обратная связь наставника</h2>

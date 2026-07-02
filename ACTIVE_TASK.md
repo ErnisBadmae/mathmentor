@@ -3,19 +3,26 @@
 ## Current Snapshot (2026-07-02)
 
 - Goal: execute the proven-delta strategy with verified small steps: monthly timed score events, weekly error-to-intervention review, part-2 manual-gated evidence, targeted content depth, and Qwen only as a bounded read-only/mechanical executor.
-- Status: strategy accepted; canonical plan is aligned from the old LAN/scaffold next-plan to the three-horizon proven-delta plan.
+- Status: strategy accepted; canonical plan is aligned from the old LAN/scaffold next-plan to the three-horizon proven-delta plan. Latest live Qwen batch `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-153010.md` is full GREEN across 10 tasks. Score-spine visibility is implemented: score-event history endpoint, dashboard trend panel, and weekly digest score block. Night queue is refreshed for post-change score-spine QA, sandbox MCP contract review, and queue freshness review.
 - Current operating rules:
   - do not scale infrastructure or multi-student support until an N=1 delta is visible;
   - keep `current_score` tied to score events from timed mocks, not daily attempts;
   - start error intervention manually via `error_journal` + `publish_feedback`, then add a simple deterministic queue rule only after observed repetition;
   - use Qwen through `backend/scripts/night_runner.py` for read-only reports, smoke checks, and mechanical edits with machine gates.
-- Current Qwen queue: existing read-only QA reports plus strategy-specific reports for score-spine readiness, error-intervention readiness, and part-2 manual-gate readiness. Any file change by a report task is RED.
+- Current Qwen report triage:
+  - done: timed mock score history is visible (`list_score_events` + dashboard trend + weekly digest score block);
+  - next Qwen batch: read-only post-change QA for score-spine, sandbox MCP boundary, and night-queue freshness;
+  - keep Qwen out of senior mentor MCP and real student-state write tools; sandbox MCP only exposes deterministic synthetic simulation;
+  - process first: start weekly `error_journal` review and publish feedback manually before coding intervention routing;
+  - part 2 first slice: text-only submitted solution with manual verdict gate for #13/#15 before photo/OCR UX;
+  - low-priority test gaps: bar-chart correct-answer simulator case, double-PASS review idempotency, slice/daily duplicate guard, extra Telegram callback/media/streak tests.
 - Next:
-  1. Commit the already verified probability bank expansion.
-  2. Deploy/reseed live data if the new bank should affect the learner.
-  3. Run the next dry-run/live Qwen batch and review raw reports.
+  1. Commit the verified score-spine + night-queue slice.
+  2. Run live Qwen only from a clean checkout, then review raw reports rather than self-report.
+  3. Deploy/reseed live data if the new bank should affect the learner.
   4. Schedule/record the first July timed mini-mock as the score baseline.
   5. Start the weekly mentor review from `error_journal` and recent attempts.
+  6. Prepare the text-only part-2 manual-gate slice for #13/#15.
 
 ## Current Snapshot (2026-07-01)
 

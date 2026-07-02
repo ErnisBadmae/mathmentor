@@ -62,14 +62,36 @@
     "timeout": 900
   },
   {
-    "id": "T-report-score-spine-readiness",
+    "id": "T-report-score-spine-postchange",
     "kind": "report",
-    "comment": "Read-only report: inspect readiness for monthly timed mock score-events and dashboard/digest trend.",
-    "prompt": "Read only. Do not edit files. Act as a score-spine QA reviewer for the proven-delta strategy. Inspect backend/app/application/use_cases.py, backend/app/adapters/api/routes.py, backend/app/adapters/mcp/server.py, backend/tests/test_scores.py, backend/tests/test_program.py, backend/tests/test_grader.py, and frontend/src if useful. Report in plain text: 1) exactly how a monthly timed EGE-format mini-mock can be recorded today, 2) which tests prove daily attempts/topic checks do not move current_score, 3) what dashboard/weekly-digest trend toward 85/85 exists or is missing, 4) the smallest next implementation slice to make the score trend visible. Keep it under 70 lines. Do not create or modify any file.",
+    "comment": "Read-only report: inspect the implemented score-event history, dashboard trend, digest score block, and operator invalidation.",
+    "prompt": "Read only. Do not edit files. Act as a post-change QA reviewer for the score-spine slice. Inspect backend/app/application/use_cases.py, backend/app/application/ports.py, backend/app/infrastructure/repositories.py, backend/app/adapters/api/routes.py, backend/tests/test_scores.py, backend/tests/test_grader.py, frontend/src/pages/DashboardPage.tsx, frontend/src/pages/OperatorPage.tsx, and frontend/src/shared/api/client.ts. Report in plain text: 1) what GET /students/{id}/score-events returns and how it is tested, 2) how the dashboard score trend and weekly digest scores behave, 3) whether creating a score event invalidates the right frontend queries, 4) edge cases or mismatches to fix before using July timed mini-mock data. Keep it under 70 lines. Do not create or modify any file.",
     "acceptance": [
-      ["{PY}", "-m", "pytest", "backend/tests/test_scores.py", "backend/tests/test_program.py", "backend/tests/test_grader.py", "-q"]
+      ["{PY}", "-m", "pytest", "backend/tests/test_scores.py", "backend/tests/test_grader.py", "-q"],
+      ["npm.cmd", "--prefix", "frontend", "run", "build"]
     ],
     "timeout": 900
+  },
+  {
+    "id": "T-report-sandbox-mcp-contract",
+    "kind": "report",
+    "comment": "Read-only report: inspect the sandbox MCP/simulator boundary used by Qwen, not the senior mentor MCP.",
+    "prompt": "Read only. Do not edit files. Act as an executor-harness QA reviewer. Inspect backend/app/adapters/mcp/sandbox_server.py, backend/scripts/simulate_student_flow.py, backend/scripts/night_queue.json, docs/AGENT_EXECUTOR_HARNESS.md, backend/tests/test_mcp_sandbox.py, and backend/tests/test_student_simulation.py. Report in plain text: 1) exactly what sandbox MCP exposes, 2) which deterministic learner-flow cases are covered, 3) whether the night queue accidentally asks Qwen to use senior/production MCP write tools, 4) the next 2-3 simulator cases worth adding. Keep it under 70 lines. Do not create or modify any file.",
+    "acceptance": [
+      ["{PY}", "-m", "py_compile", "backend/app/adapters/mcp/sandbox_server.py"],
+      ["{PY}", "-m", "pytest", "backend/tests/test_mcp_sandbox.py", "backend/tests/test_student_simulation.py", "-q"]
+    ],
+    "timeout": 900
+  },
+  {
+    "id": "T-report-night-queue-freshness",
+    "kind": "report",
+    "comment": "Read-only report: compare active plan/log against the queued Qwen reports and flag stale nightly work.",
+    "prompt": "Read only. Do not edit files. Act as a nightly-queue triage reviewer. Inspect ACTIVE_TASK.md, the top entries of SESSION_LOG.md, and backend/scripts/night_queue.json. Report in plain text: 1) which queued report tasks are stale or duplicated after the current score-spine slice, 2) which reports should remain nightly versus weekly/manual, 3) which tasks should be removed or rewritten before the next live Qwen run. Keep it under 40 lines. Do not create or modify any file.",
+    "acceptance": [
+      ["{PY}", "-c", "import json; json.load(open('backend/scripts/night_queue.json', encoding='utf-8'))"]
+    ],
+    "timeout": 600
   },
   {
     "id": "T-report-error-intervention-readiness",

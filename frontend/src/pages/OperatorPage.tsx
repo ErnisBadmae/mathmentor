@@ -159,6 +159,7 @@ export function OperatorPage() {
     onSuccess: () => {
       setScoreDraft((current) => ({ ...current, score: '80', occurred_on: '', note: '' }));
       void queryClient.invalidateQueries({ queryKey: ['dashboard', studentId] });
+      void queryClient.invalidateQueries({ queryKey: ['score-events', studentId] });
     },
   });
   const noteMutation = useMutation({

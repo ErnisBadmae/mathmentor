@@ -142,6 +142,7 @@ class ReviewRepository(Protocol):
 
 class ScoreRepository(Protocol):
     def add_event(self, values: dict[str, object]) -> object: ...
+    def list_events(self, student_id: UUID, limit: int = 20) -> list[dict[str, object]]: ...
 
 
 class TopicRepository(Protocol):

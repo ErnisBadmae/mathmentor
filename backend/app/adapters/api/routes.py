@@ -144,6 +144,15 @@ def score_event(
     return service.record_score_event({**payload.model_dump(), "student_id": student_id})
 
 
+@protected_router.get("/students/{student_id}/score-events", response_model=list[ScoreEventOut])
+def score_events(
+    student_id: UUID,
+    limit: int = Query(default=20, ge=1, le=100),
+    service: LearningService = Depends(get_learning_service),
+) -> list[dict[str, object]]:
+    return service.list_score_events(student_id, limit)
+
+
 @protected_router.post("/students/{student_id}/mentor-notes", response_model=MentorNoteOut)
 def publish_mentor_note(
     student_id: UUID,

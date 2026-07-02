@@ -4,6 +4,48 @@
 
 ---
 
+## 2026-07-02 - Qwen nightly queue refresh
+
+Status: implemented and verified locally.
+
+- Replaced stale `T-report-score-spine-readiness` with `T-report-score-spine-postchange` for the implemented score-events endpoint, dashboard score trend, weekly digest scores, and operator invalidation.
+- Added `T-report-sandbox-mcp-contract` so Qwen reviews only the deterministic sandbox MCP/simulator boundary, not senior mentor MCP write tools.
+- Added `T-report-night-queue-freshness` to keep nightly reports aligned with `ACTIVE_TASK.md` and the latest session log.
+- Updated `ACTIVE_TASK.md`: next live Qwen run should happen only from a clean checkout after this score-spine + queue slice is committed.
+
+Verification: night queue JSON parse OK; focused score/sandbox acceptance `21 passed`; backend suite `168 passed`; frontend build green; `night_runner.py --dry-run` GREEN across all queued tasks; `git diff --check` clean except CRLF warnings.
+
+Open tail: commit this slice, then run live `backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py` and review raw reports.
+
+## 2026-07-02 - Score-spine visibility
+
+Status: implemented and verified locally.
+
+- Added read-side score history: `ScoreRepository.list_events`, `LearningService.list_score_events`, and `GET /students/{student_id}/score-events`.
+- Added score-spine data to `weekly_digest`: recent score events and latest current/target/gap by subject.
+- Added dashboard "Тренд баллов" panel using backend score events, with latest score, event kind/date/note, and delta to the previous score event per subject.
+- Invalidated the new `score-events` query after operator score-event creation.
+- Added score history, endpoint, and weekly digest regression tests.
+
+Verification: focused score/digest tests `19 passed`; backend suite `168 passed`; frontend build green.
+
+Open tail: commit this slice, then schedule/record the first July timed mini-mock and start weekly error-journal review.
+
+## 2026-07-02 - Qwen proven-delta report review
+
+Status: reviewed live report; no code changes from findings yet.
+
+- Latest report: `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-153010.md`.
+- GREEN: all 10 tasks, including new score-spine, error-intervention, and part-2 manual-gate readiness reports.
+- Highest-value implementation slice: expose score-event history and show timed-mock trend toward 85/85 on dashboard/weekly digest.
+- Error intervention remains process-first: weekly `error_journal` review + `publish_feedback`, then deterministic queue rule only after observed repetition.
+- Part 2 should start text-only with existing manual review/fail-closed path for #13/#15; photo/OCR is a later UX layer.
+- Lower-priority gaps: visual bar-chart correct-answer simulator case, review double-PASS/idempotency tests, slice/daily duplicate guard, Telegram callback/media/streak tests, and content gaps in #13/#16/informatics divisors/graphs.
+
+Verification: report acceptance in Qwen run was GREEN; no runtime code changed in this review.
+
+Open tail: implement score-spine visibility after committing current doc/queue and probability-bank work.
+
 ## 2026-07-02 - Proven-delta strategy alignment
 
 Status: implemented and verified locally.

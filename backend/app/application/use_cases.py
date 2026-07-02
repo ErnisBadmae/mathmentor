@@ -559,6 +559,12 @@ class LearningService:
         ]
         captured_diagnostics = sum(1 for row in diagnostics if row.get("captured"))
 
+        recent_score_events = [
+            row
+            for row in self.list_score_events(student_id, limit=50)
+            if row.get("occurred_on") is not None and row["occurred_on"] >= since_date
+        ]
+
         errors = [
             row
             for row in self.list_errors(student_id)
@@ -596,6 +602,17 @@ class LearningService:
                 "captured": captured_diagnostics,
                 "score_only": len(diagnostics) - captured_diagnostics,
                 "recent": diagnostics[:5],
+            },
+            "scores": {
+                "recent": recent_score_events[:5],
+                "latest_by_subject": {
+                    _enum_value(track["subject"]): {
+                        "current_score": track["current_score"],
+                        "target_score": track["target_score"],
+                        "score_gap": track["score_gap"],
+                    }
+                    for track in self.get_dashboard(student_id)["tracks"]
+                },
             },
             "errors": {
                 "count": len(errors),
@@ -752,6 +769,9 @@ class LearningService:
         )
         self._uow.commit()
         return event
+
+    def list_score_events(self, student_id: UUID, limit: int = 20) -> list[dict[str, object]]:
+        return self._uow.scores.list_events(student_id, limit)
 
     def draw_slice(
         self, subject: Subject, size: int, topic_id: UUID | None = None

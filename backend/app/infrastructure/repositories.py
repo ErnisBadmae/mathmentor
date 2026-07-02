@@ -545,6 +545,27 @@ class ScoreSqlRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
+    def list_events(self, student_id: UUID, limit: int = 20) -> list[dict[str, object]]:
+        limit = max(1, min(int(limit), 100))
+        events = self.session.scalars(
+            select(ScoreEventORM)
+            .where(ScoreEventORM.student_id == student_id)
+            .order_by(ScoreEventORM.occurred_on.desc(), ScoreEventORM.id.desc())
+            .limit(limit)
+        ).all()
+        return [
+            {
+                "id": event.id,
+                "student_id": event.student_id,
+                "subject": event.subject,
+                "score": event.score,
+                "kind": event.kind,
+                "occurred_on": event.occurred_on,
+                "note": event.note,
+            }
+            for event in events
+        ]
+
     def add_event(self, values: dict[str, object]) -> ScoreEventORM:
         source_ref = values.get("source_ref")
         if source_ref:

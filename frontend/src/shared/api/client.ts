@@ -257,6 +257,10 @@ export function getDashboard(studentId: string): Promise<Dashboard> {
   return request<Dashboard>(`/students/${studentId}/dashboard`);
 }
 
+export function getScoreEvents(studentId: string): Promise<ScoreEvent[]> {
+  return request<ScoreEvent[]>(`/students/${studentId}/score-events`);
+}
+
 export function getTodayMissions(studentId: string): Promise<Mission[]> {
   return request<Mission[]>(`/students/${studentId}/missions/today`);
 }
