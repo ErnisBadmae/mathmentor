@@ -34,7 +34,8 @@ If review finds a false-green for a task class, remove that class from the Qwen 
 
 ## Task Schema
 
-`backend/scripts/night_queue.json` currently uses a compact JSON form:
+`backend/scripts/night_queue.json` and `backend/scripts/night_queue_weekly.json` use a
+compact JSON form:
 
 ```json
 {
@@ -55,6 +56,9 @@ Rules:
 - `{PY}` is replaced with the detected project venv Python.
 - Edit tasks must set `files_allowed`.
 - Acceptance must be machine-checkable and falsifiable without human judgment.
+- Acceptance in isolated Qwen worktrees must not depend on frontend `node_modules`; use
+  static frontend source checks in Qwen gates and run `npm.cmd run build` from the main
+  checkout during Codex/Claude verification.
 - Keep tasks single-purpose and small enough that a morning diff review is trivial.
 
 ## Gate Contract
@@ -94,15 +98,19 @@ Raw output is mandatory. It is the morning-review evidence.
 
 ## Current egeMentor Rollout
 
-The current queue is only a harness calibration:
+The current nightly queue is a compact read-only core:
 
 1. `T-night-plumbing-tests`: acceptance-only dry-run task that runs
    `backend/tests/test_figures.py`.
-2. `T-qwen-write-probe`: tiny write probe that may only create
-   `docs/QWEN_WRITE_PROBE.txt` with exact UTF-8 token content.
+2. `T-report-sandbox-mcp-contract`: verifies the sandbox MCP/simulator boundary and that
+   Qwen is not asked to use senior mentor MCP write tools.
+3. `T-report-error-intervention-readiness`: reviews whether the current error journal can
+   support manual weekly intervention work and later deterministic rules.
+4. `T-report-part2-manual-gate-readiness`: reviews the minimal part-2 manual-gated path.
 
-Do not add real overnight work until the write probe produces a GREEN auto-branch from the
-external worktree root and morning review confirms the diff.
+Broad reports live in `backend/scripts/night_queue_weekly.json` and should be run manually
+once a week or after relevant code changes: visualization, slice/review, Telegram, bank
+coverage, analytics/digest, release-smoke readiness, and score-spine post-change checks.
 
 ## Sandbox MCP For Synthetic Testing
 
@@ -130,10 +138,22 @@ Dry-run, safe for Codex/Claude to run:
 backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py --dry-run
 ```
 
+Weekly/broad dry-run:
+
+```powershell
+backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py --dry-run --queue backend\scripts\night_queue_weekly.json
+```
+
 Live run, operator only because OpenCode uses auto-approve inside the isolated worktree:
 
 ```powershell
 backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py
+```
+
+Weekly/broad live run, operator only:
+
+```powershell
+backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py --queue backend\scripts\night_queue_weekly.json
 ```
 
 If a live run reports main-worktree contamination, stop and fix OpenCode `--dir`/workspace

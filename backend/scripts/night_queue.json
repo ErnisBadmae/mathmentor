@@ -10,69 +10,6 @@
     "timeout": 300
   },
   {
-    "id": "T-report-visualization-surface",
-    "kind": "report",
-    "comment": "Read-only report: Qwen summarizes current visualization surface and simulator output; runner rejects any file changes.",
-    "prompt": "Read only. Do not edit files. Act as a synthetic tester using only the sandbox surface. Run `python -c \"from app.adapters.mcp.sandbox_server import run_student_simulation; import json; print(json.dumps(run_student_simulation(), ensure_ascii=False, indent=2))\"` from the backend worktree, then inspect backend/app/adapters/mcp/sandbox_server.py, backend/scripts/simulate_student_flow.py, backend/app/application/use_cases.py, backend/app/domain/probability_visual.py, and backend/app/infrastructure/figures_render.py. Report in plain text: 1) what sandbox MCP tool exists, 2) which learner-flow cases it covers, including probability bar-chart, 2x2-table wrong answer, and 2x2-table correct answer cases, 3) which visual kinds are supported, 4) any UX/flow rough edges visible from raw output. Keep it under 50 lines. Do not create or modify any file.",
-    "acceptance": [
-      ["{PY}", "-c", "from app.adapters.mcp.sandbox_server import run_student_simulation; r=run_student_simulation(); assert r['ok'] is True; names={c['name'] for c in r['cases']}; assert {'probability_bar_chart_wrong_answer','probability_table_neither_wrong_answer','probability_table_neither_correct_answer','probability_table_only_a_wrong_answer'} <= names; cases={c['name']: c for c in r['cases']}; assert cases['probability_table_neither_correct_answer']['status']=='passed'; assert cases['probability_table_neither_correct_answer']['mission_status']=='done'; assert {c['visual_kind'] for c in r['cases']} == {'number_line', 'probability'}"],
-      ["{PY}", "backend/scripts/simulate_student_flow.py"],
-      ["{PY}", "-m", "pytest", "backend/tests/test_probability_visual.py", "backend/tests/test_drill.py", "backend/tests/test_student_simulation.py", "backend/tests/test_mcp_sandbox.py", "-q"]
-    ],
-    "timeout": 900
-  },
-  {
-    "id": "T-report-slice-review-surface",
-    "kind": "report",
-    "comment": "Read-only report: inspect slice and spaced-review lifecycle surfaces.",
-    "prompt": "Read only. Do not edit files. Act as a synthetic tester for slice and spaced-review flows. Inspect backend/app/application/use_cases.py, backend/tests/test_slice_topic.py, backend/tests/test_grader.py, backend/tests/test_topic_lifecycle.py, backend/tests/test_daily_queue.py, and backend/tests/test_bot.py. Report in plain text: 1) what slice flow covers, 2) what review-card lifecycle covers, 3) which cases simulate Telegram /slice or daily review drills, 4) the top 3 flow/UX risks or missing synthetic cases. Keep it under 60 lines. Do not create or modify any file.",
-    "acceptance": [
-      ["{PY}", "-m", "pytest", "backend/tests/test_slice_topic.py", "backend/tests/test_grader.py", "backend/tests/test_topic_lifecycle.py", "backend/tests/test_daily_queue.py", "-q"]
-    ],
-    "timeout": 900
-  },
-  {
-    "id": "T-report-telegram-flow-surface",
-    "kind": "report",
-    "comment": "Read-only report: inspect Telegram learner flow without sending real messages.",
-    "prompt": "Read only. Do not edit files. Act as a synthetic tester for Telegram learner UX. Inspect backend/app/adapters/telegram/bot.py, backend/tests/test_bot.py, backend/tests/test_daily_queue.py, and backend/tests/test_drill.py. Report in plain text: 1) command/menu flows covered by tests, 2) drill answer flow and visual delivery behavior, 3) slice flow behavior, 4) top 5 learner-facing rough edges or missing tests visible from code/tests. Keep it under 70 lines. Do not create or modify any file.",
-    "acceptance": [
-      ["{PY}", "-m", "pytest", "backend/tests/test_bot.py", "backend/tests/test_daily_queue.py", "backend/tests/test_drill.py", "-q"]
-    ],
-    "timeout": 900
-  },
-  {
-    "id": "T-report-bank-coverage-surface",
-    "kind": "report",
-    "comment": "Read-only report: inspect seed task bank and topic coverage.",
-    "prompt": "Read only. Do not edit files. Act as a content QA analyst. Inspect backend/scripts/seed.py, backend/tests/test_task_bank_mcp.py, backend/tests/test_program.py, and backend/tests/test_v1_flow.py. Run a small read-only Python snippet if useful to count approved tasks by subject/topic/source_ref from the seeded in-memory DB. Report in plain text: 1) current task-bank coverage shape, 2) topics that look thin or blocked by non-exact checking, 3) any duplicated/source_ref risks visible from tests/seed, 4) next 5 highest-value content additions for the pilot. Keep it under 70 lines. Do not create or modify any file.",
-    "acceptance": [
-      ["{PY}", "-m", "pytest", "backend/tests/test_task_bank_mcp.py", "backend/tests/test_program.py", "backend/tests/test_v1_flow.py", "-q"]
-    ],
-    "timeout": 1200
-  },
-  {
-    "id": "T-report-analytics-digest-surface",
-    "kind": "report",
-    "comment": "Read-only report: inspect weekly digest, diagnostics, and progress analytics.",
-    "prompt": "Read only. Do not edit files. Act as a product analytics QA reviewer. Inspect backend/app/application/use_cases.py, backend/app/adapters/mcp/server.py, backend/tests/test_grader.py, backend/tests/test_diagnostics_progress.py, backend/tests/test_program.py, and backend/tests/test_scores.py. Report in plain text: 1) which analytics/digest outputs exist, 2) which outputs are backed by captured solution evidence vs score-only events, 3) reliability risks in current_score/progress/digest, 4) the next 5 metrics or synthetic checks worth adding. Keep it under 70 lines. Do not create or modify any file.",
-    "acceptance": [
-      ["{PY}", "-m", "pytest", "backend/tests/test_grader.py", "backend/tests/test_diagnostics_progress.py", "backend/tests/test_program.py", "backend/tests/test_scores.py", "-q"]
-    ],
-    "timeout": 900
-  },
-  {
-    "id": "T-report-score-spine-postchange",
-    "kind": "report",
-    "comment": "Read-only report: inspect the implemented score-event history, dashboard trend, digest score block, and operator invalidation.",
-    "prompt": "Read only. Do not edit files. Act as a post-change QA reviewer for the score-spine slice. Inspect backend/app/application/use_cases.py, backend/app/application/ports.py, backend/app/infrastructure/repositories.py, backend/app/adapters/api/routes.py, backend/tests/test_scores.py, backend/tests/test_grader.py, frontend/src/pages/DashboardPage.tsx, frontend/src/pages/OperatorPage.tsx, and frontend/src/shared/api/client.ts. Report in plain text: 1) what GET /students/{id}/score-events returns and how it is tested, 2) how the dashboard score trend and weekly digest scores behave, 3) whether creating a score event invalidates the right frontend queries, 4) edge cases or mismatches to fix before using July timed mini-mock data. Keep it under 70 lines. Do not create or modify any file.",
-    "acceptance": [
-      ["{PY}", "-m", "pytest", "backend/tests/test_scores.py", "backend/tests/test_grader.py", "-q"],
-      ["{PY}", "-c", "from pathlib import Path; assert 'getScoreEvents' in Path('frontend/src/shared/api/client.ts').read_text(encoding='utf-8'); assert \"['score-events', studentId]\" in Path('frontend/src/pages/DashboardPage.tsx').read_text(encoding='utf-8'); assert \"invalidateQueries({ queryKey: ['score-events', studentId] })\" in Path('frontend/src/pages/OperatorPage.tsx').read_text(encoding='utf-8')"]
-    ],
-    "timeout": 900
-  },
-  {
     "id": "T-report-sandbox-mcp-contract",
     "kind": "report",
     "comment": "Read-only report: inspect the sandbox MCP/simulator boundary used by Qwen, not the senior mentor MCP.",
@@ -82,16 +19,6 @@
       ["{PY}", "-m", "pytest", "backend/tests/test_mcp_sandbox.py", "backend/tests/test_student_simulation.py", "-q"]
     ],
     "timeout": 900
-  },
-  {
-    "id": "T-report-night-queue-freshness",
-    "kind": "report",
-    "comment": "Read-only report: compare active plan/log against the queued Qwen reports and flag stale nightly work.",
-    "prompt": "Read only. Do not edit files. Act as a nightly-queue triage reviewer. Inspect ACTIVE_TASK.md, the top entries of SESSION_LOG.md, and backend/scripts/night_queue.json. Report in plain text: 1) which queued report tasks are stale or duplicated after the current score-spine slice, 2) which reports should remain nightly versus weekly/manual, 3) which tasks should be removed or rewritten before the next live Qwen run. Keep it under 40 lines. Do not create or modify any file.",
-    "acceptance": [
-      ["{PY}", "-c", "import json; json.load(open('backend/scripts/night_queue.json', encoding='utf-8'))"]
-    ],
-    "timeout": 600
   },
   {
     "id": "T-report-error-intervention-readiness",
@@ -112,16 +39,5 @@
       ["{PY}", "-m", "pytest", "backend/tests/test_v1_flow.py", "backend/tests/test_llm_gate.py", "backend/tests/test_local_model_e2e.py", "-q"]
     ],
     "timeout": 1200
-  },
-  {
-    "id": "T-report-release-smoke-readiness",
-    "kind": "report",
-    "comment": "Read-only report: inspect deploy/smoke readiness; no Docker or external network required.",
-    "prompt": "Read only. Do not edit files. Act as a release QA reviewer. Inspect backend/scripts/release_smoke.py, RELEASE_CHECKLIST.md if present, docker-compose files if present, README.md, and relevant tests. Do not call Docker, Telegram, or external network. Report in plain text: 1) what the smoke checks verify, 2) what must be running before operator launch, 3) what failures are likely false positives on Windows/proxy, 4) exact operator commands to run tomorrow for deploy/smoke. Keep it under 60 lines. Do not create or modify any file.",
-    "acceptance": [
-      ["{PY}", "-m", "py_compile", "backend/scripts/release_smoke.py"],
-      ["{PY}", "-m", "pytest", "backend/tests/test_local_model_e2e.py", "backend/tests/test_llm_gate.py", "-q"]
-    ],
-    "timeout": 900
   }
 ]

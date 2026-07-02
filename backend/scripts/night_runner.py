@@ -33,7 +33,7 @@ REPO = pathlib.Path(__file__).resolve().parents[1]
 WORKTREE_ROOT = pathlib.Path(
     os.environ.get("NIGHT_RUNNER_WORKTREE_ROOT", "C:/tmp/egeMentor-qwen-runs")
 )
-QUEUE = REPO / "scripts" / "night_queue.json"
+DEFAULT_QUEUE = REPO / "scripts" / "night_queue.json"
 BASE_REF = "HEAD"
 # venv-python (auto-detect любого venv*/.venv); подставляется вместо токена "{PY}" в acceptance.
 _VENV_PY = next(
@@ -201,14 +201,25 @@ def main() -> None:
         pass
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="skip executor, test plumbing")
+    ap.add_argument(
+        "--queue",
+        default=str(DEFAULT_QUEUE),
+        help="queue JSON path; defaults to backend/scripts/night_queue.json",
+    )
     args = ap.parse_args()
 
-    tasks = json.loads(QUEUE.read_text(encoding="utf-8"))
+    queue_path = pathlib.Path(args.queue)
+    if not queue_path.is_absolute():
+        queue_path = (REPO.parent / queue_path).resolve()
+    tasks = json.loads(queue_path.read_text(encoding="utf-8"))
     date = datetime.date.today().isoformat()
     run_id = datetime.datetime.now().strftime("%H%M%S")  # уникальность ветки/worktree на прогон
     out_dir = WORKTREE_ROOT / date
     out_dir.mkdir(parents=True, exist_ok=True)
-    lines = [f"# night_runner {date}-{run_id} ({'DRY' if args.dry_run else 'LIVE'})\n"]
+    lines = [
+        f"# night_runner {date}-{run_id} ({'DRY' if args.dry_run else 'LIVE'})\n",
+        f"queue: {queue_path}\n",
+    ]
     sh(["git", "worktree", "prune"], REPO, 60)
 
     for t in tasks:

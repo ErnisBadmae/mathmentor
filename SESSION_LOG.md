@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-07-02 - Qwen queue split
+
+Status: implemented and verified locally.
+
+- Kept `backend/scripts/night_queue.json` as the nightly core: plumbing, sandbox MCP contract, error-intervention readiness, and part-2 manual-gate readiness.
+- Added `backend/scripts/night_queue_weekly.json` for broad weekly/change-triggered reports: visualization, slice/review, Telegram, bank coverage, analytics, release-smoke, and score-spine postchange.
+- Added `--queue` to `backend/scripts/night_runner.py` so the weekly queue can be run explicitly.
+- Documented the split and the frontend acceptance rule: Qwen worktree gates must not require `frontend/node_modules`; use static frontend source checks there and run `npm.cmd run build` from main during Codex/Claude verification.
+
+Verification: both queue JSON files parsed; `night_runner.py` py_compile OK; nightly dry-run GREEN; weekly dry-run GREEN; backend suite `169 passed`; frontend build green.
+
+Open tail: commit this slice, then start the text-only part-2 manual-gate flow for #13/#15. Do not code deterministic repeated-error intervention yet.
+
 ## 2026-07-02 - Qwen report 214053 review
 
 Status: reviewed and follow-up implemented locally.
