@@ -29,6 +29,8 @@ class FakeMessage:
         self.text = text
         self.replies: list[str] = []
         self.reply_markups: list[object | None] = []
+        self.photos: list[object] = []
+        self.photo_captions: list[str | None] = []
 
     async def answer(self, text: str, **kwargs: object) -> None:
         self.replies.append(text)
@@ -38,15 +40,21 @@ class FakeMessage:
         self.replies.append(text)
         self.reply_markups.append(kwargs.get("reply_markup"))
 
+    async def answer_photo(self, photo: object, **kwargs: object) -> None:
+        self.photos.append(photo)
+        self.photo_captions.append(kwargs.get("caption"))
+
 
 class FakeCallback:
     def __init__(self, chat_id: int, data: str) -> None:
         self.message = FakeMessage(chat_id)
         self.data = data
         self.answers: list[str] = []
+        self.show_alerts: list[bool] = []
 
     async def answer(self, text: str = "", show_alert: bool = False) -> None:
         self.answers.append(text)
+        self.show_alerts.append(show_alert)
 
 
 class FakeBot:
@@ -111,6 +119,43 @@ def _make_drill(session) -> None:
     )
 
 
+def _make_interval_drill(session) -> None:
+    svc = LearningService(SqlAlchemyUnitOfWork(session), RuleBasedReviewer())
+    topic = TopicORM(
+        id=uuid4(), subject=Subject.MATH_PROFILE, title="Р‘РѕС‚ РёРЅС‚РµСЂРІР°Р»", spec_year=2026, task_number=None
+    )
+    session.add(topic)
+    session.commit()
+    source_ref = "https://example.org/bot/interval"
+    task = svc.add_task(
+        {
+            "subject": Subject.MATH_PROFILE,
+            "statement": "Р РµС€РёС‚Рµ РЅРµСЂР°РІРµРЅСЃС‚РІРѕ: 1 < x < 9.",
+            "expected_answer": "(1; 9)",
+            "source": "official",
+            "source_url": source_ref,
+            "source_ref": source_ref,
+            "topic_id": topic.id,
+        }
+    )
+    svc.approve_task(task.id)
+    svc.create_mission(
+        {
+            "student_id": STUDENT,
+            "subject": Subject.MATH_PROFILE,
+            "title": "Р”СЂРёР»Р»: Р‘РѕС‚ РёРЅС‚РµСЂРІР°Р»",
+            "instructions": "",
+            "status": MissionStatus.ACTIVE,
+            "ai_policy": AiPolicy.ATTEMPT_FIRST,
+            "threshold_percent": 80.0,
+            "topic_id": topic.id,
+            "task_id": task.id,
+            "due_date": date.today(),
+            "source_ref": "daily:manual:interval",
+        }
+    )
+
+
 def _make_slice_topic(session) -> TopicORM:
     svc = LearningService(SqlAlchemyUnitOfWork(session), RuleBasedReviewer())
     topic = TopicORM(
@@ -167,6 +212,21 @@ def test_authorized_drill_flow_sends_task_and_grades(seeded_session, session_fac
     answer = FakeMessage(111, text="4")
     asyncio.run(bot._on_answer(answer))
     assert any("Верно" in reply for reply in answer.replies)
+
+
+def test_interval_drill_answer_sends_visual_photo(seeded_session, session_factory, monkeypatch):
+    _make_interval_drill(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+
+    today = FakeMessage(111)
+    asyncio.run(bot._on_today(today))
+    assert any("1 < x < 9" in reply for reply in today.replies)
+
+    answer = FakeMessage(111, text="(2; 7)")
+    asyncio.run(bot._on_answer(answer))
+
+    assert len(answer.photos) == 1
+    assert answer.photo_captions == ["\U0001f4ca Синее — решение, оранжевое — твой ответ"]
 
 
 def test_start_shows_menu_without_starting_drill(
@@ -298,6 +358,16 @@ def test_menu_today_and_cancel_share_drill_state(
     assert any("остановлен" in reply.lower() for reply in cancel.replies)
 
 
+def test_unauthorized_menu_callback_is_rejected(session_factory, monkeypatch):
+    _patch_bot(monkeypatch, session_factory)
+
+    callback = FakeCallback(999, "menu:today")
+    asyncio.run(bot._on_menu(callback))
+
+    assert callback.show_alerts == [True]
+    assert callback.message.replies == []
+
+
 def test_slice_flow_subject_topic_then_grade(seeded_session, session_factory, monkeypatch):
     topic = _make_slice_topic(seeded_session)
     _patch_bot(monkeypatch, session_factory)
@@ -323,3 +393,40 @@ def test_slice_flow_subject_topic_then_grade(seeded_session, session_factory, mo
     asyncio.run(bot._on_answer(ans2))
     assert any("Срез готов: 2/2" in reply and "зачёт" in reply for reply in ans2.replies)
     assert 111 not in bot._srez  # сессия закрыта
+
+
+def test_cancel_clears_active_slice(seeded_session, session_factory, monkeypatch):
+    topic = _make_slice_topic(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+
+    asyncio.run(bot._on_slice(FakeMessage(111, text="/slice")))
+    pick = FakeCallback(111, f"slice:topic:{topic.id}")
+    asyncio.run(bot._on_slice_topic(pick))
+    assert 111 in bot._srez
+
+    cancel = FakeMessage(111, text="/cancel")
+    asyncio.run(bot._on_cancel(cancel))
+
+    assert 111 not in bot._srez
+    assert 111 not in bot._awaiting
+    assert cancel.reply_markups[-1] is not None
+
+
+def test_unauthorized_slice_callback_is_rejected(session_factory, monkeypatch):
+    _patch_bot(monkeypatch, session_factory)
+
+    callback = FakeCallback(999, "slice:subj:math_profile")
+    asyncio.run(bot._on_slice_subject(callback))
+
+    assert callback.show_alerts == [True]
+    assert callback.message.replies == []
+
+
+def test_help_shows_home_keyboard(session_factory, monkeypatch):
+    _patch_bot(monkeypatch, session_factory)
+
+    message = FakeMessage(111, text="/help")
+    asyncio.run(bot._on_help(message))
+
+    assert message.replies
+    assert message.reply_markups[-1] is not None

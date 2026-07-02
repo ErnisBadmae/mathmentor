@@ -354,7 +354,49 @@ def test_drill_solution_visual_probability_task(seeded_session):
     assert visual is not None
     assert visual.kind == "probability"
     assert visual.png[:8] == b"\x89PNG\r\n\x1a\n"
-    assert visual.caption == "Схема к задаче на вероятность"
+    assert visual.caption == "Столбцы: складываем подходящие группы"
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("matplotlib") is None, reason="matplotlib not installed"
+)
+@pytest.mark.parametrize(
+    ("statement", "answer", "source_ref", "expected_caption"),
+    [
+        (
+            "Вероятность сдать математику — 0,9, информатику — 0,8, оба экзамена — 0,75. "
+            "Найдите вероятность не сдать ни один.",
+            "0,05",
+            "corpus:probability:task-b",
+            "Таблица 2x2: выделено «ни одного события»",
+        ),
+        (
+            "Вероятность дождя — 0,4, ветра — 0,3, дождя и ветра — 0,15. "
+            "Найдите вероятность того, что дождь будет, а ветра не будет.",
+            "0,25",
+            "corpus:probability:task-c",
+            "Таблица 2x2: выделено «только первое событие»",
+        ),
+    ],
+)
+def test_drill_solution_visual_probability_table_captions(
+    seeded_session, statement, answer, source_ref, expected_caption
+):
+    svc = service(seeded_session)
+    task, topic = _approved_task_with_source_ref(
+        svc,
+        seeded_session,
+        statement=statement,
+        answer=answer,
+        source_ref=source_ref,
+        category=ErrorCategory.PROBABILITY_DOUBLE_COUNT,
+    )
+    mission_id = _drill_mission(svc, topic, task)
+
+    visual = svc.drill_solution_visual(mission_id, student_answer="0")
+    assert visual is not None
+    assert visual.kind == "probability"
+    assert visual.caption == expected_caption
 
 
 def test_drill_solution_visual_unknown_scalar_still_none(seeded_session):

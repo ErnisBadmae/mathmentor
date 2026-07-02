@@ -11,9 +11,10 @@
   - moved run artifacts to external `C:\tmp\egeMentor-qwen-runs` and made reports per-run.
   - added a main-worktree contamination check around live executor runs.
 - Current Qwen queue tasks: six read-only Qwen reports are queued after plumbing: visualization surface, slice/review lifecycle, Telegram learner flow, bank/content coverage, analytics/digest, and release-smoke readiness. Any file change by Qwen makes a report task RED.
-- Latest live report: `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-095629.md`: 5 report tasks GREEN, analytics/digest RED because `test_scores.py` used a fixed `2026-07-01` "newer" score date while seed baseline uses `date.today()`. The test has been fixed to use relative dates.
-- Verification: analytics gate `25 passed`; backend pytest `156 passed`; frontend `npm.cmd run build` green; `night_runner.py --dry-run` GREEN across all queued tasks.
-- Next: commit the date-stable score test fix, then rerun live `backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py` if a fully GREEN Qwen batch is needed. Morning-review raw findings before changing product code.
+- Latest live report: `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-102003.md`: full Qwen read-only QA batch GREEN.
+- Done from Qwen findings: added TG tests for post-attempt visual photo delivery, `/cancel` during active slice, unauthorized callbacks, and `/help`; made failed review result idempotent so repeated FAIL does not create duplicate back-to-work missions; made probability visual captions specific for bar-chart vs 2x2-table cases.
+- Verification: focused TG/review/visual tests `49 passed`; backend pytest `164 passed`; frontend `npm.cmd run build` green; `night_runner.py --dry-run` GREEN across all queued tasks.
+- Next: commit this TG/review/visual hardening. Then choose between content batch (probability variety + math/informatics gaps) or another read-only Qwen QA pass over the updated surfaces.
 
 ## Current Snapshot (2026-06-30)
 

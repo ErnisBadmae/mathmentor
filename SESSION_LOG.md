@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-07-02 - TG/review hardening from Qwen findings
+
+Status: implemented and verified locally.
+
+- Reviewed full GREEN Qwen report `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-102003.md` and acted on the low-risk actionable findings.
+- Added Telegram tests for post-attempt visual photo delivery, `/cancel` while a slice is active, unauthorized callback rejection, and `/help` home-keyboard flow.
+- Made `record_review_result(..., passed=False)` idempotent for already `BACK_TO_WORK` review cards, preventing duplicate back-to-work missions on retry.
+- Made probability visual captions specific: bar chart vs 2x2 table, including highlighted cell intent.
+
+Verification: focused TG/review/visual tests `49 passed`; backend suite `164 passed`; frontend build green; night-runner dry-run GREEN across all queued tasks.
+
+Open tail: commit this hardening slice; next likely work is content-bank expansion, starting with probability variety and high-gap math/informatics topics.
+
 ## 2026-07-02 - Morning review of Qwen synthetic QA batch
 
 Status: reviewed live report and fixed the one real gate issue.

@@ -234,6 +234,22 @@ def test_failed_review_opens_new_active_mission_for_topic(seeded_session):
     assert seeded_session.get(MissionORM, mission.id).status == MissionStatus.DONE
 
 
+def test_failed_review_result_is_idempotent(seeded_session):
+    mission = mission_for_topic(seeded_session, LOG_TOPIC)
+    topic_id = mission.topic_id
+    result = submit(seeded_session, mission, draft(90))
+    review = seeded_session.scalars(
+        select(ReviewItemORM).where(ReviewItemORM.source_evidence_id == result["evidence_id"])
+    ).first()
+
+    service(seeded_session).record_review_result(review.id, passed=False)
+    service(seeded_session).record_review_result(review.id, passed=False)
+
+    actives = _active_missions_for_topic(seeded_session, topic_id)
+    assert len(actives) == 1
+    assert seeded_session.get(ReviewItemORM, review.id).status == ReviewStatus.BACK_TO_WORK
+
+
 def test_passed_review_creates_no_new_mission(seeded_session):
     mission = mission_for_topic(seeded_session, LOG_TOPIC)
     topic_id = mission.topic_id

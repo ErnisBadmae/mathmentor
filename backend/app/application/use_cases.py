@@ -670,7 +670,7 @@ class LearningService:
             return VisualAid(
                 kind="probability",
                 png=png,
-                caption="Схема к задаче на вероятность",
+                caption=self._probability_visual_caption(spec),
             )
 
         from app.infrastructure.figures_render import render_number_line
@@ -693,6 +693,16 @@ class LearningService:
                 caption = "Решение на числовой прямой"
 
         return VisualAid(kind="number_line", png=png, caption=caption)
+
+    @staticmethod
+    def _probability_visual_caption(spec: object) -> str:
+        if getattr(spec, "chart_type", None) == "bar_chart":
+            return "Столбцы: складываем подходящие группы"
+        if getattr(spec, "highlight_cell", None) == "neither":
+            return "Таблица 2x2: выделено «ни одного события»"
+        if getattr(spec, "highlight_cell", None) == "only_a":
+            return "Таблица 2x2: выделено «только первое событие»"
+        return "Схема к задаче на вероятность"
 
     def drill_solution_figure(self, mission_id: UUID) -> bytes | None:
         """Backward-compatible wrapper: renders the correct solution only (no
@@ -893,8 +903,10 @@ class LearningService:
         return result
 
     def record_review_result(self, review_id: UUID, passed: bool) -> object:
+        existing = self._uow.reviews.get(review_id)
+        previous_status = getattr(existing, "status", None)
         item = self._uow.reviews.mark_result(review_id, review_result_to_status(passed))
-        if not passed:
+        if not passed and previous_status != ReviewStatus.BACK_TO_WORK:
             self._create_back_to_work_mission(item)
         self._uow.commit()
         return item
