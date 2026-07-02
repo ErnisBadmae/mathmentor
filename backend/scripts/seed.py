@@ -417,7 +417,7 @@ TASKS = [
         "id": 4091,
         "subject": Subject.MATH_PROFILE,
         "topic_index": 4,
-        "task_number": "probability-independent-a",
+        "task_number": "prob-independent-a",
         "statement": (
             "Биатлонист попадает в мишень с вероятностью 0,6. Он делает два независимых выстрела. "
             "Найдите вероятность того, что он попадёт оба раза."
@@ -431,7 +431,7 @@ TASKS = [
         "id": 4092,
         "subject": Subject.MATH_PROFILE,
         "topic_index": 4,
-        "task_number": "probability-complement-a",
+        "task_number": "prob-complement-a",
         "statement": (
             "Вероятность того, что новый прибор прослужит больше года, равна 0,92. "
             "Найдите вероятность того, что прибор сломается в течение первого года."
@@ -445,7 +445,7 @@ TASKS = [
         "id": 4093,
         "subject": Subject.MATH_PROFILE,
         "topic_index": 4,
-        "task_number": "probability-at-least-one-a",
+        "task_number": "prob-at-least-one-a",
         "statement": (
             "Два станка работают независимо. Вероятность отказа первого за смену равна 0,1, второго — 0,2. "
             "Найдите вероятность того, что за смену откажет хотя бы один станок."
@@ -459,7 +459,7 @@ TASKS = [
         "id": 4094,
         "subject": Subject.MATH_PROFILE,
         "topic_index": 4,
-        "task_number": "probability-conditional-a",
+        "task_number": "prob-conditional-a",
         "statement": (
             "В классе 12 мальчиков и 18 девочек. Известно, что 6 мальчиков и 9 девочек ходят в кружок. "
             "Случайно выбранный ученик ходит в кружок. Найдите вероятность того, что это девочка."
@@ -473,7 +473,7 @@ TASKS = [
         "id": 4095,
         "subject": Subject.MATH_PROFILE,
         "topic_index": 4,
-        "task_number": "probability-without-replacement-a",
+        "task_number": "prob-without-repl-a",
         "statement": (
             "В коробке 5 белых и 7 чёрных шаров. Из коробки подряд без возвращения достают два шара. "
             "Найдите вероятность того, что оба шара белые."
@@ -487,7 +487,7 @@ TASKS = [
         "id": 4096,
         "subject": Subject.MATH_PROFILE,
         "topic_index": 4,
-        "task_number": "probability-bernoulli-a",
+        "task_number": "prob-bernoulli-a",
         "statement": (
             "Монету бросают три раза. Найдите вероятность того, что орёл выпадет ровно два раза."
         ),
@@ -500,7 +500,7 @@ TASKS = [
         "id": 4097,
         "subject": Subject.MATH_PROFILE,
         "topic_index": 4,
-        "task_number": "probability-union-disjoint-a",
+        "task_number": "prob-union-disjoint-a",
         "statement": (
             "На экзамене билет содержит одну задачу. Вероятность получить задачу по алгебре равна 0,35, "
             "по геометрии — 0,25. Эти события несовместны. Найдите вероятность получить задачу по алгебре или геометрии."
