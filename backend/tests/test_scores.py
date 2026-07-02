@@ -1,6 +1,6 @@
 """Score-event rules (REQUIREMENTS §11): current_score follows the newest occurred_on."""
 
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import select
 
@@ -41,11 +41,11 @@ def _event(score: int, occurred_on: date) -> dict:
 
 
 def test_newer_score_event_updates_current_score(seeded_session):
-    service(seeded_session).record_score_event(_event(72, date(2026, 7, 1)))
+    service(seeded_session).record_score_event(_event(72, date.today() + timedelta(days=1)))
     assert math_score(seeded_session) == 72
 
 
 def test_older_backfilled_score_event_does_not_regress(seeded_session):
-    service(seeded_session).record_score_event(_event(72, date(2026, 7, 1)))
-    service(seeded_session).record_score_event(_event(40, date(2026, 1, 1)))
+    service(seeded_session).record_score_event(_event(72, date.today() + timedelta(days=1)))
+    service(seeded_session).record_score_event(_event(40, date.today() - timedelta(days=180)))
     assert math_score(seeded_session) == 72

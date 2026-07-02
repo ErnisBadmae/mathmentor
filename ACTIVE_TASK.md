@@ -11,8 +11,9 @@
   - moved run artifacts to external `C:\tmp\egeMentor-qwen-runs` and made reports per-run.
   - added a main-worktree contamination check around live executor runs.
 - Current Qwen queue tasks: six read-only Qwen reports are queued after plumbing: visualization surface, slice/review lifecycle, Telegram learner flow, bank/content coverage, analytics/digest, and release-smoke readiness. Any file change by Qwen makes a report task RED.
-- Verification: simulator direct run OK with 7 cases; focused MCP/simulator tests `2 passed`; backend pytest `156 passed`; frontend `npm.cmd run build` green; `release_smoke.py` compiles; `night_runner.py --dry-run` GREEN across all queued tasks.
-- Next: commit this queue update, then the operator can run `backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py` and leave it running. Morning-review raw reports before acting on Qwen findings.
+- Latest live report: `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-095629.md`: 5 report tasks GREEN, analytics/digest RED because `test_scores.py` used a fixed `2026-07-01` "newer" score date while seed baseline uses `date.today()`. The test has been fixed to use relative dates.
+- Verification: analytics gate `25 passed`; backend pytest `156 passed`; frontend `npm.cmd run build` green; `night_runner.py --dry-run` GREEN across all queued tasks.
+- Next: commit the date-stable score test fix, then rerun live `backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py` if a fully GREEN Qwen batch is needed. Morning-review raw findings before changing product code.
 
 ## Current Snapshot (2026-06-30)
 

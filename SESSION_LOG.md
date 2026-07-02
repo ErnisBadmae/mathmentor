@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-07-02 - Morning review of Qwen synthetic QA batch
+
+Status: reviewed live report and fixed the one real gate issue.
+
+- Latest report: `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-095629.md`.
+- GREEN: plumbing, visualization, slice/review, Telegram flow, bank/content coverage, release-smoke readiness.
+- RED: analytics/digest acceptance, caused by `test_scores.py` using fixed `2026-07-01` as a "newer" score-event date while seed baseline uses `date.today()`.
+- Fixed `test_scores.py` to use relative dates: future event moves `current_score`, older backfill does not regress it.
+- Qwen findings to triage later: scalar/non-interval visuals are absent by scope; Telegram visual delivery path lacks a direct photo-send test; content gaps remain in probability variety, economics, informatics divisors/string topics.
+
+Verification: analytics gate `25 passed`; backend suite `156 passed`; frontend build green; night-runner dry-run GREEN across all queued tasks.
+
+Open tail: commit the score-test date fix; rerun live Qwen batch only if a fully GREEN report is needed.
+
 ## 2026-07-01 - Night queue expanded for read-only synthetic QA
 
 Status: implemented and verified locally; ready for operator live run.
