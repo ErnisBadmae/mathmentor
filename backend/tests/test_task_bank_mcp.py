@@ -7,6 +7,7 @@ from sqlalchemy import select
 from app.application.ports import AttemptForReview, EvidenceDraft
 from app.application.use_cases import LearningService
 from app.domain.enums import (
+    AiPolicy,
     AttemptKind,
     AttemptMode,
     ErrorCategory,
@@ -108,3 +109,20 @@ def test_attempt_history_records_solution_and_interpretation(seeded_session):
     assert latest["answer_text"] == "моё решение"
     assert latest["status"] == EvidenceStatus.PASSED
     assert latest["model_id"] == "local-model"
+
+
+def test_seed_includes_part2_manual_gate_missions(seeded_session):
+    rows = (
+        seeded_session.query(MissionORM)
+        .filter(MissionORM.source_ref.like("part2:text:%"))
+        .order_by(MissionORM.source_ref)
+        .all()
+    )
+
+    assert [row.source_ref for row in rows] == [
+        "part2:text:13:trig-equation-a",
+        "part2:text:15:log-inequality-a",
+    ]
+    assert all(row.ai_policy == AiPolicy.MANUAL_GATE for row in rows)
+    assert all(row.task is not None for row in rows)
+    assert all(row.task.expected_answer == "" for row in rows)

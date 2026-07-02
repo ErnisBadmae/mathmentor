@@ -596,6 +596,28 @@ def test_manual_decision_with_counts_scores_from_counts_over_button(seeded_sessi
     assert result["tasks_correct"] == 5
 
 
+def test_manual_gate_attempt_always_waits_for_manual_review(seeded_session):
+    mission = first_mission(seeded_session)
+    mission.ai_policy = AiPolicy.MANUAL_GATE
+    service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(100)))
+
+    result = asyncio.run(
+        service.submit_attempt(
+            {
+                "mission_id": mission.id,
+                "kind": AttemptKind.TEXT,
+                "mode": AttemptMode.CLEAN_SHEET,
+                "answer_text": "full part-2 reasoning",
+            }
+        )
+    )
+
+    assert result["status"] == EvidenceStatus.NEEDS_MANUAL_REVIEW
+    assert result["score_percent"] == 0.0
+    assert mission.status == MissionStatus.ACTIVE
+    assert service.list_manual_reviews(seed_module.DEMO_STUDENT_ID)[0]["id"] == result["evidence_id"]
+
+
 def test_submit_with_only_one_count_raises_value_error(seeded_session):
     mission = first_mission(seeded_session)
     service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(90)))

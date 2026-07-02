@@ -15,6 +15,7 @@ export type ErrorCategory =
 export type EvidenceStatus = 'passed' | 'failed' | 'needs_manual_review';
 export type ReviewStatus = 'due' | 'done' | 'back_to_work';
 export type TopicState = 'open' | 'in_work' | 'under_review' | 'confirmed' | 'back_to_work';
+export type AiPolicy = 'attempt_first' | 'manual_gate';
 
 export type Student = {
   id: string;
@@ -108,20 +109,25 @@ export type Mission = {
   title: string;
   instructions: string;
   statement: string | null;
+  ai_policy: AiPolicy;
+  task_number: string | null;
   threshold_percent: number;
   due_date: string | null;
   timebox_minutes: number | null;
+  source_ref: string | null;
 };
 
 export type MissionDraft = {
   subject: Subject;
   title: string;
   instructions?: string;
+  ai_policy?: AiPolicy;
   threshold_percent?: number;
   topic_id?: string | null;
   task_id?: string | null;
   due_date?: string | null;
   timebox_minutes?: number | null;
+  source_ref?: string | null;
 };
 
 export type ErrorEvent = {

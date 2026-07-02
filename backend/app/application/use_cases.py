@@ -1,5 +1,5 @@
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -259,6 +259,7 @@ class LearningService:
 
     def _mission_payload(self, mission: object) -> dict[str, object]:
         task = getattr(mission, "task", None)
+        topic = getattr(mission, "topic", None)
         statement = task.statement if task is not None else None
         return {
             "id": mission.id,
@@ -266,9 +267,12 @@ class LearningService:
             "title": mission.title,
             "instructions": mission.instructions,
             "statement": statement,
+            "ai_policy": mission.ai_policy,
+            "task_number": task.task_number if task is not None else getattr(topic, "task_number", None),
             "threshold_percent": mission.threshold_percent,
             "due_date": mission.due_date,
             "timebox_minutes": mission.timebox_minutes,
+            "source_ref": mission.source_ref,
         }
 
     def list_daily_drill(self, student_id: UUID) -> list[dict[str, object]]:
@@ -999,6 +1003,13 @@ class LearningService:
                     threshold_percent=mission.threshold_percent,
                     instructions=self._review_instructions(mission, task),
                 )
+            )
+        if mission.ai_policy == AiPolicy.MANUAL_GATE:
+            draft = replace(
+                draft,
+                score_percent=0.0,
+                status=EvidenceStatus.NEEDS_MANUAL_REVIEW,
+                next_action="Senior mentor must review this part-2 solution before progression.",
             )
         score_percent, status = self._resolve_score(
             threshold_percent=mission.threshold_percent,

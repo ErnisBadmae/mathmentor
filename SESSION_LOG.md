@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-07-02 - Part-2 text manual gate
+
+Status: implemented and verified locally.
+
+- Added `AiPolicy.MANUAL_GATE`; manual-gate attempts always become `NEEDS_MANUAL_REVIEW`, score `0.0`, and do not progress the mission before mentor verdict.
+- Exposed safe mission metadata (`ai_policy`, `task_number`, `source_ref`) without exposing answer keys.
+- Seeded two text-only part-2 missions for math #13/#15, linked to approved tasks with no usable autograde key.
+- Added frontend `/part2`: learner selects #13/#15, submits full text reasoning, and sees manual-review pending state.
+- Added regressions for manual-gate submission and seeded part-2 missions.
+
+Verification: focused backend slice `35 passed`; full backend suite `171 passed`; frontend build green.
+
+Open tail: commit this slice, then deploy/reseed live data only when ready to expose these missions to the learner. Deterministic repeated-error intervention remains frozen for 2-3 weeks of observation.
+
 ## 2026-07-02 - Qwen queue split
 
 Status: implemented and verified locally.
@@ -15,7 +29,7 @@ Status: implemented and verified locally.
 
 Verification: both queue JSON files parsed; `night_runner.py` py_compile OK; nightly dry-run GREEN; weekly dry-run GREEN; backend suite `169 passed`; frontend build green.
 
-Open tail: commit this slice, then start the text-only part-2 manual-gate flow for #13/#15. Do not code deterministic repeated-error intervention yet.
+Open tail: start the text-only part-2 manual-gate flow for #13/#15. Do not code deterministic repeated-error intervention yet.
 
 ## 2026-07-02 - Qwen report 214053 review
 

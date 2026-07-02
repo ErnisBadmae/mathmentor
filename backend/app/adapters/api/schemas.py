@@ -127,9 +127,12 @@ class MissionOut(BaseModel):
     title: str
     instructions: str
     statement: str | None = None
+    ai_policy: AiPolicy
+    task_number: str | None = None
     threshold_percent: float
     due_date: date | None = None
     timebox_minutes: int | None = None
+    source_ref: str | None = None
     model_config = {"from_attributes": True}
 
 

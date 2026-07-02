@@ -229,6 +229,22 @@ MISSIONS = [
         80.0,
         "seed:informatics:combinatorics-words",
     ),
+    (
+        Subject.MATH_PROFILE,
+        12,
+        "Часть 2 №13: тригонометрическое уравнение",
+        "Сначала реши на бумаге без подсказок. Затем перенеси полный ход решения текстом: преобразования, серии корней и отбор на отрезке. Автопроверки нет, решение уйдет наставнику.",
+        80.0,
+        "part2:text:13:trig-equation-a",
+    ),
+    (
+        Subject.MATH_PROFILE,
+        5,
+        "Часть 2 №15: логарифмическое неравенство",
+        "Сначала реши на бумаге без подсказок. Затем перенеси полный ход решения текстом: ОДЗ, преобразование, метод интервалов и ответ. Автопроверки нет, решение уйдет наставнику.",
+        80.0,
+        "part2:text:15:log-inequality-a",
+    ),
 ]
 
 TASKS = [
@@ -370,6 +386,36 @@ TASKS = [
         "solution": "Метод интервалов. x=1 включаем, x=-2 исключаем.",
         "error_category": ErrorCategory.CONDITION_READING,
         "source_ref": "corpus:slice4:task12",
+    },
+    {
+        "id": 4071,
+        "subject": Subject.MATH_PROFILE,
+        "topic_index": 12,
+        "task_number": "part2-13-text-a",
+        "statement": (
+            "Задача 13. Решите уравнение 2sin^2(x) - 3sin(x) + 1 = 0. "
+            "В ответе запишите полный ход решения и отбор корней на отрезке [0; 2π]."
+        ),
+        "expected_answer": "",
+        "solution": "Manual-gated part-2 task: mentor checks equation transform, root families, and interval selection.",
+        "error_category": ErrorCategory.ODZ_LOGIC,
+        "source": "part2_seed",
+        "source_ref": "part2:text:13:trig-equation-a",
+    },
+    {
+        "id": 4072,
+        "subject": Subject.MATH_PROFILE,
+        "topic_index": 5,
+        "task_number": "part2-15-text-a",
+        "statement": (
+            "Задача 15. Решите неравенство log_2(x - 1) + log_2(5 - x) >= 1. "
+            "В ответе запишите ОДЗ, преобразования и итоговый промежуток."
+        ),
+        "expected_answer": "",
+        "solution": "Manual-gated part-2 task: mentor checks domain, logarithm transformation, and interval method.",
+        "error_category": ErrorCategory.ODZ_LOGIC,
+        "source": "part2_seed",
+        "source_ref": "part2:text:15:log-inequality-a",
     },
     {
         "id": 4013,
@@ -949,6 +995,8 @@ def seed() -> None:
         ):
             topic_id = topic_ids[TOPICS[topic_index][0], TOPICS[topic_index][1]]
             task = task_by_ref.get(task_ref) if task_ref is not None else None
+            is_part2_manual_gate = bool(task_ref and task_ref.startswith("part2:text:"))
+            mission_source_ref = task_ref if is_part2_manual_gate else None
             if title in existing_mission_titles:
                 for mission in (
                     session.query(MissionORM)
@@ -960,6 +1008,10 @@ def seed() -> None:
                     mission.task_id = task.id if task is not None else None
                     mission.instructions = instructions
                     mission.threshold_percent = threshold
+                    mission.ai_policy = (
+                        AiPolicy.MANUAL_GATE if is_part2_manual_gate else AiPolicy.ATTEMPT_FIRST
+                    )
+                    mission.source_ref = mission_source_ref
                 continue
             session.add(
                 MissionORM(
@@ -971,9 +1023,12 @@ def seed() -> None:
                     title=title,
                     instructions=instructions,
                     status=MissionStatus.ACTIVE,
-                    ai_policy=AiPolicy.ATTEMPT_FIRST,
+                    ai_policy=(
+                        AiPolicy.MANUAL_GATE if is_part2_manual_gate else AiPolicy.ATTEMPT_FIRST
+                    ),
                     threshold_percent=threshold,
                     due_date=date.today(),
+                    source_ref=mission_source_ref,
                 )
             )
 

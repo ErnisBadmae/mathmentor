@@ -3,7 +3,7 @@
 ## Current Snapshot (2026-07-02)
 
 - Goal: execute the proven-delta strategy with verified small steps: monthly timed score events, weekly error-to-intervention review, part-2 manual-gated evidence, targeted content depth, and Qwen only as a bounded read-only/mechanical executor.
-- Status: strategy accepted; canonical plan is aligned from the old LAN/scaffold next-plan to the three-horizon proven-delta plan. Latest completed live Qwen batch `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-214053.md` finished with 11 GREEN and 1 false RED. Score-spine visibility is implemented and committed in `edcaa70`. Qwen follow-up gate fix is committed in `9c4ad0b`. Night queue is now split: nightly core stays compact; broad surface reports moved to `backend/scripts/night_queue_weekly.json`.
+- Status: strategy accepted; canonical plan is aligned from the old LAN/scaffold next-plan to the three-horizon proven-delta plan. Latest completed live Qwen batch `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-214053.md` finished with 11 GREEN and 1 false RED. Score-spine visibility is implemented and committed in `edcaa70`. Qwen follow-up gate fix is committed in `9c4ad0b`. Night queue is now split: nightly core stays compact; broad surface reports moved to `backend/scripts/night_queue_weekly.json`. The first part-2 text-only manual-gate slice for #13/#15 is implemented locally and awaiting commit/deploy/reseed.
 - Current operating rules:
   - do not scale infrastructure or multi-student support until an N=1 delta is visible;
   - keep `current_score` tied to score events from timed mocks, not daily attempts;
@@ -16,14 +16,14 @@
   - queue freshness finding implemented: nightly keeps plumbing + sandbox/error-intervention/part2; visualization, slice/review, Telegram, bank coverage, analytics, release-smoke, and score-spine postchange are weekly/change-triggered;
   - keep Qwen out of senior mentor MCP and real student-state write tools; sandbox MCP only exposes deterministic synthetic simulation;
   - process first: start weekly `error_journal` review and publish feedback manually before coding intervention routing;
-  - part 2 first slice: text-only submitted solution with manual verdict gate for #13/#15 before photo/OCR UX;
+  - part 2 first slice implemented: text-only submitted solution with manual verdict gate for #13/#15 before photo/OCR UX;
   - low-priority test gaps: bar-chart correct-answer simulator case, double-PASS review idempotency, slice/daily duplicate guard, extra Telegram callback/media/streak tests.
 - Next:
-  1. Commit the night-queue split.
-  2. Start the text-only part-2 manual-gate slice for #13/#15: site submission -> LLM structuring behind port -> manual review -> mentor verdict.
-  3. Deploy/reseed live data if the new bank should affect the learner.
-  4. Schedule/record the first July timed mini-mock as the score baseline.
-  5. Start the weekly mentor review from `error_journal` and recent attempts.
+  1. Commit the text-only part-2 manual-gate slice.
+  2. Deploy/reseed live data if the new #13/#15 manual-gate missions should affect the learner now.
+  3. Schedule/record the first July timed mini-mock as the score baseline.
+  4. Start the weekly mentor review from `error_journal` and recent attempts.
+  5. Keep deterministic repeated-error intervention frozen until 2-3 weeks of observed weekly-review data.
 
 ## Current Snapshot (2026-07-01)
 
