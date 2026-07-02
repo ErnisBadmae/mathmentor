@@ -3,7 +3,7 @@
 ## Current Snapshot (2026-07-02)
 
 - Goal: execute the proven-delta strategy with verified small steps: monthly timed score events, weekly error-to-intervention review, part-2 manual-gated evidence, targeted content depth, and Qwen only as a bounded read-only/mechanical executor.
-- Status: strategy accepted; canonical plan is aligned from the old LAN/scaffold next-plan to the three-horizon proven-delta plan. Latest completed live Qwen batch `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-214053.md` finished with 11 GREEN and 1 false RED. Score-spine visibility is implemented and committed in `edcaa70`. Qwen follow-up gate fix is committed in `9c4ad0b`. Night queue is now split: nightly core stays compact; broad surface reports moved to `backend/scripts/night_queue_weekly.json`. The first part-2 text-only manual-gate slice for #13/#15 is implemented locally and awaiting commit/deploy/reseed.
+- Status: strategy accepted; canonical plan is aligned from the old LAN/scaffold next-plan to the three-horizon proven-delta plan. Latest completed live Qwen batch `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-214053.md` finished with 11 GREEN and 1 false RED. Score-spine visibility is implemented and committed in `edcaa70`. Qwen follow-up gate fix is committed in `9c4ad0b`. Night queue is now split: nightly core stays compact; broad surface reports moved to `backend/scripts/night_queue_weekly.json`. The first part-2 text-only manual-gate slice for #13/#15 is committed as `4294d09`; the nightly queue now QA-checks it post-change (`T-report-part2-postchange` replaced the stale readiness report).
 - Current operating rules:
   - do not scale infrastructure or multi-student support until an N=1 delta is visible;
   - keep `current_score` tied to score events from timed mocks, not daily attempts;
@@ -19,7 +19,7 @@
   - part 2 first slice implemented: text-only submitted solution with manual verdict gate for #13/#15 before photo/OCR UX;
   - low-priority test gaps: bar-chart correct-answer simulator case, double-PASS review idempotency, slice/daily duplicate guard, extra Telegram callback/media/streak tests.
 - Next:
-  1. Commit the text-only part-2 manual-gate slice.
+  1. Operator: run the live nightly Qwen batch (4 tasks incl. part-2 post-change QA), morning-review the report.
   2. Deploy/reseed live data if the new #13/#15 manual-gate missions should affect the learner now.
   3. Schedule/record the first July timed mini-mock as the score baseline.
   4. Start the weekly mentor review from `error_journal` and recent attempts.

@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-07-02 - Nightly queue: part-2 post-change QA
+
+Status: implemented and verified locally.
+
+- Replaced stale `T-report-part2-manual-gate-readiness` with `T-report-part2-postchange` in `night_queue.json`, since the part-2 slice landed in `4294d09`.
+- New Qwen report: read-only post-change QA of the #13/#15 text flow — fail-closed check of `MANUAL_GATE`, answer-key leak check, missing tests before the first real session.
+- Acceptance: pytest (`test_v1_flow`, `test_task_bank_mcp`) + static text checks only; no npm build inside isolated worktrees (known false-RED).
+
+Verification: acceptance replayed with exact runner argv (rc=0 both commands); `night_runner.py --dry-run` GREEN across all 4 nightly tasks.
+
+Open tail: operator runs the live nightly batch; weekly queue untouched.
+
 ## 2026-07-02 - Part-2 text manual gate
 
 Status: implemented and verified locally.

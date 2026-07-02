@@ -31,12 +31,13 @@
     "timeout": 1200
   },
   {
-    "id": "T-report-part2-manual-gate-readiness",
+    "id": "T-report-part2-postchange",
     "kind": "report",
-    "comment": "Read-only report: inspect minimal path for part-2 submitted-solution review with human verdict gate.",
-    "prompt": "Read only. Do not edit files. Act as a part-2 workflow QA reviewer. Inspect backend/app/application/use_cases.py, backend/app/application/ports.py, backend/app/infrastructure/models.py, backend/app/adapters/api/routes.py, backend/app/adapters/api/schemas.py, backend/tests/test_v1_flow.py, backend/tests/test_llm_gate.py, backend/tests/test_local_model_e2e.py, and frontend/src if useful. Report in plain text: 1) what existing attempt/evidence/manual-review pieces can already support photo/text solution review, 2) where LLM structuring can stay behind a port and fail closed, 3) what is missing for a site flow for #13/#15 without autograding, 4) the smallest test-first implementation slice. Keep it under 80 lines. Do not create or modify any file.",
+    "comment": "Read-only report: post-change QA of the implemented part-2 text manual-gate slice (commit 4294d09).",
+    "prompt": "Read only. Do not edit files. Act as a post-change QA reviewer for the new part-2 manual-gate slice. Inspect backend/app/application/use_cases.py (AiPolicy.MANUAL_GATE handling in submit flow), backend/app/domain/enums.py, backend/app/adapters/api/schemas.py, backend/scripts/seed.py (part-2 seeded missions/tasks), backend/tests/test_v1_flow.py, backend/tests/test_task_bank_mcp.py, frontend/src/pages/Part2Page.tsx, and frontend/src/shared/api/client.ts. Report in plain text: 1) the end-to-end flow for a part-2 (#13/#15) text solution from Part2Page submission to the manual-review queue, 2) whether the gate is truly fail-closed: is there ANY path where a MANUAL_GATE mission gets passed/score>0 without a human verdict, 3) whether the student-facing mission payload can leak answer keys or reference solutions before/after submission, 4) edge cases or missing tests to fix before the first real #13/#15 session. Keep it under 80 lines. Do not create or modify any file.",
     "acceptance": [
-      ["{PY}", "-m", "pytest", "backend/tests/test_v1_flow.py", "backend/tests/test_llm_gate.py", "backend/tests/test_local_model_e2e.py", "-q"]
+      ["{PY}", "-m", "pytest", "backend/tests/test_v1_flow.py", "backend/tests/test_task_bank_mcp.py", "-q"],
+      ["{PY}", "-c", "from pathlib import Path; uc=Path('backend/app/application/use_cases.py').read_text(encoding='utf-8'); assert 'AiPolicy.MANUAL_GATE' in uc; en=Path('backend/app/domain/enums.py').read_text(encoding='utf-8'); assert 'MANUAL_GATE = \"manual_gate\"' in en; ct=Path('frontend/src/shared/api/client.ts').read_text(encoding='utf-8'); assert \"'attempt_first' | 'manual_gate'\" in ct; assert Path('frontend/src/pages/Part2Page.tsx').exists()"]
     ],
     "timeout": 1200
   }
