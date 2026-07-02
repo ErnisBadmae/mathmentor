@@ -132,6 +132,31 @@ def test_seed_creates_approved_task_bank_and_links_starter_mission(
         session.close()
 
 
+def test_seed_expands_probability_bank_variety(seeded_session):
+    tasks = seeded_session.scalars(
+        select(TaskORM)
+        .where(TaskORM.status == TaskStatus.APPROVED)
+        .where(TaskORM.source_ref.like("corpus:probability:%"))
+    ).all()
+    by_ref = {task.source_ref: task for task in tasks}
+
+    expected_refs = {
+        "corpus:probability:task-a",
+        "corpus:probability:task-b",
+        "corpus:probability:task-c",
+        "corpus:probability:independent-a",
+        "corpus:probability:complement-a",
+        "corpus:probability:at-least-one-a",
+        "corpus:probability:conditional-a",
+        "corpus:probability:without-replacement-a",
+        "corpus:probability:bernoulli-a",
+        "corpus:probability:union-disjoint-a",
+    }
+    assert expected_refs <= set(by_ref)
+    assert by_ref["corpus:probability:without-replacement-a"].expected_answer == "5/33"
+    assert by_ref["corpus:probability:bernoulli-a"].expected_answer == "3/8"
+
+
 def test_seed_today_missions_all_have_statements_and_no_probability_duplicate(seeded_session):
     service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(90)))
 

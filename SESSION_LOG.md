@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-07-02 - Probability content-bank expansion
+
+Status: implemented and verified locally.
+
+- Expanded the approved probability task bank from 3 to 10 tasks in `seed.py`.
+- Added 7 exact-answer probability tasks covering independent multiplication, complement, at-least-one via complement, conditional probability, without replacement, three-trial counting, and disjoint union.
+- Kept existing probability visual source_ref gate unchanged: only the three reviewed visual tasks render diagrams; the new tasks are regular exact-answer drills/slices.
+- Added a seed regression test that asserts all 10 probability source_refs are present and checks fraction answers for the nontrivial cases.
+
+Verification: probability bank focused tests `9 passed`; backend suite `165 passed`; frontend build green; night-runner dry-run GREEN.
+
+Open tail: commit this content batch. To affect live data, run the seed/update path during deploy/reseed; otherwise continue with math foundations or informatics content gaps.
+
 ## 2026-07-02 - TG/review hardening from Qwen findings
 
 Status: implemented and verified locally.
