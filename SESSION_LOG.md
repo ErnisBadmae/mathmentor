@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-07-02 - Qwen live rerun review
+
+Status: reviewed; no completed Qwen QA report was produced.
+
+- Checked latest live report `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-180331.md`: plumbing was GREEN, all report tasks were BLOCKED because main worktree was dirty.
+- Committed the verified score-spine + queue slice as `edcaa70 Add score trend visibility`, making main clean for Qwen.
+- Started a second live Qwen rerun from clean main; the tool call timed out while Qwen was running, then the background run hung/spawned fresh `opencode` executors without producing a consolidated report.
+- Stopped the fresh 18:06-18:19 runner/executor chain; older OpenCode processes from the morning were left alone.
+- No Qwen findings are accepted from the interrupted run; only `report-153010.md` remains the latest completed GREEN Qwen report.
+
+Verification: before commit backend suite `168 passed`, frontend build green; after stopping interrupted Qwen run, main worktree was clean.
+
+Open tail: rerun live Qwen from clean checkout with longer operator-side timeout or a reduced queue, then review the raw consolidated report.
+
 ## 2026-07-02 - Qwen nightly queue refresh
 
 Status: implemented and verified locally.
