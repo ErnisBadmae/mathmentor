@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-07-02 - Qwen report 214053 review
+
+Status: reviewed and follow-up implemented locally.
+
+- Latest completed live report: `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-214053.md`.
+- Result: 11 GREEN, 1 RED. The RED was `T-report-score-spine-postchange`, caused by `npm.cmd --prefix frontend run build` inside an isolated Qwen worktree without `frontend/node_modules`; the same frontend build is green in main.
+- Replaced that Qwen acceptance with backend score/grader tests plus a static frontend integration check for `getScoreEvents`, dashboard query key, and operator invalidation.
+- Accepted one real Qwen test gap: added regression coverage that a `topic_check` score event does not move `current_score`.
+- Queue-freshness finding: broad surface reports should move to weekly/manual or change-triggered runs; nightly should stay focused on sandbox MCP, error-intervention, and part-2 readiness.
+
+Verification: score/grader slice `20 passed`; frontend build green; queue static acceptance rc=0 via JSON argv; backend suite `169 passed`; night-runner dry-run GREEN.
+
+Open tail: commit this follow-up, then trim/split the Qwen queue before the next live run.
+
 ## 2026-07-02 - Qwen live rerun review
 
 Status: reviewed; no completed Qwen QA report was produced.

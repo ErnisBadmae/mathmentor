@@ -68,7 +68,7 @@
     "prompt": "Read only. Do not edit files. Act as a post-change QA reviewer for the score-spine slice. Inspect backend/app/application/use_cases.py, backend/app/application/ports.py, backend/app/infrastructure/repositories.py, backend/app/adapters/api/routes.py, backend/tests/test_scores.py, backend/tests/test_grader.py, frontend/src/pages/DashboardPage.tsx, frontend/src/pages/OperatorPage.tsx, and frontend/src/shared/api/client.ts. Report in plain text: 1) what GET /students/{id}/score-events returns and how it is tested, 2) how the dashboard score trend and weekly digest scores behave, 3) whether creating a score event invalidates the right frontend queries, 4) edge cases or mismatches to fix before using July timed mini-mock data. Keep it under 70 lines. Do not create or modify any file.",
     "acceptance": [
       ["{PY}", "-m", "pytest", "backend/tests/test_scores.py", "backend/tests/test_grader.py", "-q"],
-      ["npm.cmd", "--prefix", "frontend", "run", "build"]
+      ["{PY}", "-c", "from pathlib import Path; assert 'getScoreEvents' in Path('frontend/src/shared/api/client.ts').read_text(encoding='utf-8'); assert \"['score-events', studentId]\" in Path('frontend/src/pages/DashboardPage.tsx').read_text(encoding='utf-8'); assert \"invalidateQueries({ queryKey: ['score-events', studentId] })\" in Path('frontend/src/pages/OperatorPage.tsx').read_text(encoding='utf-8')"]
     ],
     "timeout": 900
   },

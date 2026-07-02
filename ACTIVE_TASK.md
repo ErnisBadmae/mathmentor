@@ -3,7 +3,7 @@
 ## Current Snapshot (2026-07-02)
 
 - Goal: execute the proven-delta strategy with verified small steps: monthly timed score events, weekly error-to-intervention review, part-2 manual-gated evidence, targeted content depth, and Qwen only as a bounded read-only/mechanical executor.
-- Status: strategy accepted; canonical plan is aligned from the old LAN/scaffold next-plan to the three-horizon proven-delta plan. Latest completed live Qwen batch `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-153010.md` is full GREEN across 10 tasks. Score-spine visibility is implemented and committed in `edcaa70`: score-event history endpoint, dashboard trend panel, and weekly digest score block. Night queue is refreshed for post-change score-spine QA, sandbox MCP contract review, and queue freshness review. A later live rerun at 18:03 was BLOCKED on dirty worktree; after commit, the 18:06 rerun hung without producing a consolidated report and was stopped.
+- Status: strategy accepted; canonical plan is aligned from the old LAN/scaffold next-plan to the three-horizon proven-delta plan. Latest completed live Qwen batch `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-214053.md` finished with 11 GREEN and 1 RED. The RED is a false executor-environment gate: isolated Qwen worktrees have no `frontend/node_modules`, while frontend build is green in main. Score-spine visibility is implemented and committed in `edcaa70`: score-event history endpoint, dashboard trend panel, and weekly digest score block.
 - Current operating rules:
   - do not scale infrastructure or multi-student support until an N=1 delta is visible;
   - keep `current_score` tied to score events from timed mocks, not daily attempts;
@@ -11,17 +11,20 @@
   - use Qwen through `backend/scripts/night_runner.py` for read-only reports, smoke checks, and mechanical edits with machine gates.
 - Current Qwen report triage:
   - done: timed mock score history is visible (`list_score_events` + dashboard trend + weekly digest score block);
-  - next Qwen batch: rerun read-only post-change QA for score-spine, sandbox MCP boundary, and night-queue freshness from a clean checkout, preferably with a longer operator-side timeout or a reduced queue;
+  - done from latest report: sandbox MCP boundary is safe; no senior mentor MCP write tools in Qwen prompts;
+  - fixed after latest report: score-spine Qwen acceptance no longer depends on missing frontend `node_modules`; added regression coverage that `topic_check` score events do not move `current_score`;
+  - queue freshness finding: keep sandbox/error-intervention/part2 reports as high-signal; demote visualization, slice/review, Telegram, bank coverage, analytics, and release-smoke to weekly/manual or change-triggered use;
   - keep Qwen out of senior mentor MCP and real student-state write tools; sandbox MCP only exposes deterministic synthetic simulation;
   - process first: start weekly `error_journal` review and publish feedback manually before coding intervention routing;
   - part 2 first slice: text-only submitted solution with manual verdict gate for #13/#15 before photo/OCR UX;
   - low-priority test gaps: bar-chart correct-answer simulator case, double-PASS review idempotency, slice/daily duplicate guard, extra Telegram callback/media/streak tests.
 - Next:
-  1. Rerun live Qwen from clean checkout and review raw reports; do not treat the 18:06 interrupted run as evidence.
-  2. Deploy/reseed live data if the new bank should affect the learner.
-  3. Schedule/record the first July timed mini-mock as the score baseline.
-  4. Start the weekly mentor review from `error_journal` and recent attempts.
-  5. Prepare the text-only part-2 manual-gate slice for #13/#15.
+  1. Commit the Qwen-report follow-up: false-RED acceptance fix + `topic_check` score regression.
+  2. Trim or split the Qwen queue so nightly work stays to sandbox/error-intervention/part2; run broad surface reports weekly or after relevant code changes.
+  3. Deploy/reseed live data if the new bank should affect the learner.
+  4. Schedule/record the first July timed mini-mock as the score baseline.
+  5. Start the weekly mentor review from `error_journal` and recent attempts.
+  6. Prepare the text-only part-2 manual-gate slice for #13/#15.
 
 ## Current Snapshot (2026-07-01)
 

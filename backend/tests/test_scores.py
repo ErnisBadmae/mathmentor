@@ -55,6 +55,11 @@ def test_older_backfilled_score_event_does_not_regress(seeded_session):
     assert math_score(seeded_session) == 72
 
 
+def test_topic_check_score_event_does_not_move_current_score(seeded_session):
+    service(seeded_session).record_score_event(_event(99, date.today() + timedelta(days=1), "topic_check"))
+    assert math_score(seeded_session) == 65
+
+
 def test_list_score_events_returns_newest_first(seeded_session):
     svc = service(seeded_session)
     older = date.today() - timedelta(days=30)
