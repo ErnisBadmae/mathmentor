@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-07-02 - Proven-delta strategy alignment
+
+Status: implemented and verified locally.
+
+- Replaced the stale LAN/scaffold global and local plans in `AGENTS.md` with the proven-delta strategy: monthly timed score events, error-to-intervention review, part-2 manual-gated evidence, targeted content depth, and hygiene.
+- Updated `ACTIVE_TASK.md` so the current goal is strategy execution with Qwen as a bounded read-only/mechanical executor.
+- Added three read-only Qwen report tasks to `backend/scripts/night_queue.json`: score-spine readiness, error-intervention readiness, and part-2 manual-gate readiness.
+- Kept Qwen out of architecture/product decisions; new tasks are reports with existing pytest acceptance and report-file-change RED behavior.
+
+Verification: night queue JSON parsed; strategy acceptance test slice `59 passed`; backend suite `165 passed`; frontend build green; `night_runner.py --dry-run` GREEN.
+
+Open tail: commit these doc/queue changes, then run the next live Qwen batch and review raw reports before coding L1/L2/L3 slices.
+
 ## 2026-07-02 - Probability content-bank expansion
 
 Status: implemented and verified locally.
