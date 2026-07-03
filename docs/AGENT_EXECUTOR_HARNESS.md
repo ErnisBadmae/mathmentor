@@ -106,7 +106,8 @@ The current nightly queue is a compact read-only core:
    Qwen is not asked to use senior mentor MCP write tools.
 3. `T-report-error-intervention-readiness`: reviews whether the current error journal can
    support manual weekly intervention work and later deterministic rules.
-4. `T-report-part2-manual-gate-readiness`: reviews the minimal part-2 manual-gated path.
+4. `T-report-part2-postchange`: reviews the implemented part-2 manual-gated path after
+   Codex changes land.
 
 Broad reports live in `backend/scripts/night_queue_weekly.json` and should be run manually
 once a week or after relevant code changes: visualization, slice/review, Telegram, bank
@@ -125,7 +126,8 @@ cd backend
 Current tool:
 
 - `run_student_simulation()` -> JSON report for interval overlay, unparseable interval
-  fallback, and source_ref-gated probability visual.
+  fallback, source_ref-gated probability visuals, and the part-2 `manual_gate` fail-closed
+  case.
 
 It must not connect to production Postgres, Telegram, or student state. Add new tools here
 only when they remain sandboxed and machine-checkable.

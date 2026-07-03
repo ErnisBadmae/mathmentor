@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-07-03 - Manual-gate QA follow-up
+
+Status: implemented and verified locally.
+
+- Added a MANUAL_GATE regression through `RuleBasedReviewer`, not only `StaticReviewer`: reviewer output with nonzero score/error category still lands as `needs_manual_review`, score `0.0`, mission `active`.
+- Added sandbox simulator case `manual_gate_text_solution` so `run_student_simulation()` and the sandbox MCP surface guard the part-2 fail-closed invariant every night.
+- Updated sandbox script/MCP tests to assert manual-review presence, active mission state, and zero score.
+- Updated weekly visualization-surface acceptance to tolerate the new non-visual sandbox case while still checking visual cases.
+- Updated executor-harness docs from stale part2 readiness wording to post-change QA + manual_gate simulator coverage.
+
+Verification: focused slice `34 passed`; simulator script `ok=true`; queue JSON parsed; nightly dry-run GREEN; weekly dry-run GREEN; full backend suite `172 passed`; frontend build green.
+
+Open tail: commit this follow-up, then choose live deploy/reseed for #13/#15 or schedule the first July timed baseline. Deterministic repeated-error intervention remains frozen.
+
 ## 2026-07-03 - Morning review of nightly batch 235647
 
 Status: reviewed; no product code changed.

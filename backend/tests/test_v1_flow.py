@@ -618,6 +618,34 @@ def test_manual_gate_attempt_always_waits_for_manual_review(seeded_session):
     assert service.list_manual_reviews(seed_module.DEMO_STUDENT_ID)[0]["id"] == result["evidence_id"]
 
 
+def test_manual_gate_with_rule_based_reviewer_remains_fail_closed(seeded_session):
+    mission = seeded_session.scalar(
+        select(MissionORM).where(MissionORM.source_ref == "part2:text:13:trig-equation-a")
+    )
+    assert mission is not None
+    service = LearningService(SqlAlchemyUnitOfWork(seeded_session), RuleBasedReviewer())
+
+    result = asyncio.run(
+        service.submit_attempt(
+            {
+                "mission_id": mission.id,
+                "kind": AttemptKind.TEXT,
+                "mode": AttemptMode.CLEAN_SHEET,
+                "answer_text": "2x=8, then x=4, but this is a full part-2 text draft.",
+            }
+        )
+    )
+
+    assert result["status"] == EvidenceStatus.NEEDS_MANUAL_REVIEW
+    assert result["score_percent"] == 0.0
+    assert result["error_category"] == ErrorCategory.SIGN_TRANSFER
+    assert seeded_session.get(MissionORM, mission.id).status == MissionStatus.ACTIVE
+    assert any(
+        row["id"] == result["evidence_id"]
+        for row in service.list_manual_reviews(seed_module.DEMO_STUDENT_ID)
+    )
+
+
 def test_submit_with_only_one_count_raises_value_error(seeded_session):
     mission = first_mission(seeded_session)
     service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(90)))

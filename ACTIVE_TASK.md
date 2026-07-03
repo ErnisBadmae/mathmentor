@@ -1,9 +1,9 @@
 # Active Task
 
-## Current Snapshot (2026-07-02)
+## Current Snapshot (2026-07-03)
 
 - Goal: execute the proven-delta strategy with verified small steps: monthly timed score events, weekly error-to-intervention review, part-2 manual-gated evidence, targeted content depth, and Qwen only as a bounded read-only/mechanical executor.
-- Status: strategy accepted; canonical plan is aligned from the old LAN/scaffold next-plan to the three-horizon proven-delta plan. Latest completed live nightly batch `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-235647.md` is 4/4 GREEN (plumbing, sandbox contract, error-intervention readiness, part-2 post-change QA). Score-spine visibility is implemented and committed in `edcaa70`. Qwen follow-up gate fix is committed in `9c4ad0b`. Night queue is now split: nightly core stays compact; broad surface reports moved to `backend/scripts/night_queue_weekly.json`. The first part-2 text-only manual-gate slice for #13/#15 is committed as `4294d09`; the nightly queue now QA-checks it post-change (`T-report-part2-postchange` replaced the stale readiness report).
+- Status: strategy accepted; canonical plan is aligned from the old LAN/scaffold next-plan to the three-horizon proven-delta plan. Latest completed live nightly batch `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-235647.md` is 4/4 GREEN (plumbing, sandbox contract, error-intervention readiness, part-2 post-change QA). Score-spine visibility is implemented and committed in `edcaa70`. Qwen follow-up gate fix is committed in `9c4ad0b`. Night queue is now split: nightly core stays compact; broad surface reports moved to `backend/scripts/night_queue_weekly.json`. The first part-2 text-only manual-gate slice for #13/#15 is committed as `4294d09`; the follow-up MANUAL_GATE real-reviewer regression and sandbox simulator case are implemented locally.
 - Current operating rules:
   - do not scale infrastructure or multi-student support until an N=1 delta is visible;
   - keep `current_score` tied to score events from timed mocks, not daily attempts;
@@ -17,13 +17,14 @@
   - keep Qwen out of senior mentor MCP and real student-state write tools; sandbox MCP only exposes deterministic synthetic simulation;
   - process first: start weekly `error_journal` review and publish feedback manually before coding intervention routing;
   - part 2 first slice implemented: text-only submitted solution with manual verdict gate for #13/#15 before photo/OCR UX;
+  - part 2 follow-up implemented: MANUAL_GATE is regression-tested through `RuleBasedReviewer`, and sandbox `run_student_simulation()` includes `manual_gate_text_solution`;
   - low-priority test gaps: bar-chart correct-answer simulator case, double-PASS review idempotency, slice/daily duplicate guard, extra Telegram callback/media/streak tests.
 - Triage of nightly batch 235647 (2026-07-03):
-  - act next (Codex): MANUAL_GATE fail-closed regression through the real reviewer path (today only StaticReviewer is tested) + sandbox simulator `manual_gate` case so nightly QA guards the part-2 invariant;
+  - done locally: MANUAL_GATE fail-closed regression through the real reviewer path + sandbox simulator `manual_gate` case so nightly QA guards the part-2 invariant;
   - design constraint for the frozen intervention rule: `top_error_category` must require a minimum count (>=2) before triggering anything;
   - low/skip: `publish_feedback` weekly dedup test (manual gate mitigates), Part2Page empty-state UX and filter test, task 4071 statement wording — operator checks wording at the first real part-2 session.
 - Next:
-  1. Codex: MANUAL_GATE regression via real reviewer path + simulator `manual_gate` case (from nightly 235647 triage).
+  1. Commit the MANUAL_GATE reviewer-path + sandbox simulator follow-up.
   2. Deploy/reseed live data if the new #13/#15 manual-gate missions should affect the learner now.
   3. Schedule/record the first July timed mini-mock as the score baseline.
   4. Start the weekly mentor review from `error_journal` and recent attempts.

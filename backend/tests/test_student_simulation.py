@@ -34,3 +34,7 @@ def test_student_flow_simulator_script():
     assert cases["probability_table_neither_correct_answer"]["mission_status"] == "done"
     assert cases["probability_table_neither_correct_answer"]["visual_kind"] == "probability"
     assert cases["probability_table_only_a_wrong_answer"]["visual_kind"] == "probability"
+    assert cases["manual_gate_text_solution"]["status"] == "needs_manual_review"
+    assert cases["manual_gate_text_solution"]["score_percent"] == 0.0
+    assert cases["manual_gate_text_solution"]["mission_status"] == "active"
+    assert cases["manual_gate_text_solution"]["manual_review_present"] is True

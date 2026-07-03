@@ -92,6 +92,15 @@ def _probability_task(session, source_ref: str) -> TaskORM:
     return task
 
 
+def _manual_gate_mission(session) -> MissionORM:
+    mission = session.scalar(
+        select(MissionORM).where(MissionORM.source_ref == "part2:text:13:trig-equation-a")
+    )
+    if mission is None:
+        raise RuntimeError("seed did not create the part-2 manual-gate mission")
+    return mission
+
+
 def _mission_for_task(session, task: TaskORM, suffix: str) -> UUID:
     svc = _service(session)
     payload = svc.create_mission(
@@ -155,6 +164,39 @@ def _run_case(
         "visual_kind": visual.kind if visual is not None else None,
         "visual_caption": visual.caption if visual is not None else None,
         "png_bytes": len(visual.png) if visual is not None else 0,
+    }
+
+
+def _run_manual_gate_case(session) -> dict[str, object]:
+    mission = _manual_gate_mission(session)
+    result = asyncio.run(
+        _service(session).submit_attempt(
+            {
+                "mission_id": mission.id,
+                "kind": AttemptKind.TEXT,
+                "mode": AttemptMode.CLEAN_SHEET,
+                "answer_text": "2x=8, then x=4, but this is a part-2 text solution draft.",
+            }
+        )
+    )
+    manual_reviews = _service(session).list_manual_reviews(STUDENT)
+    refreshed = session.get(MissionORM, mission.id)
+    ok = (
+        result["status"] == EvidenceStatus.NEEDS_MANUAL_REVIEW
+        and result["score_percent"] == 0.0
+        and refreshed.status == MissionStatus.ACTIVE
+        and any(row["id"] == result["evidence_id"] for row in manual_reviews)
+    )
+    return {
+        "name": "manual_gate_text_solution",
+        "ok": ok,
+        "status": getattr(result["status"], "value", str(result["status"])),
+        "score_percent": result["score_percent"],
+        "mission_status": getattr(refreshed.status, "value", str(refreshed.status)),
+        "manual_review_present": any(
+            row["id"] == result["evidence_id"] for row in manual_reviews
+        ),
+        "visual_kind": None,
     }
 
 
@@ -222,6 +264,7 @@ def build_report() -> dict[str, object]:
                 expected_status=EvidenceStatus.FAILED,
                 expected_visual_kind="probability",
             ),
+            _run_manual_gate_case(session),
         ]
     finally:
         session.close()
