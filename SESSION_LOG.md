@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-07-03 - Qwen live report 093450 review
+
+Status: reviewed; no product code changes required.
+
+- Live nightly run `C:\tmp\egeMentor-qwen-runs\2026-07-03\report-093450.md`: 4/4 GREEN.
+- Accepted: sandbox MCP contract and `manual_gate_text_solution` are guarded by tests; part-2 post-change QA passed; error-intervention readiness remains read-only.
+- No urgent code from Qwen findings: attempt-mode comparison, threshold-close simulator, and error-category journal propagation can wait.
+- Frozen rule stays frozen: do not implement deterministic repeated-error daily-queue routing until 2-3 weeks of weekly-review data.
+- Later operator note: if part-2 mission creation is exposed in UX/MCP flows, guard `part2:text:*` missions from accidental `ATTEMPT_FIRST`.
+
+Verification: report acceptance was green (`test_figures` 13 passed, sandbox tests 2 passed, error/intervention slice 55 passed, part2 slice 36 passed).
+
+Open tail: first July timed mini-mock score event, then weekly mentor review.
+
 ## 2026-07-03 - Manual-gate QA follow-up
 
 Status: implemented and verified locally.
