@@ -3,12 +3,13 @@
 ## Current Snapshot (2026-07-03, after Qwen 093450)
 
 - Goal: execute the proven-delta strategy with verified small steps: monthly timed score events, weekly error-to-intervention review, part-2 manual-gated evidence, targeted content depth, and Qwen only as a bounded read-only/mechanical executor.
-- Status: latest completed live nightly batch `C:\tmp\egeMentor-qwen-runs\2026-07-03\report-093450.md` is 4/4 GREEN. The part-2 text-only manual-gate slice is committed as `4294d09`; the MANUAL_GATE real-reviewer regression and sandbox simulator case are committed as `34e1f75` and verified by live Qwen.
+- Status: latest completed live nightly batch `C:\tmp\egeMentor-qwen-runs\2026-07-03\report-093450.md` is 4/4 GREEN. The part-2 text-only manual-gate slice is committed as `4294d09`; the MANUAL_GATE real-reviewer regression and sandbox simulator case are committed as `34e1f75` and verified by live Qwen. Retention KPI v1 is implemented locally: dashboard exposes weekly active days and a Wednesday risk alert.
 - Current operating rules:
   - keep `current_score` tied to timed score events, not daily attempts;
   - start error intervention manually via `error_journal` + `publish_feedback`;
   - keep deterministic repeated-error intervention frozen until 2-3 weeks of observed weekly-review data;
   - keep Qwen as bounded read-only/mechanical QA: nightly synthetic QA + post-change reports, no content, no write-path, no senior MCP.
+  - retention is a first-class operating signal: by Wednesday, fewer than 3 active days is an operator-facing dashboard risk.
 - Triage of nightly batch 093450:
   - accepted: sandbox `manual_gate_text_solution`, sandbox MCP contract, error-intervention readiness, and part-2 post-change checks are GREEN;
   - no urgent code: suggested sandbox expansions (attempt-mode comparison, threshold close, error-category journal propagation) are useful later but not blockers;
@@ -16,9 +17,10 @@
   - note for later operator work: when mission-create/edit UX grows part-2 support, guard against accidentally creating `part2:text:*` missions with `ATTEMPT_FIRST`;
   - skip/low: `publish_feedback` weekly dedup test, Part2Page empty-state/filter test, task 4071 wording check before first real part-2 session.
 - Next:
-  1. Schedule/record the first July timed mini-mock as the score baseline.
-  2. Start the weekly mentor review from `error_journal` and recent attempts.
-  3. Deploy/reseed live data if the new #13/#15 manual-gate missions should affect the learner now.
+  1. Commit the retention KPI v1 slice.
+  2. Schedule/record the first July timed mini-mock as the score baseline.
+  3. Start the weekly mentor review from `error_journal` and recent attempts.
+  4. Deploy/reseed live data if the new #13/#15 manual-gate missions should affect the learner now.
 
 ## Current Snapshot (2026-07-03)
 

@@ -46,6 +46,15 @@ export type Dashboard = {
   top_errors: Array<{ category: ErrorCategory; count: number }>;
   due_reviews: number;
   mentor_notes: MentorNote[];
+  retention: {
+    week_start: string;
+    today: string;
+    active_days: number;
+    target_active_days: number;
+    at_risk: boolean;
+    message: string;
+    daily_task_target: number;
+  };
 };
 
 export type TopicLifecycle = {

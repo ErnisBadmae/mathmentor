@@ -1,6 +1,7 @@
 """Score-event rules (REQUIREMENTS §11): current_score follows the newest occurred_on."""
 
 from datetime import date, timedelta
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -120,3 +121,64 @@ def test_weekly_digest_includes_score_spine(seeded_session):
     assert digest["scores"]["recent"][0]["score"] == 74
     assert digest["scores"]["latest_by_subject"]["math_profile"]["current_score"] == 74
     assert digest["scores"]["latest_by_subject"]["math_profile"]["target_score"] == 85
+
+
+def _diagnostic(session, occurred_on: date) -> None:
+    SqlAlchemyUnitOfWork(session).dashboard.add_diagnostic(
+        {
+            "id": uuid4(),
+            "student_id": STUDENT,
+            "subject": Subject.MATH_PROFILE,
+            "occurred_on": occurred_on,
+            "topic_title": "Retention check",
+            "tasks_total": 3,
+            "tasks_correct": 2,
+            "percent_correct": 2 / 3,
+            "note": None,
+            "details_json": [],
+        }
+    )
+    session.commit()
+
+
+def test_retention_warns_from_wednesday_below_three_active_days(seeded_session):
+    svc = service(seeded_session)
+    wednesday = date(2099, 7, 8)
+    monday = date(2099, 7, 6)
+    tuesday = date(2099, 7, 7)
+    _diagnostic(seeded_session, monday)
+    svc.record_score_event(_event(70, tuesday, "topic_check"))
+    svc.record_score_event(_event(71, tuesday, "topic_check"))
+
+    retention = svc._retention_summary(STUDENT, today=wednesday)
+
+    assert retention["active_days"] == 2
+    assert retention["target_active_days"] == 3
+    assert retention["at_risk"] is True
+
+
+def test_retention_does_not_warn_before_wednesday(seeded_session):
+    svc = service(seeded_session)
+    monday = date(2099, 7, 6)
+    svc.record_score_event(_event(70, monday, "topic_check"))
+
+    retention = svc._retention_summary(STUDENT, today=monday)
+
+    assert retention["active_days"] == 1
+    assert retention["at_risk"] is False
+
+
+def test_retention_three_active_days_clear_risk_and_dashboard_exposes_block(seeded_session):
+    svc = service(seeded_session)
+    wednesday = date(2099, 7, 8)
+    _diagnostic(seeded_session, date(2099, 7, 6))
+    svc.record_score_event(_event(70, date(2099, 7, 7), "topic_check"))
+    svc.record_score_event(_event(71, wednesday, "topic_check"))
+
+    retention = svc._retention_summary(STUDENT, today=wednesday)
+    dashboard = svc.get_dashboard(STUDENT)
+
+    assert retention["active_days"] == 3
+    assert retention["at_risk"] is False
+    assert dashboard["retention"]["target_active_days"] == 3
+    assert dashboard["retention"]["daily_task_target"] >= 1

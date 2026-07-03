@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-07-03 - Retention KPI dashboard
+
+Status: implemented and verified locally.
+
+- Added dashboard `retention`: current-week active days, target 3, Wednesday risk flag, message, and current `daily_drill_size`.
+- Active day v1 counts any learning contact in the current local week: attempt/evidence, diagnostic/srez, or score event; duplicate same-day events count once.
+- Added dashboard card for weekly rhythm; risk state is dashboard-only, with no Telegram or mentor-note side effects.
+- Added regressions for Wednesday risk, Monday non-risk, active-day dedupe, and dashboard exposure.
+
+Verification: focused retention slice `10 passed`; full backend suite `175 passed`; frontend build green.
+
+Open tail: commit this slice, then record the first July timed mini-mock and start weekly mentor review.
+
 ## 2026-07-03 - Qwen live report 093450 review
 
 Status: reviewed; no product code changes required.

@@ -50,12 +50,23 @@ class MentorNoteIn(BaseModel):
     topic_id: UUID | None = None
 
 
+class RetentionOut(BaseModel):
+    week_start: date
+    today: date
+    active_days: int
+    target_active_days: int
+    at_risk: bool
+    message: str
+    daily_task_target: int
+
+
 class DashboardOut(BaseModel):
     tracks: list[TrackOut]
     clean_sheet_ratio: float
     top_errors: list[TopErrorOut]
     due_reviews: int
     mentor_notes: list[MentorNoteOut] = []
+    retention: RetentionOut
 
 
 class TopicLifecycleOut(BaseModel):

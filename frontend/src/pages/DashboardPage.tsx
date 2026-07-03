@@ -53,6 +53,7 @@ export function DashboardPage() {
   const topErrors = data?.top_errors ?? [];
   const diagnostics = diagnosticsQuery.data ?? [];
   const scoreEvents = scoreEventsQuery.data ?? [];
+  const retention = data?.retention;
   const scoreEventsBySubject = scoreEvents.reduce<Record<Subject, ScoreEvent[]>>(
     (acc, event) => {
       acc[event.subject].push(event);
@@ -88,6 +89,17 @@ export function DashboardPage() {
           <strong>{data?.due_reviews ?? 0}</strong>
           <small>Карточек к повторению</small>
         </article>
+        {retention ? (
+          <article className={retention.at_risk ? 'metric metricWarning' : 'metric'}>
+            <span>Ритм недели</span>
+            <strong>{retention.active_days}/{retention.target_active_days}</strong>
+            <small>
+              {retention.at_risk
+                ? 'Меньше 3 активных дней к среде'
+                : `Летний режим: ${retention.daily_task_target} задач/день`}
+            </small>
+          </article>
+        ) : null}
       </div>
       <div className="panel">
         <h2>Тренд баллов</h2>

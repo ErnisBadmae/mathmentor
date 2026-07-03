@@ -1,6 +1,6 @@
 import random
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -12,6 +12,7 @@ from app.application.ports import (
     ShortAnswerJudge,
     UnitOfWork,
 )
+from app.config import get_settings
 from app.domain.enums import (
     AiPolicy,
     ErrorCategory,
@@ -213,7 +214,58 @@ class LearningService:
     def get_dashboard(self, student_id: UUID) -> dict[str, object]:
         data = self._uow.dashboard.get_dashboard(student_id)
         data["mentor_notes"] = self._uow.mentor_notes.list_recent(student_id)
+        data["retention"] = self._retention_summary(student_id)
         return data
+
+    def _retention_summary(
+        self, student_id: UUID, today: date | None = None
+    ) -> dict[str, object]:
+        settings = get_settings()
+        local_tz = ZoneInfo(settings.local_timezone)
+        local_today = today or datetime.now(local_tz).date()
+        week_start = local_today - timedelta(days=local_today.weekday())
+        target_active_days = 3
+
+        def _aware(value: object) -> datetime | None:
+            if not isinstance(value, datetime):
+                return None
+            return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+        active_dates: set[date] = set()
+        for row in self.list_attempt_history(student_id, limit=500):
+            created_at = _aware(row.get("created_at"))
+            if created_at is None:
+                continue
+            local_day = created_at.astimezone(local_tz).date()
+            if week_start <= local_day <= local_today:
+                active_dates.add(local_day)
+
+        for row in self.list_diagnostics(student_id):
+            occurred_on = row.get("occurred_on")
+            if isinstance(occurred_on, date) and week_start <= occurred_on <= local_today:
+                active_dates.add(occurred_on)
+
+        for row in self.list_score_events(student_id, limit=200):
+            occurred_on = row.get("occurred_on")
+            if isinstance(occurred_on, date) and week_start <= occurred_on <= local_today:
+                active_dates.add(occurred_on)
+
+        active_days = len(active_dates)
+        at_risk = local_today.weekday() >= 2 and active_days < target_active_days
+        message = (
+            f"Retention risk: {active_days}/{target_active_days} active days by Wednesday."
+            if at_risk
+            else f"Retention rhythm: {active_days}/{target_active_days} active days this week."
+        )
+        return {
+            "week_start": week_start,
+            "today": local_today,
+            "active_days": active_days,
+            "target_active_days": target_active_days,
+            "at_risk": at_risk,
+            "message": message,
+            "daily_task_target": settings.daily_drill_size,
+        }
 
     def publish_feedback(self, values: dict[str, object]) -> dict[str, object]:
         """Publish a student-facing mentor note straight to the dashboard feed."""
