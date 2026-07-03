@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-07-03 - Morning review of nightly batch 235647
+
+Status: reviewed; no product code changed.
+
+- Live nightly run `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-235647.md`: 4/4 GREEN (plumbing, sandbox contract, error-intervention readiness, part-2 post-change QA).
+- Part-2 finding: MANUAL_GATE fail-closed invariant is only tested with StaticReviewer; needs a regression through the real reviewer path. Minor: Part2Page empty-state/filter test, task 4071 wording check at first session.
+- Error-intervention finding: `top_error_category` lacks a minimum-count guard (>=2) — recorded as a design constraint for the still-frozen deterministic rule; `publish_feedback` weekly dedup untested (low, manual gate mitigates).
+- Sandbox finding: worth adding simulator cases `manual_gate`, retry-then-pass, failed-attempt -> error_journal; the `manual_gate` case makes nightly QA guard the part-2 invariant.
+
+Verification: read-only review; all acceptance in the report rc=0.
+
+Open tail: hand the MANUAL_GATE regression + simulator `manual_gate` case to Codex as the next slice.
+
 ## 2026-07-02 - Nightly queue: part-2 post-change QA
 
 Status: implemented and verified locally.
