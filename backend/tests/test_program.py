@@ -66,6 +66,9 @@ def test_program_progress_grouped_in_phase_order(seeded_session):
     assert cov["total"] == len(june["topics"]) > 0
     # coverage buckets partition the phase's topics
     assert cov["confirmed"] + cov["in_progress"] + cov["open"] == cov["total"]
+    # under_review is a subset of in_progress, so the UI's "в работе" = in_progress − under_review
+    # never goes negative (disjoint display: в работе + на повторении + подтверждено + не начато = total)
+    assert 0 <= cov["under_review"] <= cov["in_progress"]
     # at most one phase is the current one
     assert sum(1 for p in phases if p["is_current"]) <= 1
 

@@ -2,6 +2,7 @@ from datetime import date, datetime
 from uuid import UUID
 
 from sqlalchemy import (
+    JSON,
     Date,
     DateTime,
     Enum,
@@ -288,6 +289,8 @@ class StudyLogEntryORM(Base):
     percent_correct: Mapped[float] = mapped_column(Float)
     status_note: Mapped[str | None] = mapped_column(String(120), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Аудит среза: пер-задачные детали (ответ, вердикт, grading_method, провенанс ИИ-решения).
+    details_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
     source_file: Mapped[str | None] = mapped_column(String(500), nullable=True)
     source_sheet: Mapped[str | None] = mapped_column(String(120), nullable=True)
     source_row: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -311,6 +314,8 @@ class MentorNoteORM(Base):
     body: Mapped[str] = mapped_column(Text)
     source_ref: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    # Когда заметка доставлена ученику в Telegram (NULL — ещё не доставлена). Идемпотентность пуша.
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     topic: Mapped[TopicORM | None] = relationship()
 
 

@@ -144,6 +144,15 @@ def score_event(
     return service.record_score_event({**payload.model_dump(), "student_id": student_id})
 
 
+@protected_router.get("/students/{student_id}/score-events", response_model=list[ScoreEventOut])
+def score_events(
+    student_id: UUID,
+    limit: int = Query(default=20, ge=1, le=100),
+    service: LearningService = Depends(get_learning_service),
+) -> list[dict[str, object]]:
+    return service.list_score_events(student_id, limit)
+
+
 @protected_router.post("/students/{student_id}/mentor-notes", response_model=MentorNoteOut)
 def publish_mentor_note(
     student_id: UUID,
@@ -158,19 +167,20 @@ def draw_slice(
     student_id: UUID,
     subject: Subject = Subject.MATH_PROFILE,
     size: int = Query(default=8, ge=1, le=50),
+    topic_id: UUID | None = None,
     service: LearningService = Depends(get_learning_service),
 ) -> dict[str, object]:
-    return {"subject": subject, "items": service.draw_slice(subject, size)}
+    return {"subject": subject, "items": service.draw_slice(subject, size, topic_id)}
 
 
 @protected_router.post("/students/{student_id}/slices/grade", response_model=SliceGradeOut)
-def grade_slice(
+async def grade_slice(
     student_id: UUID,
     payload: SliceGradeIn,
     service: LearningService = Depends(get_learning_service),
 ) -> dict[str, object]:
     items = [item.model_dump() for item in payload.items]
-    return service.grade_slice(student_id, payload.subject, items)
+    return await service.grade_slice(student_id, payload.subject, items)
 
 
 @protected_router.post("/attempts", response_model=SubmitAttemptOut)

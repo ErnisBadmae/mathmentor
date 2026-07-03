@@ -1,8 +1,8 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -177,18 +177,43 @@ class TaskSqlRepository:
             for task, topic_title in rows
         ]
 
-    def list_gradable(self, subject: Subject) -> list[TaskORM]:
-        """Approved tasks with a non-empty exact answer — the pool for a knowledge slice."""
-        return list(
-            self.session.scalars(
-                select(TaskORM)
-                .where(TaskORM.subject == subject)
-                .where(TaskORM.status == TaskStatus.APPROVED)
-                .where(TaskORM.expected_answer.is_not(None))
-                .where(TaskORM.expected_answer != "")
-                .order_by(TaskORM.id)
-            ).all()
+    def list_gradable(self, subject: Subject, topic_id: UUID | None = None) -> list[TaskORM]:
+        """Approved tasks with a non-empty exact answer — the pool for a knowledge slice.
+        ``topic_id`` restricts the pool to one topic (срез по выбранной теме)."""
+        stmt = (
+            select(TaskORM)
+            .where(TaskORM.subject == subject)
+            .where(TaskORM.status == TaskStatus.APPROVED)
+            .where(TaskORM.expected_answer.is_not(None))
+            .where(TaskORM.expected_answer != "")
+            .order_by(TaskORM.id)
         )
+        if topic_id is not None:
+            stmt = stmt.where(TaskORM.topic_id == topic_id)
+        return list(self.session.scalars(stmt).all())
+
+    def list_approved_for_topic(
+        self, topic_id: UUID, exclude_assigned_to: UUID | None = None
+    ) -> list[TaskORM]:
+        """Approved exact-answer tasks for a topic. ``exclude_assigned_to`` drops any task
+        already linked to a mission of that student — 'fresh' = never assigned, not merely
+        unsolved (so a failed task does not come back as a new pick)."""
+        stmt = (
+            select(TaskORM)
+            .where(TaskORM.topic_id == topic_id)
+            .where(TaskORM.status == TaskStatus.APPROVED)
+            .where(TaskORM.expected_answer.is_not(None))
+            .where(TaskORM.expected_answer != "")
+            .order_by(TaskORM.id)
+        )
+        if exclude_assigned_to is not None:
+            assigned = (
+                select(MissionORM.task_id)
+                .where(MissionORM.student_id == exclude_assigned_to)
+                .where(MissionORM.task_id.is_not(None))
+            )
+            stmt = stmt.where(TaskORM.id.notin_(assigned))
+        return list(self.session.scalars(stmt).all())
 
 
 class AttemptSqlRepository:
@@ -403,6 +428,8 @@ class DashboardSqlRepository:
                 "tasks_correct": entry.tasks_correct,
                 "percent": entry.percent_correct,
                 "note": entry.note,
+                "captured": bool(entry.details_json),
+                "captured_items": len(entry.details_json or []),
             }
             for entry in entries
         ]
@@ -502,6 +529,9 @@ class ReviewSqlRepository:
             for item, topic_title, subject in rows
         ]
 
+    def get(self, review_id: UUID) -> ReviewItemORM | None:
+        return self.session.get(ReviewItemORM, review_id)
+
     def mark_result(self, review_id: UUID, status: ReviewStatus) -> ReviewItemORM:
         item = self.session.get(ReviewItemORM, review_id)
         if item is None:
@@ -514,6 +544,27 @@ class ReviewSqlRepository:
 class ScoreSqlRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def list_events(self, student_id: UUID, limit: int = 20) -> list[dict[str, object]]:
+        limit = max(1, min(int(limit), 100))
+        events = self.session.scalars(
+            select(ScoreEventORM)
+            .where(ScoreEventORM.student_id == student_id)
+            .order_by(ScoreEventORM.occurred_on.desc(), ScoreEventORM.id.desc())
+            .limit(limit)
+        ).all()
+        return [
+            {
+                "id": event.id,
+                "student_id": event.student_id,
+                "subject": event.subject,
+                "score": event.score,
+                "kind": event.kind,
+                "occurred_on": event.occurred_on,
+                "note": event.note,
+            }
+            for event in events
+        ]
 
     def add_event(self, values: dict[str, object]) -> ScoreEventORM:
         source_ref = values.get("source_ref")
@@ -582,9 +633,28 @@ class MentorNoteSqlRepository:
                 "topic_title": note.topic.title if note.topic is not None else None,
                 "source_ref": note.source_ref,
                 "created_at": note.created_at,
+                "delivered_at": note.delivered_at,
             }
             for note in notes
         ]
+
+    def list_undelivered(self, student_id: UUID) -> list[dict[str, object]]:
+        notes = self.session.scalars(
+            select(MentorNoteORM)
+            .where(MentorNoteORM.student_id == student_id)
+            .where(MentorNoteORM.delivered_at.is_(None))
+            .order_by(MentorNoteORM.created_at.asc())
+        ).all()
+        return [{"id": note.id, "body": note.body} for note in notes]
+
+    def mark_delivered(self, note_ids: list[UUID]) -> None:
+        if not note_ids:
+            return
+        self.session.execute(
+            update(MentorNoteORM)
+            .where(MentorNoteORM.id.in_(note_ids))
+            .values(delivered_at=datetime.now(UTC))
+        )
 
 
 class TopicSqlRepository:

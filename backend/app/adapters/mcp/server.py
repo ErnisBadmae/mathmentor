@@ -108,6 +108,12 @@ def attempt_history(
 
 
 @mcp.tool()
+def weekly_digest(student_id: str = DEFAULT_STUDENT_ID, days: int = 7) -> Any:
+    """Last N days: attempts, active days, slices, errors, reviews, manual queue."""
+    return _read(lambda s: s.weekly_digest(UUID(student_id), days))
+
+
+@mcp.tool()
 def reviews(student_id: str = DEFAULT_STUDENT_ID) -> Any:
     """Spaced-review queue (+7/+30)."""
     return _read(lambda s: s.list_reviews(UUID(student_id)))
@@ -138,9 +144,14 @@ def create_mission(
     task_id: str | None = None,
     threshold_percent: float = 80.0,
     due_date: str | None = None,
+    drill: bool = False,
     student_id: str = DEFAULT_STUDENT_ID,
 ) -> Any:
-    """Create an ACTIVE mission for the student (track edit). Tagged source=mcp:agent."""
+    """Create an ACTIVE mission for the student (track edit). Tagged source=mcp:agent.
+
+    Set drill=True for a part-1 Telegram drill: link an approved exact-answer task via
+    task_id; the attempt is then graded by exact match (instant, no LLM) and the mission
+    is delivered to the Telegram queue (source_ref=daily:manual)."""
     values = {
         "student_id": UUID(student_id),
         "subject": Subject(subject),
@@ -152,10 +163,19 @@ def create_mission(
         "topic_id": UUID(topic_id) if topic_id else None,
         "task_id": UUID(task_id) if task_id else None,
         "due_date": date.fromisoformat(due_date) if due_date else None,
-        "source_ref": "mcp:agent",
+        "source_ref": "daily:manual" if drill else "mcp:agent",
     }
     with SessionLocal() as session:
         return _serialize(_service(session).create_mission(values))
+
+
+@mcp.tool()
+def build_daily_queue(limit: int = 5, student_id: str = DEFAULT_STUDENT_ID) -> Any:
+    """Compose today's Telegram drill queue: repeats (due + back_to_work) first, then new
+    phase topics, up to ``limit``. Each pick gets a fresh (never-assigned) task; topics with
+    no fresh task land in ``shortage``. Idempotent per day. Returns {filled, shortage}."""
+    with SessionLocal() as session:
+        return _serialize(_service(session).build_daily_queue(UUID(student_id), limit))
 
 
 @mcp.tool()

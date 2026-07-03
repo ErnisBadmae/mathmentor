@@ -42,6 +42,7 @@ class MentorNoteOut(BaseModel):
     topic_title: str | None = None
     source_ref: str | None = None
     created_at: datetime
+    delivered_at: datetime | None = None
 
 
 class MentorNoteIn(BaseModel):
@@ -94,6 +95,7 @@ class ProgramTopicOut(BaseModel):
 class ProgramCoverageOut(BaseModel):
     confirmed: int
     in_progress: int
+    under_review: int
     open: int
     total: int
 
@@ -125,9 +127,12 @@ class MissionOut(BaseModel):
     title: str
     instructions: str
     statement: str | None = None
+    ai_policy: AiPolicy
+    task_number: str | None = None
     threshold_percent: float
     due_date: date | None = None
     timebox_minutes: int | None = None
+    source_ref: str | None = None
     model_config = {"from_attributes": True}
 
 
@@ -288,6 +293,7 @@ class SliceGradeIn(BaseModel):
 class SliceItemResultOut(BaseModel):
     task_id: UUID
     correct: bool
+    feedback: str = ""
 
 
 class SliceGradeOut(BaseModel):

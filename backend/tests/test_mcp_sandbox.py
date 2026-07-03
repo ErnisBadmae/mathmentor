@@ -1,0 +1,20 @@
+from app.adapters.mcp.sandbox_server import run_student_simulation
+
+
+def test_sandbox_mcp_run_student_simulation():
+    result = run_student_simulation()
+
+    assert result["ok"] is True
+    cases = {case["name"]: case for case in result["cases"]}
+    assert cases["interval_wrong_overlay"]["visual_kind"] == "number_line"
+    assert cases["interval_unparseable_answer"]["visual_kind"] == "number_line"
+    assert cases["probability_bar_chart_wrong_answer"]["visual_kind"] == "probability"
+    assert cases["probability_table_neither_wrong_answer"]["visual_kind"] == "probability"
+    assert cases["probability_table_neither_correct_answer"]["status"] == "passed"
+    assert cases["probability_table_neither_correct_answer"]["mission_status"] == "done"
+    assert cases["probability_table_neither_correct_answer"]["visual_kind"] == "probability"
+    assert cases["probability_table_only_a_wrong_answer"]["visual_kind"] == "probability"
+    assert cases["manual_gate_text_solution"]["status"] == "needs_manual_review"
+    assert cases["manual_gate_text_solution"]["score_percent"] == 0.0
+    assert cases["manual_gate_text_solution"]["mission_status"] == "active"
+    assert cases["manual_gate_text_solution"]["manual_review_present"] is True

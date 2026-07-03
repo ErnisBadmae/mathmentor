@@ -132,6 +132,31 @@ def test_seed_creates_approved_task_bank_and_links_starter_mission(
         session.close()
 
 
+def test_seed_expands_probability_bank_variety(seeded_session):
+    tasks = seeded_session.scalars(
+        select(TaskORM)
+        .where(TaskORM.status == TaskStatus.APPROVED)
+        .where(TaskORM.source_ref.like("corpus:probability:%"))
+    ).all()
+    by_ref = {task.source_ref: task for task in tasks}
+
+    expected_refs = {
+        "corpus:probability:task-a",
+        "corpus:probability:task-b",
+        "corpus:probability:task-c",
+        "corpus:probability:independent-a",
+        "corpus:probability:complement-a",
+        "corpus:probability:at-least-one-a",
+        "corpus:probability:conditional-a",
+        "corpus:probability:without-replacement-a",
+        "corpus:probability:bernoulli-a",
+        "corpus:probability:union-disjoint-a",
+    }
+    assert expected_refs <= set(by_ref)
+    assert by_ref["corpus:probability:without-replacement-a"].expected_answer == "5/33"
+    assert by_ref["corpus:probability:bernoulli-a"].expected_answer == "3/8"
+
+
 def test_seed_today_missions_all_have_statements_and_no_probability_duplicate(seeded_session):
     service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(90)))
 
@@ -571,6 +596,56 @@ def test_manual_decision_with_counts_scores_from_counts_over_button(seeded_sessi
     assert result["tasks_correct"] == 5
 
 
+def test_manual_gate_attempt_always_waits_for_manual_review(seeded_session):
+    mission = first_mission(seeded_session)
+    mission.ai_policy = AiPolicy.MANUAL_GATE
+    service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(100)))
+
+    result = asyncio.run(
+        service.submit_attempt(
+            {
+                "mission_id": mission.id,
+                "kind": AttemptKind.TEXT,
+                "mode": AttemptMode.CLEAN_SHEET,
+                "answer_text": "full part-2 reasoning",
+            }
+        )
+    )
+
+    assert result["status"] == EvidenceStatus.NEEDS_MANUAL_REVIEW
+    assert result["score_percent"] == 0.0
+    assert mission.status == MissionStatus.ACTIVE
+    assert service.list_manual_reviews(seed_module.DEMO_STUDENT_ID)[0]["id"] == result["evidence_id"]
+
+
+def test_manual_gate_with_rule_based_reviewer_remains_fail_closed(seeded_session):
+    mission = seeded_session.scalar(
+        select(MissionORM).where(MissionORM.source_ref == "part2:text:13:trig-equation-a")
+    )
+    assert mission is not None
+    service = LearningService(SqlAlchemyUnitOfWork(seeded_session), RuleBasedReviewer())
+
+    result = asyncio.run(
+        service.submit_attempt(
+            {
+                "mission_id": mission.id,
+                "kind": AttemptKind.TEXT,
+                "mode": AttemptMode.CLEAN_SHEET,
+                "answer_text": "2x=8, then x=4, but this is a full part-2 text draft.",
+            }
+        )
+    )
+
+    assert result["status"] == EvidenceStatus.NEEDS_MANUAL_REVIEW
+    assert result["score_percent"] == 0.0
+    assert result["error_category"] == ErrorCategory.SIGN_TRANSFER
+    assert seeded_session.get(MissionORM, mission.id).status == MissionStatus.ACTIVE
+    assert any(
+        row["id"] == result["evidence_id"]
+        for row in service.list_manual_reviews(seed_module.DEMO_STUDENT_ID)
+    )
+
+
 def test_submit_with_only_one_count_raises_value_error(seeded_session):
     mission = first_mission(seeded_session)
     service = LearningService(SqlAlchemyUnitOfWork(seeded_session), StaticReviewer(draft(90)))
@@ -675,7 +750,9 @@ def test_grade_slice_records_diagnostic_and_errors_without_moving_score(seeded_s
         select(SubjectTrackORM).where(SubjectTrackORM.subject == Subject.MATH_PROFILE)
     ).current_score
 
-    result = service.grade_slice(seed_module.DEMO_STUDENT_ID, Subject.MATH_PROFILE, items)
+    result = asyncio.run(
+        service.grade_slice(seed_module.DEMO_STUDENT_ID, Subject.MATH_PROFILE, items)
+    )
 
     assert result["tasks_total"] == len(pool)
     assert result["tasks_correct"] == expected_correct
@@ -703,8 +780,10 @@ def test_grade_slice_rejects_unapproved_task(seeded_session):
         {"subject": Subject.MATH_PROFILE, "statement": "2+2?", "expected_answer": "4"}
     )
     with pytest.raises(ValueError):
-        service.grade_slice(
-            seed_module.DEMO_STUDENT_ID,
-            Subject.MATH_PROFILE,
-            [{"task_id": draft_task.id, "answer_text": "4"}],
+        asyncio.run(
+            service.grade_slice(
+                seed_module.DEMO_STUDENT_ID,
+                Subject.MATH_PROFILE,
+                [{"task_id": draft_task.id, "answer_text": "4"}],
+            )
         )

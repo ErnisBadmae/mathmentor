@@ -1,0 +1,44 @@
+[
+  {
+    "id": "T-night-plumbing-tests",
+    "kind": "run",
+    "comment": "Dry-run-safe task: no executor, only verifies worktree + venv pytest plumbing.",
+    "prompt": null,
+    "acceptance": [
+      ["{PY}", "-m", "pytest", "backend/tests/test_figures.py", "-q"]
+    ],
+    "timeout": 300
+  },
+  {
+    "id": "T-report-sandbox-mcp-contract",
+    "kind": "report",
+    "comment": "Read-only report: inspect the sandbox MCP/simulator boundary used by Qwen, not the senior mentor MCP.",
+    "prompt": "Read only. Do not edit files. Act as an executor-harness QA reviewer. Inspect backend/app/adapters/mcp/sandbox_server.py, backend/scripts/simulate_student_flow.py, backend/scripts/night_queue.json, docs/AGENT_EXECUTOR_HARNESS.md, backend/tests/test_mcp_sandbox.py, and backend/tests/test_student_simulation.py. Report in plain text: 1) exactly what sandbox MCP exposes, 2) which deterministic learner-flow cases are covered, 3) whether the night queue accidentally asks Qwen to use senior/production MCP write tools, 4) the next 2-3 simulator cases worth adding. Keep it under 70 lines. Do not create or modify any file.",
+    "acceptance": [
+      ["{PY}", "-m", "py_compile", "backend/app/adapters/mcp/sandbox_server.py"],
+      ["{PY}", "-m", "pytest", "backend/tests/test_mcp_sandbox.py", "backend/tests/test_student_simulation.py", "-q"]
+    ],
+    "timeout": 900
+  },
+  {
+    "id": "T-report-error-intervention-readiness",
+    "kind": "report",
+    "comment": "Read-only report: inspect whether error journal data can support manual and later deterministic interventions.",
+    "prompt": "Read only. Do not edit files. Act as a mentor-ops QA reviewer for error-to-intervention work. Inspect backend/app/application/use_cases.py, backend/app/adapters/mcp/server.py, backend/app/domain/enums.py, backend/tests/test_diagnostics_progress.py, backend/tests/test_daily_queue.py, backend/tests/test_topic_lifecycle.py, and backend/tests/test_v1_flow.py. Report in plain text: 1) what data error_journal exposes today, 2) how a weekly human-reviewed mentor note can be produced with current APIs/MCP, 3) which repeated-error patterns could later become a simple deterministic queue rule, 4) what evidence/tests are missing before coding that rule. Keep it under 80 lines. Do not create or modify any file.",
+    "acceptance": [
+      ["{PY}", "-m", "pytest", "backend/tests/test_diagnostics_progress.py", "backend/tests/test_daily_queue.py", "backend/tests/test_topic_lifecycle.py", "backend/tests/test_v1_flow.py", "-q"]
+    ],
+    "timeout": 1200
+  },
+  {
+    "id": "T-report-part2-postchange",
+    "kind": "report",
+    "comment": "Read-only report: post-change QA of the implemented part-2 text manual-gate slice (commit 4294d09).",
+    "prompt": "Read only. Do not edit files. Act as a post-change QA reviewer for the new part-2 manual-gate slice. Inspect backend/app/application/use_cases.py (AiPolicy.MANUAL_GATE handling in submit flow), backend/app/domain/enums.py, backend/app/adapters/api/schemas.py, backend/scripts/seed.py (part-2 seeded missions/tasks), backend/tests/test_v1_flow.py, backend/tests/test_task_bank_mcp.py, frontend/src/pages/Part2Page.tsx, and frontend/src/shared/api/client.ts. Report in plain text: 1) the end-to-end flow for a part-2 (#13/#15) text solution from Part2Page submission to the manual-review queue, 2) whether the gate is truly fail-closed: is there ANY path where a MANUAL_GATE mission gets passed/score>0 without a human verdict, 3) whether the student-facing mission payload can leak answer keys or reference solutions before/after submission, 4) edge cases or missing tests to fix before the first real #13/#15 session. Keep it under 80 lines. Do not create or modify any file.",
+    "acceptance": [
+      ["{PY}", "-m", "pytest", "backend/tests/test_v1_flow.py", "backend/tests/test_task_bank_mcp.py", "-q"],
+      ["{PY}", "-c", "from pathlib import Path; uc=Path('backend/app/application/use_cases.py').read_text(encoding='utf-8'); assert 'AiPolicy.MANUAL_GATE' in uc; en=Path('backend/app/domain/enums.py').read_text(encoding='utf-8'); assert 'MANUAL_GATE = \"manual_gate\"' in en; ct=Path('frontend/src/shared/api/client.ts').read_text(encoding='utf-8'); assert \"'attempt_first' | 'manual_gate'\" in ct; assert Path('frontend/src/pages/Part2Page.tsx').exists()"]
+    ],
+    "timeout": 1200
+  }
+]

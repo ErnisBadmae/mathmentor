@@ -111,17 +111,27 @@ Frontend: http://127.0.0.1:5174
 
 ## Global Plan
 
-1. **Foundation**: keep the modular monolith clean, with PostgreSQL as truth and no hidden platform complexity.
-2. **Real data import**: convert the existing Excel/Markdown preparation materials into canonical DB records.
-3. **First useful product loop**: dashboard -> today?s missions -> submit attempt -> evidence -> repeat/close topic -> review queue.
-4. **Parent control loop**: daily digest and weekly audit generation.
-5. **LLM quality loop**: structured evaluator prompts, provenance, replayable attempts, regression tests for observed mistake types.
-6. **Pilot hardening**: invite-code access, multiple family users, stable local deployment, backups.
+The next strategy is **proven delta, not feature breadth**. The project value is the closed evidence loop:
+
+```text
+attempt -> deterministic check -> error classification -> targeted intervention -> review -> score delta
+```
+
+Build the mentor operating system around that loop. Do not compete on a generic task bank, generic LLM tutor, or Telegram bot surface.
+
+Three horizons:
+
+1. **Proven delta, July-December 2026, N=1**: move Ulyana's timed mock-exam score measurably. Anchor progress with monthly EGE-format score events, bring part 2 into the reviewed evidence loop, and turn repeated errors into explicit interventions. Exit signal: 4-5 timed mocks trending upward, with a December target around math >= 75 and informatics >= 70, while the daily loop runs without manual pushing.
+2. **Generalization, roughly January-June 2027, N=5-15**: test one friendly tutor with their students. Add only the minimal multi-student/onboarding work needed to learn whether the loop works without a parent-engineer operating it. The tutor is a buyer-persona test, not a revenue plan.
+3. **Product form, after EGE 2027**: decide B2B2C mentor/tutor operations vs another shape from pilot data. Payments, public SaaS, OSS, and broad marketplace decisions stay behind this gate.
 
 Explicit non-goals for now:
 
 - no public SaaS onboarding
 - no payments
+- no premature multi-tenant product work before a friendly tutor pilot
+- no generic AI tutor or autonomous coaching router
+- no content-volume race with public EGE banks
 - no Qdrant/Neo4j/CDC
 - no voice
 - no LangGraph/autonomous routing
@@ -129,27 +139,38 @@ Explicit non-goals for now:
 
 ## Local Next Plan
 
-The first DB-backed LAN v1 slice is implemented. Next work should harden pilot usage rather than add infrastructure.
+The first priority is to make every step measurable and reviewable. Prefer process + existing ports before code.
 
-### Step 1: Real LAN Smoke
+### L1: Measurement Spine
 
-- Copy `.env.example` to `.env`, set `API_SHARED_TOKEN`, choose `LLM_PROVIDER` (`llama_cpp` or `vllm`), and point the matching `LLAMA_CPP_*` / `VLLM_*` vars at the real local model.
-- Before trusting a new model/prompt/rubric version, replay the golden gate against the live model: `backend\.venv312\Scripts\python.exe backend\scripts\llm_review_gate.py --tier mainline`.
-- Run `.\scripts\prod_up.ps1`.
-- Open the printed LAN URL from the parent machine and the child's phone.
-- Submit one math attempt and one informatics code attempt, including a manual-review path.
+- Run a monthly timed mini-mock in EGE conditions: no AI, internet, phone, or hints.
+- Record results only through `record_score_event`; daily attempts and topic checks must not move `current_score`.
+- Show the trend from timed mocks toward the 85/85 target in the dashboard and weekly digest.
+- Treat the first July 2026 mock as the fixed baseline for the next phase.
 
-### Step 2: Operator UX
+### L2: Error -> Targeted Intervention
 
-- Add a small frontend mission-create/edit screen over the existing mission API.
-- Add a score-event form for weekly variants/slices.
-- Keep `current_score` tied only to score events, not daily attempts.
+- Start without code: weekly agent/mentor review of `error_journal` and recent attempts, then publish one concrete mentor note through the existing `publish_feedback` manual gate.
+- After 2-3 weeks of observations, add a simple deterministic daily-queue rule only if the pattern is clear: repeated error category -> prerequisite drill or method example, not another same-topic task.
+- Keep this rule explicit and testable; no ML/router layer.
 
-### Step 3: Pilot Hardening
+### L3: Part 2 Evidence Loop
 
-- Schedule `.\scripts\backup_postgres.ps1` in Windows Task Scheduler.
-- Add restore instructions from a `pg_dump`.
-- Add regression fixtures for observed mistake types: sign transfer, ODZ over-filtering, condition reading, probability double count.
+- Bring profile math part 2 onto the site as a reviewed evidence path: solve on paper -> submit photo/text -> LLM structures the solution -> mentor approves the verdict.
+- Start with task types #13 and #15, where structure is easier to review; #16-18 wait until #13/#15 are routine.
+- Do not autograde part 2. Human approval is part of the trust surface.
+
+### L4: Content Under the Program
+
+- Add tasks only where the current loop needs depth: July math topics, interval/ODZ work, and informatics divisor/string gaps.
+- Each new task should carry a skill/topic tag and exact answer where possible.
+- Difficulty calibration comes later from attempts; do not invent a taxonomy before data exists.
+
+### L5: Hygiene
+
+- Commit verified local changes promptly.
+- Deploy/reseed live data when content-bank changes should affect the student.
+- Keep release smoke, backups, Telegram parent delivery, and stray local services under operator control.
 
 ## Engineering Rules
 
@@ -161,6 +182,34 @@ The first DB-backed LAN v1 slice is implemented. Next work should harden pilot u
 - Do not add infrastructure because it is available; add it only when the product loop needs it.
 - Use small, focused commits.
 - Run backend tests and frontend build before reporting done.
+- `scripts/verify.py` is the Claude Code Stop-hook for automatic backend `pytest` when
+  backend files changed. Codex does not receive that hook: run verification once per
+  revision, but do not repeat it when a fresh hook result already covers the same changes.
+
+## Local Qwen Executor Boundary
+
+Treat local Qwen/OpenCode through `backend/scripts/night_runner.py` as a bounded executor,
+not as an architect or junior developer. Use it only for low-risk, machine-checkable work:
+
+- read-only reports, smoke checks, latency snapshots, and coverage/diff snapshots;
+- single-file mechanical edits with strict `files_allowed`;
+- fixture/YAML/doc-table additions from an explicit template;
+- keyword/marker additions where the expected diff is obvious;
+- formatting or trivial lint fixes covered by gates.
+
+Do not give Qwen architecture, source-of-truth contracts, policy semantics, gate design,
+multi-file refactors, imports, runtime contract changes, migrations, write-path changes,
+new capabilities, UX/product decisions, or anything requiring judgment-heavy review.
+
+For the proven-delta strategy, Qwen is especially useful for read-only overnight reports:
+score-event/digest readiness, error-journal/intervention candidates, part-2 manual-gate
+readiness, content coverage, and release-smoke readiness. Accept only raw logs, exact
+commands, diffs, and machine gates; never accept Qwen's self-report as evidence.
+
+Calibration rule: if writing the task spec takes longer than doing the edit, do it in
+Codex/Claude. If morning review finds a false-green, remove that task class from the Qwen
+queue. Qwen output is accepted only through raw logs, exact commands, diff review, and
+machine gates; self-report is not evidence. See `docs/AGENT_EXECUTOR_HARNESS.md`.
 
 ## MCP Server (agent as senior mentor)
 
@@ -199,4 +248,6 @@ Rules:
 - Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- The installed `post-commit` hook updates graphify automatically in the background.
+  Do not run `graphify update .` manually after normal code changes; only investigate or
+  rebuild manually when the hook reports a failure or the graph is demonstrably stale.

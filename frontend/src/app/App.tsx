@@ -3,6 +3,7 @@ import {
   BarChart3,
   BookOpenCheck,
   ClipboardList,
+  FileText,
   GraduationCap,
   Layers,
   ListChecks,
@@ -14,6 +15,7 @@ import { DashboardPage } from '../pages/DashboardPage';
 import { DailyWorkPage } from '../pages/DailyWorkPage';
 import { ErrorJournalPage } from '../pages/ErrorJournalPage';
 import { OperatorPage } from '../pages/OperatorPage';
+import { Part2Page } from '../pages/Part2Page';
 import { ProgramPage } from '../pages/ProgramPage';
 import { ReviewQueuePage } from '../pages/ReviewQueuePage';
 import { SlicePage } from '../pages/SlicePage';
@@ -30,6 +32,7 @@ const studentNavItems = [
   { to: '/program', label: 'Программа', icon: GraduationCap },
   { to: '/topics', label: 'Темы', icon: Layers },
   { to: '/daily', label: 'Сегодня', icon: BookOpenCheck },
+  { to: '/part2', label: 'Часть 2', icon: FileText },
   { to: '/slice', label: 'Срез', icon: ListChecks },
   { to: '/errors', label: 'Ошибки', icon: ClipboardList },
   { to: '/review', label: 'Повторение', icon: RotateCcw },
@@ -114,6 +117,7 @@ export function App() {
           <Route path="/program" element={<ProgramPage />} />
           <Route path="/topics" element={<TopicLifecyclePage />} />
           <Route path="/daily" element={<DailyWorkPage />} />
+          <Route path="/part2" element={<Part2Page />} />
           <Route path="/slice" element={<SlicePage />} />
           <Route path="/errors" element={<ErrorJournalPage />} />
           <Route path="/review" element={<ReviewQueuePage />} />

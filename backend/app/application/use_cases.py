@@ -1,9 +1,17 @@
 import random
-from datetime import UTC, datetime
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from app.application.ports import AttemptForReview, EvidenceDraft, EvidenceReviewer, UnitOfWork
+from app.application.ports import (
+    AiAssessment,
+    AttemptForReview,
+    EvidenceDraft,
+    EvidenceReviewer,
+    ShortAnswerJudge,
+    UnitOfWork,
+)
 from app.domain.enums import (
     AiPolicy,
     ErrorCategory,
@@ -14,13 +22,27 @@ from app.domain.enums import (
     TaskStatus,
     TopicState,
 )
+from app.domain.figures import parse_interval_answer, parse_interval_answer_from_text
 from app.domain.policies import (
     answer_is_correct,
     evidence_status,
+    normalize_answer,
+    numeric_mismatch,
     review_due_dates,
     review_result_to_status,
+    select_daily_queue,
 )
+from app.domain.probability_visual import parse_probability_visual_spec
 from app.domain.program import PHASES, current_phase_key
+
+
+@dataclass
+class VisualAid:
+    """A post-attempt visual aid delivered to the learner."""
+    kind: str           # e.g. "number_line"
+    png: bytes          # raw PNG bytes
+    caption: str        # displayed caption (e.g. "Решение vs Ваш ответ")
+
 
 SLICE_SUBJECT_LABEL = {
     Subject.MATH_PROFILE: "Профматематика",
@@ -28,13 +50,39 @@ SLICE_SUBJECT_LABEL = {
 }
 
 
+@dataclass(frozen=True)
+class AnswerJudgment:
+    """Итог оценки короткого ответа после применения политики (exact-авторитет + ИИ)."""
+
+    correct: bool
+    feedback: str
+    grading_method: str  # exact | exact_fallback | llm_equivalent | llm_rejected
+    model_id: str | None = None
+    prompt_version: str | None = None
+    rubric_version: str | None = None
+
+
+class ExactOnlyJudge:
+    """Судья без ИИ: всегда None → сервис применяет только точное сравнение (детерминизм)."""
+
+    async def assess(
+        self, statement: str, correct_answer: str, student_answer: str | None
+    ) -> AiAssessment | None:
+        return None
+
+
 class LearningService:
     def __init__(
-        self, uow: UnitOfWork, reviewer: EvidenceReviewer, local_timezone: str = "Europe/Moscow"
+        self,
+        uow: UnitOfWork,
+        reviewer: EvidenceReviewer,
+        local_timezone: str = "Europe/Moscow",
+        judge: ShortAnswerJudge | None = None,
     ) -> None:
         self._uow = uow
         self._reviewer = reviewer
         self._local_timezone = local_timezone
+        self._judge: ShortAnswerJudge = judge or ExactOnlyJudge()
 
     def _today(self):
         return datetime.now(ZoneInfo(self._local_timezone)).date()
@@ -89,9 +137,50 @@ class LearningService:
             }
         )
 
+    @staticmethod
+    def _review_card_id(mission: object) -> UUID | None:
+        """ID карточки повтора из source_ref ``daily:review:<uuid>`` (иначе None)."""
+        ref = getattr(mission, "source_ref", None) or ""
+        prefix = "daily:review:"
+        if ref.startswith(prefix):
+            try:
+                return UUID(ref[len(prefix) :])
+            except ValueError:
+                return None
+        return None
+
+    def _apply_review_drill_progression(
+        self,
+        mission: object,
+        evidence: object,
+        category: ErrorCategory,
+        feedback: str,
+        review_id: UUID,
+    ) -> None:
+        """Дрилл-повтор (origin ``daily:review``): закрываем ИСХОДНУЮ карточку, без новых
+        +7/+30. PASS → карточка DONE; FAIL → BACK_TO_WORK (сборщик передриллит свежей
+        задачей). Карточку трогаем только пока её статус DUE/BACK_TO_WORK — повторные/
+        устаревшие сабмиты последствий не плодят (шов №6)."""
+        self._uow.missions.mark_done(mission.id)
+        if evidence.status == EvidenceStatus.FAILED and category != ErrorCategory.NONE:
+            self._add_error_event(mission, evidence.attempt_id, evidence, feedback, category)
+        card = self._uow.reviews.get(review_id)
+        if card is None or card.status not in (ReviewStatus.DUE, ReviewStatus.BACK_TO_WORK):
+            return
+        new_status = (
+            ReviewStatus.DONE
+            if evidence.status == EvidenceStatus.PASSED
+            else ReviewStatus.BACK_TO_WORK
+        )
+        self._uow.reviews.mark_result(review_id, new_status)
+
     def _apply_progression(
         self, mission: object, evidence: object, category: ErrorCategory, feedback: str
     ) -> None:
+        review_id = self._review_card_id(mission)
+        if review_id is not None:
+            self._apply_review_drill_progression(mission, evidence, category, feedback, review_id)
+            return
         if evidence.status == EvidenceStatus.PASSED:
             self._uow.missions.mark_done(mission.id)
             if mission.topic_id is not None:
@@ -146,6 +235,14 @@ class LearningService:
             "created_at": note.created_at,
         }
 
+    def list_undelivered_notes(self, student_id: UUID) -> list[dict[str, object]]:
+        """Наставнические заметки, ещё не доставленные ученику в Telegram (старые вперёд)."""
+        return self._uow.mentor_notes.list_undelivered(student_id)
+
+    def mark_notes_delivered(self, note_ids: list[UUID]) -> None:
+        self._uow.mentor_notes.mark_delivered(note_ids)
+        self._uow.commit()
+
     def get_current_student(self) -> object:
         return self._uow.students.get_current()
 
@@ -154,8 +251,15 @@ class LearningService:
             self._mission_payload(mission) for mission in self._uow.missions.list_today(student_id)
         ]
 
+    @staticmethod
+    def _is_drill(mission: object) -> bool:
+        """Часть-1 дрилл (мгновенная точная проверка) помечается префиксом source_ref."""
+        source_ref = getattr(mission, "source_ref", None)
+        return bool(source_ref) and source_ref.startswith("daily:")
+
     def _mission_payload(self, mission: object) -> dict[str, object]:
         task = getattr(mission, "task", None)
+        topic = getattr(mission, "topic", None)
         statement = task.statement if task is not None else None
         return {
             "id": mission.id,
@@ -163,10 +267,186 @@ class LearningService:
             "title": mission.title,
             "instructions": mission.instructions,
             "statement": statement,
+            "ai_policy": mission.ai_policy,
+            "task_number": task.task_number if task is not None else getattr(topic, "task_number", None),
             "threshold_percent": mission.threshold_percent,
             "due_date": mission.due_date,
             "timebox_minutes": mission.timebox_minutes,
+            "source_ref": mission.source_ref,
         }
+
+    def list_daily_drill(self, student_id: UUID) -> list[dict[str, object]]:
+        """Очередь Telegram-дрилла: только открытые daily:-миссии со связанной задачей.
+        Отдельная поверхность — чтобы в чат не попали части 2 / операторские миссии."""
+        return [
+            self._mission_payload(mission)
+            for mission in self._uow.missions.list_today(student_id)
+            if self._is_drill(mission) and getattr(mission, "task", None) is not None
+        ]
+
+    def build_daily_queue(self, student_id: UUID, limit: int = 5) -> dict[str, object]:
+        """Авто-сборщик дня: до ``limit`` дрилл-миссий, повторы вперёд, новые темы в остаток.
+
+        Уже открытые daily-миссии (carry-over) считаются в лимит первыми. Под каждый выбор
+        берётся СВЕЖАЯ (не назначавшаяся) задача темы; если её нет — тема идёт в ``shortage``,
+        а не пропускается тихо. Идемпотентно за день: уже открытый daily:-source_ref не дублим."""
+        today = self._today()
+        open_daily = [
+            m for m in self._uow.missions.list_today(student_id) if self._is_drill(m)
+        ]
+        open_refs = {m.source_ref for m in open_daily}
+
+        def _review_refs(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+            refs = []
+            for row in rows:
+                source_ref = f"daily:review:{row['id']}"
+                if source_ref not in open_refs:
+                    refs.append(
+                        {
+                            "topic_id": row["topic_id"],
+                            "title": row["topic_title"],
+                            "source_ref": source_ref,
+                        }
+                    )
+            return refs
+
+        due_refs = _review_refs(
+            self._uow.reviews.list_reviews(
+                student_id, status=ReviewStatus.DUE, due_on_or_before=today
+            )
+        )
+        back_to_work_refs = _review_refs(
+            self._uow.reviews.list_reviews(student_id, status=ReviewStatus.BACK_TO_WORK)
+        )
+        phase = current_phase_key(today)
+        review_topic_ids = {ref["topic_id"] for ref in (*due_refs, *back_to_work_refs)}
+        new_refs = []
+        for topic in sorted(
+            self._uow.topics.list_program(student_id),
+            key=lambda t: (t["program_order"] or 0, t["topic_title"]),
+        ):
+            source_ref = f"daily:new:{topic['topic_id']}"
+            if (
+                topic["phase"] == phase
+                and topic["state"] == TopicState.OPEN
+                and topic["tasks_in_bank"] > 0
+                and source_ref not in open_refs
+                and topic["topic_id"] not in review_topic_ids
+            ):
+                new_refs.append(
+                    {
+                        "topic_id": topic["topic_id"],
+                        "title": topic["topic_title"],
+                        "source_ref": source_ref,
+                    }
+                )
+
+        picks = select_daily_queue(len(open_daily), due_refs, back_to_work_refs, new_refs, limit)
+        filled: list[dict[str, object]] = []
+        shortage: list[dict[str, object]] = []
+        for ref in picks:
+            pool = self._uow.tasks.list_approved_for_topic(
+                ref["topic_id"], exclude_assigned_to=student_id
+            )
+            if not pool:
+                shortage.append(
+                    {"topic_id": ref["topic_id"], "title": ref["title"], "reason": "no_fresh_task"}
+                )
+                continue
+            task = pool[0]
+            mission = self.create_mission(
+                {
+                    "student_id": student_id,
+                    "subject": task.subject,
+                    "title": f"Дрилл: {ref['title']}",
+                    "instructions": "Реши, кратко распиши ход решения и в конце укажи ответ.",
+                    "status": MissionStatus.ACTIVE,
+                    "ai_policy": AiPolicy.ATTEMPT_FIRST,
+                    "threshold_percent": 80.0,
+                    "topic_id": ref["topic_id"],
+                    "task_id": task.id,
+                    "due_date": today,
+                    "source_ref": ref["source_ref"],
+                }
+            )
+            filled.append(mission)
+        return {"filled": filled, "shortage": shortage}
+
+    async def _grade_answer(
+        self, statement: str, correct_answer: str, student_answer: str | None
+    ) -> AnswerJudgment:
+        """Политика оценки короткого ответа (application-слой). Exact-match авторитетен (эталон
+        верифицирован); ИИ может только вытащить эквивалентную форму на промахе exact; сбой/None ИИ
+        → детерминированный exact (fail-open). Провенанс ИИ-решения сохраняется."""
+        exact = answer_is_correct(student_answer, correct_answer)
+        assessment = await self._judge.assess(statement, correct_answer, student_answer)
+        if assessment is None:
+            return AnswerJudgment(
+                correct=exact,
+                feedback="Верно." if exact else "Неверно.",
+                grading_method="exact",
+            )
+        provenance = (assessment.model_id, assessment.prompt_version, assessment.rubric_version)
+        # Заземление: exact на сыром ответе ИЛИ на финальном ответе, извлечённом ИИ из решения
+        # («покажи ход» — сырой текст обычно не совпадёт целиком, поэтому сверяем извлечённый).
+        extracted = assessment.extracted_answer
+        extracted_ok = bool(extracted) and answer_is_correct(extracted, correct_answer)
+        # Приоритет: raw exact → raw числовое несовпадение (стоп) → извлечённое заземление →
+        # извлечённое числовое несовпадение (стоп) → мнение ИИ. Доказуемое число авторитетнее ИИ;
+        # сырое число важнее извлечения (иначе ИИ «извлекает» эталон из неверного 0,667 → ложно).
+        if exact:
+            correct = True
+        elif numeric_mismatch(student_answer, correct_answer):
+            correct = False
+        elif extracted_ok:
+            correct = True
+        elif numeric_mismatch(extracted, correct_answer):  # extracted=None → mismatch False
+            correct = False
+        else:
+            correct = assessment.equivalent
+        if correct and not assessment.equivalent:
+            # вердикт по заземлению авторитетен; противоречащий ИИ-текст заменяем безопасным.
+            feedback = "Верно."
+        else:
+            feedback = self._mask_answer(assessment.feedback, correct_answer, correct)
+        if not feedback:
+            feedback = "Верно." if correct else "Неверно."
+        # "exact" только для raw exact; извлечённо-заземлённый → llm_equivalent (так record_slice
+        # доверяет верному «покажи ход»-ответу, у которого сырой текст ≠ ключу).
+        method = "exact" if exact else ("llm_equivalent" if correct else "llm_rejected")
+        return AnswerJudgment(correct, feedback, method, *provenance)
+
+    @staticmethod
+    def _mask_answer(feedback: str, correct_answer: str, correct: bool) -> str:
+        """Сохраняем разбор ИИ, маскируя сам эталон (`…`). Голая строка — лишь когда маскировка
+        не очистила текст (формат не совпал), чтобы никогда не отдать эталон дословно."""
+        key = normalize_answer(correct_answer)
+        if len(key) < 2 or key not in normalize_answer(feedback):
+            return feedback
+        raw = correct_answer.strip()
+        masked = feedback
+        for form in {raw, raw.replace(",", "."), raw.replace(".", ",")}:
+            if form:
+                masked = masked.replace(form, "…")
+        if key in normalize_answer(masked):
+            return "Верно." if correct else "Близко — проверь ещё раз."
+        return masked
+
+    @staticmethod
+    def _drill_draft(judgment: AnswerJudgment, task: object) -> EvidenceDraft:
+        """EvidenceDraft дрилла из вердикта политики (PASSED/FAILED + провенанс)."""
+        passed = judgment.correct
+        category = ErrorCategory.NONE if passed else (task.error_category or ErrorCategory.OTHER)
+        return EvidenceDraft(
+            score_percent=100.0 if passed else 0.0,
+            error_category=category,
+            feedback=judgment.feedback,
+            next_action="Тема засчитана." if passed else "Повтори задачу и реши заново.",
+            model_id=judgment.model_id or "exact-answer",
+            prompt_version=judgment.prompt_version or "none",
+            rubric_version=judgment.rubric_version or "ege-mentor-v1",
+            status=EvidenceStatus.PASSED if passed else EvidenceStatus.FAILED,
+        )
 
     def list_errors(
         self,
@@ -228,6 +508,9 @@ class LearningService:
                     "coverage": {
                         "confirmed": confirmed,
                         "in_progress": sum(1 for t in topics if t["state"] in in_progress_states),
+                        "under_review": sum(
+                            1 for t in topics if t["state"] == TopicState.UNDER_REVIEW
+                        ),
                         "open": sum(1 for t in topics if t["state"] == TopicState.OPEN),
                         "total": total,
                     },
@@ -243,6 +526,109 @@ class LearningService:
         self, student_id: UUID, topic_id: UUID | None = None, limit: int = 50
     ) -> list[dict[str, object]]:
         return self._uow.evidence.list_attempt_history(student_id, topic_id, limit)
+
+    def weekly_digest(self, student_id: UUID, days: int = 7) -> dict[str, object]:
+        """Read-only pilot analytics from existing attempts, slices, errors, and reviews."""
+        days = max(1, min(int(days), 90))
+        now = datetime.now(UTC)
+        since = now - timedelta(days=days)
+        since_date = since.date()
+
+        def _aware(value: object) -> datetime | None:
+            if not isinstance(value, datetime):
+                return None
+            return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+        def _enum_value(value: object) -> str:
+            return getattr(value, "value", str(value))
+
+        attempts = [
+            row
+            for row in self.list_attempt_history(student_id, limit=500)
+            if (created_at := _aware(row.get("created_at"))) is not None and created_at >= since
+        ]
+        passed_attempts = sum(1 for row in attempts if row.get("status") == EvidenceStatus.PASSED)
+        topics_touched = sorted(
+            {
+                str(row.get("topic_title") or row.get("topic_id"))
+                for row in attempts
+                if row.get("topic_title") or row.get("topic_id")
+            }
+        )
+
+        diagnostics = [
+            row
+            for row in self.list_diagnostics(student_id)
+            if row.get("occurred_on") is not None and row["occurred_on"] >= since_date
+        ]
+        captured_diagnostics = sum(1 for row in diagnostics if row.get("captured"))
+
+        recent_score_events = [
+            row
+            for row in self.list_score_events(student_id, limit=50)
+            if row.get("occurred_on") is not None and row["occurred_on"] >= since_date
+        ]
+
+        errors = [
+            row
+            for row in self.list_errors(student_id)
+            if (created_at := _aware(row.get("created_at"))) is not None and created_at >= since
+        ]
+        error_counts: dict[str, int] = {}
+        for row in errors:
+            category = _enum_value(row.get("category"))
+            error_counts[category] = error_counts.get(category, 0) + 1
+
+        review_counts: dict[str, int] = {}
+        for row in self.list_reviews(student_id):
+            status = _enum_value(row.get("status"))
+            review_counts[status] = review_counts.get(status, 0) + 1
+
+        return {
+            "period": {"days": days, "since": since_date, "until": now.date()},
+            "engagement": {
+                "attempts": len(attempts),
+                "active_days": len(
+                    {
+                        created_at.date()
+                        for row in attempts
+                        if (created_at := _aware(row.get("created_at"))) is not None
+                    }
+                ),
+            },
+            "learning": {
+                "passed_attempts": passed_attempts,
+                "pass_rate": round(passed_attempts / len(attempts), 2) if attempts else None,
+                "topics_touched": topics_touched,
+            },
+            "diagnostics": {
+                "count": len(diagnostics),
+                "captured": captured_diagnostics,
+                "score_only": len(diagnostics) - captured_diagnostics,
+                "recent": diagnostics[:5],
+            },
+            "scores": {
+                "recent": recent_score_events[:5],
+                "latest_by_subject": {
+                    _enum_value(track["subject"]): {
+                        "current_score": track["current_score"],
+                        "target_score": track["target_score"],
+                        "score_gap": track["score_gap"],
+                    }
+                    for track in self.get_dashboard(student_id)["tracks"]
+                },
+            },
+            "errors": {
+                "count": len(errors),
+                "by_category": [
+                    {"category": category, "count": count}
+                    for category, count in sorted(error_counts.items())
+                ],
+                "recent": errors[:5],
+            },
+            "reviews": review_counts,
+            "manual_reviews_pending": len(self.list_manual_reviews(student_id)),
+        }
 
     def list_tasks(self, status: TaskStatus | None = None) -> list[dict[str, object]]:
         return self._uow.tasks.list_tasks(status)
@@ -274,6 +660,77 @@ class LearningService:
         task = self._uow.tasks.approve(task_id)
         self._uow.commit()
         return task
+
+    def drill_solution_visual(
+        self, mission_id: UUID, student_answer: str | None = None
+    ) -> VisualAid | None:
+        """Post-attempt visual aid: a number-line PNG comparing the correct
+        solution (blue) with the student's answer (orange) when both are
+        parseable intervals. If only the expected answer is parseable, render
+        only the correct solution. Returns None for scalar answers or when
+        the task has no expected_answer.
+
+        Called only after the attempt is recorded so the solution set is the
+        разбор, not a pre-attempt leak. Renderer lives in infrastructure."""
+        mission = self._uow.missions.get_for_attempt(mission_id)
+        task = self._uow.tasks.get(mission.task_id) if mission.task_id is not None else None
+        if task is None:
+            return None
+
+        expected_answer = getattr(task, "expected_answer", None)
+        expected_intervals = parse_interval_answer(expected_answer)
+        if expected_intervals is None:
+            spec = parse_probability_visual_spec(
+                task.statement, task.expected_answer, task.source_ref
+            )
+            if spec is None:
+                return None
+            from app.infrastructure.figures_render import render_probability_visual
+
+            png = render_probability_visual(spec)
+            return VisualAid(
+                kind="probability",
+                png=png,
+                caption=self._probability_visual_caption(spec),
+            )
+
+        from app.infrastructure.figures_render import render_number_line
+
+        student_intervals = parse_interval_answer_from_text(student_answer) if student_answer else None
+
+        if student_intervals is not None:
+            png = render_number_line(
+                expected_intervals,
+                label="Решение",
+                student_intervals=student_intervals,
+                student_label="Ответ",
+            )
+            caption = "Синее — решение, оранжевое — твой ответ"
+        else:
+            png = render_number_line(expected_intervals, label="Решение")
+            if student_answer:
+                caption = "Решение на числовой прямой; твой ответ не удалось распознать как интервал"
+            else:
+                caption = "Решение на числовой прямой"
+
+        return VisualAid(kind="number_line", png=png, caption=caption)
+
+    @staticmethod
+    def _probability_visual_caption(spec: object) -> str:
+        if getattr(spec, "chart_type", None) == "bar_chart":
+            return "Столбцы: складываем подходящие группы"
+        if getattr(spec, "highlight_cell", None) == "neither":
+            return "Таблица 2x2: выделено «ни одного события»"
+        if getattr(spec, "highlight_cell", None) == "only_a":
+            return "Таблица 2x2: выделено «только первое событие»"
+        return "Схема к задаче на вероятность"
+
+    def drill_solution_figure(self, mission_id: UUID) -> bytes | None:
+        """Backward-compatible wrapper: renders the correct solution only (no
+        student answer overlay). Kept for tests and any caller that does not
+        have a student_answer to pass."""
+        visual = self.drill_solution_visual(mission_id)
+        return visual.png if visual is not None else None
 
     def create_mission(self, values: dict[str, object]) -> object:
         mission = self._uow.missions.create({**self._prepare_task_link(values), "id": uuid4()})
@@ -317,33 +774,84 @@ class LearningService:
         self._uow.commit()
         return event
 
-    def draw_slice(self, subject: Subject, size: int) -> list[dict[str, object]]:
+    def list_score_events(self, student_id: UUID, limit: int = 20) -> list[dict[str, object]]:
+        return self._uow.scores.list_events(student_id, limit)
+
+    def draw_slice(
+        self, subject: Subject, size: int, topic_id: UUID | None = None
+    ) -> list[dict[str, object]]:
         """Draw a knowledge slice: a random sample of approved, exact-answer tasks.
-        Returns statements only — the answer key never leaves the backend (§5)."""
-        pool = self._uow.tasks.list_gradable(subject)
+        ``topic_id`` scopes the срез to one topic. Returns statements only — the answer key
+        never leaves the backend (§5)."""
+        pool = self._uow.tasks.list_gradable(subject, topic_id)
         chosen = random.sample(pool, min(size, len(pool)))
         return [
             {"task_id": task.id, "task_number": task.task_number, "statement": task.statement}
             for task in chosen
         ]
 
-    def grade_slice(
-        self, student_id: UUID, subject: Subject, items: list[dict[str, object]]
+    def list_slice_topics(self, student_id: UUID) -> list[dict[str, object]]:
+        """Темы с задачами в банке — для выбора темы среза (TG/сайт)."""
+        rows = self._uow.topics.list_program(student_id)
+        topics = [
+            {
+                "topic_id": row["topic_id"],
+                "title": row["topic_title"],
+                "subject": row["subject"],
+                "tasks_in_bank": row["tasks_in_bank"],
+            }
+            for row in rows
+            if row["tasks_in_bank"] > 0
+        ]
+        topics.sort(key=lambda t: (t["subject"], t["title"]))
+        return topics
+
+    async def judge_task_answer(
+        self, task_id: UUID, answer_text: str | None
     ) -> dict[str, object]:
-        """Grade a slice deterministically by exact-answer match (no LLM). Records one
-        aggregate study-log diagnostic (§17a) + an error event per miss (§13). A slice is a
-        topic_check (§11): it does not create a score event, so current_score is untouched."""
+        """Единая точка оценки одного ответа по задаче банка (ключ на сервере). Возвращает вердикт
+        + фидбек + grading_method + провенанс, без ключа. Используют срез (сайт+TG) и дрилл."""
+        if not isinstance(task_id, UUID):
+            task_id = UUID(str(task_id))
+        task = self._uow.tasks.get(task_id)
+        if task.status != TaskStatus.APPROVED:
+            raise ValueError("Slice task must be approved.")
+        judgment = await self._grade_answer(task.statement, task.expected_answer, answer_text)
+        return {
+            "task_id": task.id,
+            "answer_text": answer_text,
+            "correct": judgment.correct,
+            "feedback": judgment.feedback,
+            "grading_method": judgment.grading_method,
+            "model_id": judgment.model_id,
+            "prompt_version": judgment.prompt_version,
+            "rubric_version": judgment.rubric_version,
+        }
+
+    def record_slice(
+        self, student_id: UUID, subject: Subject, judged: list[dict[str, object]]
+    ) -> dict[str, object]:
+        """Единственная точка персистентности среза. Повторно грузит задачи и пересчитывает
+        детерминированный exact заново; доверяет только флагу ``llm_equivalent`` (server-produced,
+        без повторного ИИ). Пишет агрегатную диагностику + error-event на промах + JSON-детали для
+        аудита. Срез — topic_check: текущий балл/lifecycle не двигает."""
         now = datetime.now(UTC)
         results: list[dict[str, object]] = []
+        details: list[dict[str, object]] = []
+        topic_ids: set[UUID] = set()
         correct = 0
-        for item in items:
+        for item in judged:
             task_id = item["task_id"]
             if not isinstance(task_id, UUID):
                 task_id = UUID(str(task_id))
             task = self._uow.tasks.get(task_id)
             if task.status != TaskStatus.APPROVED or task.subject != subject:
                 raise ValueError("Slice item must reference an approved task of the subject.")
-            is_correct = answer_is_correct(item.get("answer_text"), task.expected_answer)
+            if task.topic_id is not None:
+                topic_ids.add(task.topic_id)
+            answer_text = item.get("answer_text")
+            exact = answer_is_correct(answer_text, task.expected_answer)
+            is_correct = exact or item.get("grading_method") == "llm_equivalent"
             if is_correct:
                 correct += 1
             else:
@@ -362,19 +870,37 @@ class LearningService:
                     }
                 )
             results.append({"task_id": task.id, "correct": is_correct})
-        total = len(items)
+            details.append(
+                {
+                    "task_id": str(task.id),
+                    "answer": answer_text,
+                    "correct": is_correct,
+                    "grading_method": item.get("grading_method"),
+                    "feedback": item.get("feedback"),
+                    "model_id": item.get("model_id"),
+                    "prompt_version": item.get("prompt_version"),
+                    "rubric_version": item.get("rubric_version"),
+                }
+            )
+        total = len(judged)
         fraction = correct / total if total else 0.0
+        label = SLICE_SUBJECT_LABEL.get(subject, subject.value)
+        if len(topic_ids) == 1:  # срез по одной теме — подписываем диагностику темой
+            topic = self._uow.topics.get(next(iter(topic_ids)))
+            if topic is not None:
+                label = topic.title
         self._uow.dashboard.add_diagnostic(
             {
                 "id": uuid4(),
                 "student_id": student_id,
                 "subject": subject,
                 "occurred_on": self._today(),
-                "topic_title": f"Срез — {SLICE_SUBJECT_LABEL.get(subject, subject.value)}",
+                "topic_title": f"Срез — {label}",
                 "tasks_total": total,
                 "tasks_correct": correct,
                 "percent_correct": fraction,
                 "note": None,
+                "details_json": details,
             }
         )
         self._uow.commit()
@@ -386,9 +912,25 @@ class LearningService:
             "items": results,
         }
 
+    async def grade_slice(
+        self, student_id: UUID, subject: Subject, items: list[dict[str, object]]
+    ) -> dict[str, object]:
+        """Батч-оценка среза (сайт): оценить каждый пункт через единый грейдер, затем persist.
+        На API-поверхности judge = ExactOnlyJudge → детерминированно по ключу (веб не меняем)."""
+        judged = [
+            await self.judge_task_answer(item["task_id"], item.get("answer_text")) for item in items
+        ]
+        result = self.record_slice(student_id, subject, judged)
+        feedback_by_id = {str(item["task_id"]): item["feedback"] for item in judged}
+        for row in result["items"]:
+            row["feedback"] = feedback_by_id.get(str(row["task_id"]), "")
+        return result
+
     def record_review_result(self, review_id: UUID, passed: bool) -> object:
+        existing = self._uow.reviews.get(review_id)
+        previous_status = getattr(existing, "status", None)
         item = self._uow.reviews.mark_result(review_id, review_result_to_status(passed))
-        if not passed:
+        if not passed and previous_status != ReviewStatus.BACK_TO_WORK:
             self._create_back_to_work_mission(item)
         self._uow.commit()
         return item
@@ -439,22 +981,36 @@ class LearningService:
             }
         )
 
-        draft = await self._reviewer.review_attempt(
-            AttemptForReview(
-                subject=mission.subject,
-                mission_title=mission.title,
-                topic_title=getattr(mission.topic, "title", None),
-                kind=attempt.kind,
-                mode=attempt.mode,
-                answer_text=attempt.answer_text,
-                code_text=attempt.code_text,
-                expected_answer=task.expected_answer
-                if task is not None
-                else mission.expected_answer,
-                threshold_percent=mission.threshold_percent,
-                instructions=self._review_instructions(mission, task),
+        if self._is_drill(mission) and task is not None and (task.expected_answer or "").strip():
+            # Часть-1 дрилл: общий грейдер (exact-авторитет + ИИ-эквивалентность по политике).
+            judgment = await self._grade_answer(
+                task.statement, task.expected_answer, attempt.answer_text
             )
-        )
+            draft = self._drill_draft(judgment, task)
+        else:
+            draft = await self._reviewer.review_attempt(
+                AttemptForReview(
+                    subject=mission.subject,
+                    mission_title=mission.title,
+                    topic_title=getattr(mission.topic, "title", None),
+                    kind=attempt.kind,
+                    mode=attempt.mode,
+                    answer_text=attempt.answer_text,
+                    code_text=attempt.code_text,
+                    expected_answer=task.expected_answer
+                    if task is not None
+                    else mission.expected_answer,
+                    threshold_percent=mission.threshold_percent,
+                    instructions=self._review_instructions(mission, task),
+                )
+            )
+        if mission.ai_policy == AiPolicy.MANUAL_GATE:
+            draft = replace(
+                draft,
+                score_percent=0.0,
+                status=EvidenceStatus.NEEDS_MANUAL_REVIEW,
+                next_action="Senior mentor must review this part-2 solution before progression.",
+            )
         score_percent, status = self._resolve_score(
             threshold_percent=mission.threshold_percent,
             reviewer_score_percent=draft.score_percent,

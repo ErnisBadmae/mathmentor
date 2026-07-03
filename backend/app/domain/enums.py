@@ -34,6 +34,7 @@ class AttemptKind(StrEnum):
 
 class AiPolicy(StrEnum):
     ATTEMPT_FIRST = "attempt_first"
+    MANUAL_GATE = "manual_gate"
 
 
 class EvidenceStatus(StrEnum):

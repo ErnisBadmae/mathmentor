@@ -4,6 +4,7 @@ import {
   drawSlice,
   errorMessage,
   getCurrentStudent,
+  getProgram,
   gradeSlice,
   type SliceResult,
   type SliceTask,
@@ -24,13 +25,26 @@ export function SlicePage() {
   const studentId = studentQuery.data?.id;
 
   const [subject, setSubject] = useState<Subject>('math_profile');
+  const [topicId, setTopicId] = useState<string>('');
   const [size, setSize] = useState(8);
   const [tasks, setTasks] = useState<SliceTask[] | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [result, setResult] = useState<SliceResult | null>(null);
 
+  const programQuery = useQuery({
+    queryKey: ['program', studentId],
+    queryFn: () => getProgram(studentId ?? ''),
+    enabled: !!studentId,
+  });
+  const topicOptions = (programQuery.data ?? [])
+    .flatMap((phase) => phase.topics)
+    .filter((topic) => topic.subject === subject && topic.tasks_in_bank > 0)
+    .sort((a, b) => a.topic_title.localeCompare(b.topic_title));
+  const selectedTopic = topicOptions.find((topic) => topic.topic_id === topicId);
+  const sliceLabel = selectedTopic ? selectedTopic.topic_title : subjectLabel(subject);
+
   const drawMutation = useMutation({
-    mutationFn: () => drawSlice(studentId ?? '', subject, size),
+    mutationFn: () => drawSlice(studentId ?? '', subject, size, topicId || undefined),
     onSuccess: (data) => {
       setTasks(data.items);
       setAnswers({});
@@ -71,9 +85,23 @@ export function SlicePage() {
           <form className="formGrid" onSubmit={(event) => { event.preventDefault(); drawMutation.mutate(); }}>
             <label>
               <span>Предмет</span>
-              <select value={subject} onChange={(event) => setSubject(event.target.value as Subject)}>
+              <select
+                value={subject}
+                onChange={(event) => { setSubject(event.target.value as Subject); setTopicId(''); }}
+              >
                 {SUBJECT_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Тема</span>
+              <select value={topicId} onChange={(event) => setTopicId(event.target.value)}>
+                <option value="">Вся тема (случайно)</option>
+                {topicOptions.map((topic) => (
+                  <option key={topic.topic_id} value={topic.topic_id}>
+                    {topic.topic_title} ({topic.tasks_in_bank})
+                  </option>
                 ))}
               </select>
             </label>
@@ -95,7 +123,7 @@ export function SlicePage() {
 
       {tasks && !result ? (
         <div className="panel">
-          <h2>{subjectLabel(subject)} · {tasks.length} задач</h2>
+          <h2>{sliceLabel} · {tasks.length} задач</h2>
           {tasks.length ? (
             <div className="tableList">
               {tasks.map((task, index) => (

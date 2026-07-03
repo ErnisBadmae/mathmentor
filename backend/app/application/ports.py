@@ -43,6 +43,29 @@ class EvidenceReviewer(Protocol):
     async def review_attempt(self, attempt: AttemptForReview) -> EvidenceDraft: ...
 
 
+@dataclass(frozen=True)
+class AiAssessment:
+    """Сырой вывод ИИ-судьи. Без бизнес-политики (exact-авторитет, fallback, sanitize) — её
+    применяет ``LearningService``; здесь только мнение модели + провенанс.
+
+    ``extracted_answer`` — финальный ответ, который ИИ вытащил из решения ученика (формат
+    «покажи ход»): по нему сервис детерминированно заземляет вердикт. ``feedback`` уже
+    учитывает метод (если ответ верный, но ход неверный — ИИ это отмечает)."""
+
+    equivalent: bool
+    extracted_answer: str | None
+    feedback: str
+    model_id: str
+    prompt_version: str
+    rubric_version: str
+
+
+class ShortAnswerJudge(Protocol):
+    async def assess(
+        self, statement: str, correct_answer: str, student_answer: str | None
+    ) -> AiAssessment | None: ...
+
+
 class UnitOfWork(Protocol):
     students: "StudentRepository"
     missions: "MissionRepository"
@@ -112,11 +135,14 @@ class ReviewRepository(Protocol):
         due_on_or_before: date | None = None,
     ) -> list[dict[str, object]]: ...
 
+    def get(self, review_id: UUID) -> object | None: ...
+
     def mark_result(self, review_id: UUID, status: ReviewStatus) -> object: ...
 
 
 class ScoreRepository(Protocol):
     def add_event(self, values: dict[str, object]) -> object: ...
+    def list_events(self, student_id: UUID, limit: int = 20) -> list[dict[str, object]]: ...
 
 
 class TopicRepository(Protocol):
@@ -130,9 +156,14 @@ class TaskRepository(Protocol):
     def add(self, values: dict[str, object]) -> object: ...
     def approve(self, task_id: UUID) -> object: ...
     def list_tasks(self, status: object | None = None) -> list[dict[str, object]]: ...
-    def list_gradable(self, subject: Subject) -> list[object]: ...
+    def list_gradable(self, subject: Subject, topic_id: UUID | None = None) -> list[object]: ...
+    def list_approved_for_topic(
+        self, topic_id: UUID, exclude_assigned_to: UUID | None = None
+    ) -> list[object]: ...
 
 
 class MentorNoteRepository(Protocol):
     def add(self, values: dict[str, object]) -> object: ...
     def list_recent(self, student_id: UUID, limit: int = 20) -> list[dict[str, object]]: ...
+    def list_undelivered(self, student_id: UUID) -> list[dict[str, object]]: ...
+    def mark_delivered(self, note_ids: list[UUID]) -> None: ...

@@ -4,7 +4,7 @@ import re
 import httpx
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from app.application.ports import AttemptForReview, EvidenceDraft
+from app.application.ports import AiAssessment, AttemptForReview, EvidenceDraft
 from app.config import LlmConnection
 from app.domain.enums import ErrorCategory, EvidenceStatus
 
@@ -170,6 +170,92 @@ class OpenAICompatibleReviewer:
             error_category=payload.error_category,
             feedback=payload.feedback,
             next_action=payload.next_action,
+            model_id=self._conn.model,
+            prompt_version=self.prompt_version,
+            rubric_version=self.rubric_version,
+        )
+
+
+EQUIVALENCE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "equivalent": {"type": "boolean"},
+        "extracted_answer": {"type": "string"},
+        "feedback": {"type": "string", "minLength": 1},
+    },
+    "required": ["equivalent", "extracted_answer", "feedback"],
+    "additionalProperties": False,
+}
+
+
+class LlmEquivalencePayload(BaseModel):
+    equivalent: bool
+    extracted_answer: str = ""
+    feedback: str = Field(min_length=1)
+
+
+class LlmShortAnswerJudge:
+    """ИИ-судья короткого ответа: сверяет ответ ученика с ВЕРИФИЦИРОВАННЫМ эталоном и решает
+    эквивалентность. Возвращает только сырое мнение модели (``AiAssessment``); бизнес-политику
+    (exact-авторитет, fallback, sanitize) применяет ``LearningService``. Любой сбой → ``None``."""
+
+    prompt_version = "show-work-v2"
+    rubric_version = "ege-mentor-v1"
+
+    def __init__(self, connection: LlmConnection) -> None:
+        self._conn = connection
+
+    async def assess(
+        self, statement: str, correct_answer: str, student_answer: str | None
+    ) -> AiAssessment | None:
+        system = (
+            "Ученик прислал РЕШЕНИЕ задачи ЕГЭ (с ходом). У тебя есть ВЕРИФИЦИРОВАННЫЙ "
+            "эталонный ответ. Сделай: (1) extracted_answer — извлеки финальный ответ ученика "
+            "из решения (если ответа нет — пустая строка); (2) equivalent — совпадает ли "
+            "извлечённый ответ по значению с эталоном (учитывай эквивалентные формы 0.5=1/2, "
+            "2,5=2.5, порядок корней; при сомнении false); (3) feedback по-русски, коротко: "
+            "оцени ХОД решения — если ответ верный, но метод/ход неверный, ЯВНО это отметь; "
+            "если верно — закрепи; если неверно — мягкая подсказка. НИКОГДА не пиши сам эталон "
+            "и не давай готовое решение. Строгий JSON: equivalent (bool), extracted_answer "
+            "(string), feedback (string).\n" + PHONE_NOTATION_HINT
+        )
+        user = {
+            "statement": statement,
+            "correct_answer": correct_answer,
+            "student_answer": student_answer,
+            "student_answer_normalized": normalize_student_notation(student_answer),
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self._conn.timeout) as client:
+                response = await client.post(
+                    f"{self._conn.base_url.rstrip('/')}/chat/completions",
+                    headers={"Authorization": f"Bearer {self._conn.api_key}"},
+                    json={
+                        "model": self._conn.model,
+                        "messages": [
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": json.dumps(user, ensure_ascii=False)},
+                        ],
+                        "temperature": 0,
+                        "response_format": {
+                            "type": "json_schema",
+                            "json_schema": {
+                                "name": "equivalence",
+                                "strict": True,
+                                "schema": EQUIVALENCE_SCHEMA,
+                            },
+                        },
+                    },
+                )
+                response.raise_for_status()
+            content = response.json()["choices"][0]["message"]["content"]
+            payload = LlmEquivalencePayload.model_validate_json(content)
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError, ValidationError):
+            return None
+        return AiAssessment(
+            equivalent=payload.equivalent,
+            extracted_answer=payload.extracted_answer or None,
+            feedback=payload.feedback,
             model_id=self._conn.model,
             prompt_version=self.prompt_version,
             rubric_version=self.rubric_version,

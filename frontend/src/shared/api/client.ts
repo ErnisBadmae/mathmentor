@@ -15,6 +15,7 @@ export type ErrorCategory =
 export type EvidenceStatus = 'passed' | 'failed' | 'needs_manual_review';
 export type ReviewStatus = 'due' | 'done' | 'back_to_work';
 export type TopicState = 'open' | 'in_work' | 'under_review' | 'confirmed' | 'back_to_work';
+export type AiPolicy = 'attempt_first' | 'manual_gate';
 
 export type Student = {
   id: string;
@@ -36,6 +37,7 @@ export type MentorNote = {
   topic_title: string | null;
   source_ref: string | null;
   created_at: string;
+  delivered_at: string | null;
 };
 
 export type Dashboard = {
@@ -87,7 +89,7 @@ export type ProgramPhase = {
   end_date: string;
   is_current: boolean;
   percent: number;
-  coverage: { confirmed: number; in_progress: number; open: number; total: number };
+  coverage: { confirmed: number; in_progress: number; under_review: number; open: number; total: number };
   topics: ProgramTopic[];
 };
 
@@ -107,20 +109,25 @@ export type Mission = {
   title: string;
   instructions: string;
   statement: string | null;
+  ai_policy: AiPolicy;
+  task_number: string | null;
   threshold_percent: number;
   due_date: string | null;
   timebox_minutes: number | null;
+  source_ref: string | null;
 };
 
 export type MissionDraft = {
   subject: Subject;
   title: string;
   instructions?: string;
+  ai_policy?: AiPolicy;
   threshold_percent?: number;
   topic_id?: string | null;
   task_id?: string | null;
   due_date?: string | null;
   timebox_minutes?: number | null;
+  source_ref?: string | null;
 };
 
 export type ErrorEvent = {
@@ -256,6 +263,10 @@ export function getDashboard(studentId: string): Promise<Dashboard> {
   return request<Dashboard>(`/students/${studentId}/dashboard`);
 }
 
+export function getScoreEvents(studentId: string): Promise<ScoreEvent[]> {
+  return request<ScoreEvent[]>(`/students/${studentId}/score-events`);
+}
+
 export function getTodayMissions(studentId: string): Promise<Mission[]> {
   return request<Mission[]>(`/students/${studentId}/missions/today`);
 }
@@ -355,9 +366,11 @@ export function drawSlice(
   studentId: string,
   subject: Subject,
   size: number,
+  topicId?: string | null,
 ): Promise<{ subject: Subject; items: SliceTask[] }> {
+  const topicParam = topicId ? `&topic_id=${topicId}` : '';
   return request<{ subject: Subject; items: SliceTask[] }>(
-    `/students/${studentId}/slices/draw?subject=${subject}&size=${size}`,
+    `/students/${studentId}/slices/draw?subject=${subject}&size=${size}${topicParam}`,
   );
 }
 

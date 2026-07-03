@@ -229,6 +229,22 @@ MISSIONS = [
         80.0,
         "seed:informatics:combinatorics-words",
     ),
+    (
+        Subject.MATH_PROFILE,
+        12,
+        "Часть 2 №13: тригонометрическое уравнение",
+        "Сначала реши на бумаге без подсказок. Затем перенеси полный ход решения текстом: преобразования, серии корней и отбор на отрезке. Автопроверки нет, решение уйдет наставнику.",
+        80.0,
+        "part2:text:13:trig-equation-a",
+    ),
+    (
+        Subject.MATH_PROFILE,
+        5,
+        "Часть 2 №15: логарифмическое неравенство",
+        "Сначала реши на бумаге без подсказок. Затем перенеси полный ход решения текстом: ОДЗ, преобразование, метод интервалов и ответ. Автопроверки нет, решение уйдет наставнику.",
+        80.0,
+        "part2:text:15:log-inequality-a",
+    ),
 ]
 
 TASKS = [
@@ -372,6 +388,36 @@ TASKS = [
         "source_ref": "corpus:slice4:task12",
     },
     {
+        "id": 4071,
+        "subject": Subject.MATH_PROFILE,
+        "topic_index": 12,
+        "task_number": "part2-13-text-a",
+        "statement": (
+            "Задача 13. Решите уравнение 2sin^2(x) - 3sin(x) + 1 = 0. "
+            "В ответе запишите полный ход решения и отбор корней на отрезке [0; 2π]."
+        ),
+        "expected_answer": "",
+        "solution": "Manual-gated part-2 task: mentor checks equation transform, root families, and interval selection.",
+        "error_category": ErrorCategory.ODZ_LOGIC,
+        "source": "part2_seed",
+        "source_ref": "part2:text:13:trig-equation-a",
+    },
+    {
+        "id": 4072,
+        "subject": Subject.MATH_PROFILE,
+        "topic_index": 5,
+        "task_number": "part2-15-text-a",
+        "statement": (
+            "Задача 15. Решите неравенство log_2(x - 1) + log_2(5 - x) >= 1. "
+            "В ответе запишите ОДЗ, преобразования и итоговый промежуток."
+        ),
+        "expected_answer": "",
+        "solution": "Manual-gated part-2 task: mentor checks domain, logarithm transformation, and interval method.",
+        "error_category": ErrorCategory.ODZ_LOGIC,
+        "source": "part2_seed",
+        "source_ref": "part2:text:15:log-inequality-a",
+    },
+    {
         "id": 4013,
         "subject": Subject.MATH_PROFILE,
         "topic_index": 4,
@@ -412,6 +458,103 @@ TASKS = [
         "solution": "Только дождь = P(дождь) − P(дождь и ветер) = 0,4 − 0,15 = 0,25.",
         "error_category": ErrorCategory.PROBABILITY_DOUBLE_COUNT,
         "source_ref": "corpus:probability:task-c",
+    },
+    {
+        "id": 4091,
+        "subject": Subject.MATH_PROFILE,
+        "topic_index": 4,
+        "task_number": "prob-independent-a",
+        "statement": (
+            "Биатлонист попадает в мишень с вероятностью 0,6. Он делает два независимых выстрела. "
+            "Найдите вероятность того, что он попадёт оба раза."
+        ),
+        "expected_answer": "0,36",
+        "solution": "Выстрелы независимы, поэтому вероятности перемножаем: 0,6 · 0,6 = 0,36.",
+        "error_category": ErrorCategory.OTHER,
+        "source_ref": "corpus:probability:independent-a",
+    },
+    {
+        "id": 4092,
+        "subject": Subject.MATH_PROFILE,
+        "topic_index": 4,
+        "task_number": "prob-complement-a",
+        "statement": (
+            "Вероятность того, что новый прибор прослужит больше года, равна 0,92. "
+            "Найдите вероятность того, что прибор сломается в течение первого года."
+        ),
+        "expected_answer": "0,08",
+        "solution": "Событие «сломается в первый год» противоположно событию «прослужит больше года»: 1 − 0,92 = 0,08.",
+        "error_category": ErrorCategory.CONDITION_READING,
+        "source_ref": "corpus:probability:complement-a",
+    },
+    {
+        "id": 4093,
+        "subject": Subject.MATH_PROFILE,
+        "topic_index": 4,
+        "task_number": "prob-at-least-one-a",
+        "statement": (
+            "Два станка работают независимо. Вероятность отказа первого за смену равна 0,1, второго — 0,2. "
+            "Найдите вероятность того, что за смену откажет хотя бы один станок."
+        ),
+        "expected_answer": "0,28",
+        "solution": "Удобнее взять дополнение: ни один не отказал с вероятностью 0,9 · 0,8 = 0,72. Тогда хотя бы один отказал: 1 − 0,72 = 0,28.",
+        "error_category": ErrorCategory.PROBABILITY_DOUBLE_COUNT,
+        "source_ref": "corpus:probability:at-least-one-a",
+    },
+    {
+        "id": 4094,
+        "subject": Subject.MATH_PROFILE,
+        "topic_index": 4,
+        "task_number": "prob-conditional-a",
+        "statement": (
+            "В классе 12 мальчиков и 18 девочек. Известно, что 6 мальчиков и 9 девочек ходят в кружок. "
+            "Случайно выбранный ученик ходит в кружок. Найдите вероятность того, что это девочка."
+        ),
+        "expected_answer": "0,6",
+        "solution": "Среди учеников кружка всего 6 + 9 = 15 человек, из них 9 девочек. Вероятность 9/15 = 0,6.",
+        "error_category": ErrorCategory.CONDITION_READING,
+        "source_ref": "corpus:probability:conditional-a",
+    },
+    {
+        "id": 4095,
+        "subject": Subject.MATH_PROFILE,
+        "topic_index": 4,
+        "task_number": "prob-without-repl-a",
+        "statement": (
+            "В коробке 5 белых и 7 чёрных шаров. Из коробки подряд без возвращения достают два шара. "
+            "Найдите вероятность того, что оба шара белые."
+        ),
+        "expected_answer": "5/33",
+        "solution": "Первый белый: 5/12. После этого осталось 4 белых из 11 шаров. Вероятность 5/12 · 4/11 = 20/132 = 5/33.",
+        "error_category": ErrorCategory.CONDITION_READING,
+        "source_ref": "corpus:probability:without-replacement-a",
+    },
+    {
+        "id": 4096,
+        "subject": Subject.MATH_PROFILE,
+        "topic_index": 4,
+        "task_number": "prob-bernoulli-a",
+        "statement": (
+            "Монету бросают три раза. Найдите вероятность того, что орёл выпадет ровно два раза."
+        ),
+        "expected_answer": "3/8",
+        "solution": "Всего 2^3 = 8 равновероятных исходов. Ровно два орла: ООР, ОРО, РОО — 3 исхода. Вероятность 3/8.",
+        "error_category": ErrorCategory.OTHER,
+        "source_ref": "corpus:probability:bernoulli-a",
+    },
+    {
+        "id": 4097,
+        "subject": Subject.MATH_PROFILE,
+        "topic_index": 4,
+        "task_number": "prob-union-disjoint-a",
+        "statement": (
+            "На экзамене билет содержит одну задачу. Вероятность получить задачу по алгебре равна 0,35, "
+            "по геометрии — 0,25. Эти события несовместны. Найдите вероятность получить задачу по алгебре или геометрии."
+        ),
+        "expected_answer": "0,6",
+        "solution": "События несовместны, поэтому складываем без вычитания пересечения: 0,35 + 0,25 = 0,6.",
+        "error_category": ErrorCategory.PROBABILITY_DOUBLE_COUNT,
+        "source_ref": "corpus:probability:union-disjoint-a",
     },
     {
         "id": 4016,
@@ -852,6 +995,8 @@ def seed() -> None:
         ):
             topic_id = topic_ids[TOPICS[topic_index][0], TOPICS[topic_index][1]]
             task = task_by_ref.get(task_ref) if task_ref is not None else None
+            is_part2_manual_gate = bool(task_ref and task_ref.startswith("part2:text:"))
+            mission_source_ref = task_ref if is_part2_manual_gate else None
             if title in existing_mission_titles:
                 for mission in (
                     session.query(MissionORM)
@@ -863,6 +1008,10 @@ def seed() -> None:
                     mission.task_id = task.id if task is not None else None
                     mission.instructions = instructions
                     mission.threshold_percent = threshold
+                    mission.ai_policy = (
+                        AiPolicy.MANUAL_GATE if is_part2_manual_gate else AiPolicy.ATTEMPT_FIRST
+                    )
+                    mission.source_ref = mission_source_ref
                 continue
             session.add(
                 MissionORM(
@@ -874,9 +1023,12 @@ def seed() -> None:
                     title=title,
                     instructions=instructions,
                     status=MissionStatus.ACTIVE,
-                    ai_policy=AiPolicy.ATTEMPT_FIRST,
+                    ai_policy=(
+                        AiPolicy.MANUAL_GATE if is_part2_manual_gate else AiPolicy.ATTEMPT_FIRST
+                    ),
                     threshold_percent=threshold,
                     due_date=date.today(),
+                    source_ref=mission_source_ref,
                 )
             )
 
