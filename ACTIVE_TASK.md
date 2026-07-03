@@ -12,6 +12,7 @@
 - Triage of nightly batch 093450:
   - accepted: sandbox `manual_gate_text_solution`, sandbox MCP contract, error-intervention readiness, and part-2 post-change checks are GREEN;
   - no urgent code: suggested sandbox expansions (attempt-mode comparison, threshold close, error-category journal propagation) are useful later but not blockers;
+  - future blocker before deterministic intervention: slice/srez errors currently land as `other`, and `other` already dominates `top_errors` (6); add a small Codex slice to categorize srez errors before using `top_error_category` for routing;
   - note for later operator work: when mission-create/edit UX grows part-2 support, guard against accidentally creating `part2:text:*` missions with `ATTEMPT_FIRST`;
   - skip/low: `publish_feedback` weekly dedup test, Part2Page empty-state/filter test, task 4071 wording check before first real part-2 session.
 - Next:

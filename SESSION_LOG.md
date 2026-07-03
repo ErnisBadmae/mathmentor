@@ -11,6 +11,7 @@ Status: reviewed; no product code changes required.
 - Live nightly run `C:\tmp\egeMentor-qwen-runs\2026-07-03\report-093450.md`: 4/4 GREEN.
 - Accepted: sandbox MCP contract and `manual_gate_text_solution` are guarded by tests; part-2 post-change QA passed; error-intervention readiness remains read-only.
 - No urgent code from Qwen findings: attempt-mode comparison, threshold-close simulator, and error-category journal propagation can wait.
+- Future blocker before unfreezing deterministic intervention: slice/srez errors currently write category `other`, and `other` already dominates `top_errors` (6); add a small Codex slice to categorize srez errors before routing by `top_error_category`.
 - Frozen rule stays frozen: do not implement deterministic repeated-error daily-queue routing until 2-3 weeks of weekly-review data.
 - Later operator note: if part-2 mission creation is exposed in UX/MCP flows, guard `part2:text:*` missions from accidental `ATTEMPT_FIRST`.
 
