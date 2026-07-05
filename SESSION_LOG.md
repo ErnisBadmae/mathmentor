@@ -1,6 +1,37 @@
 # Session Log
 
-Журнал рабочих сессий. Последние 15 записей. Старое — в `archive/SESSION_LOG_[YEAR]-[MONTH].md`.
+Журнал рабочих сессий. Последние записи + текущая неделя.
+Старые недели — в `archive/SESSION_LOG_YYYY-Www.md`.
+
+---
+
+## 2026-07-05 - Import-linter contracts for backend
+
+Status: implemented and verified locally.
+
+- Added `import-linter>=2.0` to backend `dev` extras and configured two contracts in `backend/pyproject.toml`: `app.domain` must stay pure from `app.infrastructure` / `app.adapters` / `app.application`; `app.application` must not import `app.adapters`.
+- Added weekly no-prompt queue task `T-lint-imports` to `backend/scripts/night_queue_weekly.json`.
+- Under these two contracts the backend already had no violations, so no source import rewrites were needed; diff stayed config-only.
+- Local environment note: `pip install -e .[dev]` could not reach the package index because of proxy/socket denial, so `importlinter` + `grimp` were copied into `backend/.venv312` from the neighboring `expert-agent` venv to run the gate without changing repo runtime code.
+
+Verification: `backend\.venv312\Scripts\python.exe -m importlinter.cli --config backend/pyproject.toml` rc=0; backend suite `182 passed`; weekly queue JSON parsed.
+
+Open tail: if backend `.venv312` is recreated, `import-linter` will need a normal `.[dev]` install once package-index access works again.
+
+---
+
+## 2026-07-04 - Night runner v1.1 + unit synonyms + judge weekly gate
+
+Status: implemented and locally verified; live calibration rerun blocked by unavailable LLM endpoint.
+
+- Synced `backend/scripts/night_runner.py` with expert-agent v1.1 behavior: VERSION stamp, `.env` copy into isolated worktree, full command logs under run `logs/<task>/`, report tail `LOG_TAIL_CHARS=3000`; ege queue paths and `C:\tmp\egeMentor-qwen-runs` preserved.
+- Added exact-answer unit synonyms in `normalize_answer`: `кб|кбайт|kb`, `мб|мбайт|mb`, `гб|гбайт|gb`; single `б` stays distinct.
+- Added weekly no-prompt queue task `T-calibrate-ai-judge` with `--max-failure-rate 0.1` and `files_allowed=["data/ai_judge_disagreements.jsonl"]`; runner now enforces `files_allowed` after acceptance too.
+- Calibration rerun attempted from `backend/`: judge returned `None` for 25/25 triples because `http://192.168.0.18:8000/v1` was unreachable; no valid baseline delta recorded. The unit exact case is fixed, but the current replay row is full show-work text starting with `768 кб, ...`, so raw exact remains false without extracted-answer replay.
+
+Verification: focused grader/calibration tests `21 passed`; full backend suite `182 passed`; night runner `--dry-run` GREEN with full-log paths; weekly queue JSON parsed; `py_compile` for runner/calibration OK. `black`/`flake8` are not installed in backend venv.
+
+Open tail: rerun `scripts/calibrate_ai_judge.py` when the local LLM endpoint is reachable; if the goal is to remove the `768 кб` show-work replay disagreement, calibration needs an extracted-answer axis, not only unit suffix normalization.
 
 ---
 
@@ -17,6 +48,8 @@ Verification: focused retention slice `10 passed`; full backend suite `175 passe
 
 Open tail: commit this slice, then record the first July timed mini-mock and start weekly mentor review.
 
+---
+
 ## 2026-07-03 - Qwen live report 093450 review
 
 Status: reviewed; no product code changes required.
@@ -32,6 +65,8 @@ Verification: report acceptance was green (`test_figures` 13 passed, sandbox tes
 
 Open tail: first July timed mini-mock score event, then weekly mentor review.
 
+---
+
 ## 2026-07-03 - Manual-gate QA follow-up
 
 Status: implemented and verified locally.
@@ -46,6 +81,8 @@ Verification: focused slice `34 passed`; simulator script `ok=true`; queue JSON 
 
 Open tail: commit this follow-up, then choose live deploy/reseed for #13/#15 or schedule the first July timed baseline. Deterministic repeated-error intervention remains frozen.
 
+---
+
 ## 2026-07-03 - Morning review of nightly batch 235647
 
 Status: reviewed; no product code changed.
@@ -59,6 +96,8 @@ Verification: read-only review; all acceptance in the report rc=0.
 
 Open tail: hand the MANUAL_GATE regression + simulator `manual_gate` case to Codex as the next slice.
 
+---
+
 ## 2026-07-02 - Nightly queue: part-2 post-change QA
 
 Status: implemented and verified locally.
@@ -70,6 +109,8 @@ Status: implemented and verified locally.
 Verification: acceptance replayed with exact runner argv (rc=0 both commands); `night_runner.py --dry-run` GREEN across all 4 nightly tasks.
 
 Open tail: operator runs the live nightly batch; weekly queue untouched.
+
+---
 
 ## 2026-07-02 - Part-2 text manual gate
 
@@ -85,6 +126,8 @@ Verification: focused backend slice `35 passed`; full backend suite `171 passed`
 
 Open tail: commit this slice, then deploy/reseed live data only when ready to expose these missions to the learner. Deterministic repeated-error intervention remains frozen for 2-3 weeks of observation.
 
+---
+
 ## 2026-07-02 - Qwen queue split
 
 Status: implemented and verified locally.
@@ -97,6 +140,8 @@ Status: implemented and verified locally.
 Verification: both queue JSON files parsed; `night_runner.py` py_compile OK; nightly dry-run GREEN; weekly dry-run GREEN; backend suite `169 passed`; frontend build green.
 
 Open tail: start the text-only part-2 manual-gate flow for #13/#15. Do not code deterministic repeated-error intervention yet.
+
+---
 
 ## 2026-07-02 - Qwen report 214053 review
 
@@ -112,6 +157,8 @@ Verification: score/grader slice `20 passed`; frontend build green; queue static
 
 Open tail: commit this follow-up, then trim/split the Qwen queue before the next live run.
 
+---
+
 ## 2026-07-02 - Qwen live rerun review
 
 Status: reviewed; no completed Qwen QA report was produced.
@@ -126,6 +173,8 @@ Verification: before commit backend suite `168 passed`, frontend build green; af
 
 Open tail: rerun live Qwen from clean checkout with longer operator-side timeout or a reduced queue, then review the raw consolidated report.
 
+---
+
 ## 2026-07-02 - Qwen nightly queue refresh
 
 Status: implemented and verified locally.
@@ -138,6 +187,8 @@ Status: implemented and verified locally.
 Verification: night queue JSON parse OK; focused score/sandbox acceptance `21 passed`; backend suite `168 passed`; frontend build green; `night_runner.py --dry-run` GREEN across all queued tasks; `git diff --check` clean except CRLF warnings.
 
 Open tail: commit this slice, then run live `backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py` and review raw reports.
+
+---
 
 ## 2026-07-02 - Score-spine visibility
 
@@ -152,6 +203,8 @@ Status: implemented and verified locally.
 Verification: focused score/digest tests `19 passed`; backend suite `168 passed`; frontend build green.
 
 Open tail: commit this slice, then schedule/record the first July timed mini-mock and start weekly error-journal review.
+
+---
 
 ## 2026-07-02 - Qwen proven-delta report review
 
@@ -168,6 +221,8 @@ Verification: report acceptance in Qwen run was GREEN; no runtime code changed i
 
 Open tail: implement score-spine visibility after committing current doc/queue and probability-bank work.
 
+---
+
 ## 2026-07-02 - Proven-delta strategy alignment
 
 Status: implemented and verified locally.
@@ -180,6 +235,8 @@ Status: implemented and verified locally.
 Verification: night queue JSON parsed; strategy acceptance test slice `59 passed`; backend suite `165 passed`; frontend build green; `night_runner.py --dry-run` GREEN.
 
 Open tail: commit these doc/queue changes, then run the next live Qwen batch and review raw reports before coding L1/L2/L3 slices.
+
+---
 
 ## 2026-07-02 - Probability content-bank expansion
 
@@ -194,6 +251,8 @@ Verification: probability bank focused tests `9 passed`; backend suite `165 pass
 
 Open tail: commit this content batch. To affect live data, run the seed/update path during deploy/reseed; otherwise continue with math foundations or informatics content gaps.
 
+---
+
 ## 2026-07-02 - TG/review hardening from Qwen findings
 
 Status: implemented and verified locally.
@@ -206,6 +265,8 @@ Status: implemented and verified locally.
 Verification: focused TG/review/visual tests `49 passed`; backend suite `164 passed`; frontend build green; night-runner dry-run GREEN across all queued tasks.
 
 Open tail: commit this hardening slice; next likely work is content-bank expansion, starting with probability variety and high-gap math/informatics topics.
+
+---
 
 ## 2026-07-02 - Morning review of Qwen synthetic QA batch
 
@@ -221,6 +282,8 @@ Verification: analytics gate `25 passed`; backend suite `156 passed`; frontend b
 
 Open tail: commit the score-test date fix; rerun live Qwen batch only if a fully GREEN report is needed.
 
+---
+
 ## 2026-07-01 - Night queue expanded for read-only synthetic QA
 
 Status: implemented and verified locally; ready for operator live run.
@@ -233,6 +296,8 @@ Status: implemented and verified locally; ready for operator live run.
 Verification: simulator direct run OK with 7 cases; MCP/simulator tests `2 passed`; backend suite `156 passed`; frontend build green; `release_smoke.py` py_compile green; night-runner dry-run GREEN across all queued tasks.
 
 Open tail: run live `backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py`; morning-review raw reports before changing product code.
+
+---
 
 ## 2026-07-01 - Synthetic tester coverage expanded for probability tables
 
@@ -247,6 +312,8 @@ Status: implemented and verified locally.
 Verification: simulator direct run OK with 6 cases; focused simulator/probability tests `13 passed`; backend suite `156 passed`; frontend build green; night-runner dry-run GREEN.
 
 Open tail: commit this follow-up, then run one live Qwen report against the expanded simulator.
+
+---
 
 ## 2026-07-01 - Night-runner dry-run for local Qwen harness
 
@@ -269,6 +336,8 @@ Verification: `backend\.venv312\Scripts\python.exe backend\scripts\night_runner.
 
 Open tail: morning-review auto branch `auto/2026-07-01-134418/T-qwen-write-probe`, then replace the probe queue with a real but low-risk report/mechanical task.
 
+---
+
 ## 2026-07-01 - Night queue switched from probe to report task
 
 Status: implemented and dry-run verified.
@@ -283,6 +352,8 @@ Status: implemented and dry-run verified.
 Verification: simulator OK; focused tests `28 passed`; backend suite `155 passed`; frontend build green; `night_runner.py --dry-run` -> GREEN.
 
 Open tail: operator may run live report task manually; deploy/smoke of `api` + `bot` remains an operator/Codex action, not a Qwen task.
+
+---
 
 ## 2026-07-01 - Sandbox MCP for synthetic tester
 
@@ -300,6 +371,8 @@ Live Qwen report `report-161442.md`: GREEN. Qwen used the sandbox surface, chang
 
 Open tail: decide which Qwen findings to address first; stale auto worktrees from earlier calibration can be cleaned after review.
 
+---
+
 ## 2026-07-01 - Synthetic tester finding fixed: passed case + unparseable caption
 
 Status: implemented and verified locally.
@@ -311,6 +384,8 @@ Status: implemented and verified locally.
 Verification: simulator direct run OK with 4 cases; focused tests `18 passed`; backend suite `156 passed`; frontend build green; night-runner dry-run GREEN.
 
 Open tail: next sandbox expansion candidate is slice/review-card flow, not another renderer.
+
+---
 
 ## 2026-07-01 - Probability visual spike integrated narrowly
 
@@ -324,6 +399,8 @@ Status: implemented and verified locally.
 Verification: `backend\.venv312\Scripts\python.exe -m pytest backend\tests -q` -> 154 passed, 1 existing Starlette/httpx warning; `npm.cmd run build` in `frontend` -> green.
 
 Open tail: deploy/observe whether probability visuals reduce `PROBABILITY_DOUBLE_COUNT`; do not generalize parser beyond known source_refs until more tasks justify it.
+
+---
 
 ## 2026-07-01 - Docker deploy and release smoke after visuals
 
@@ -339,6 +416,8 @@ Verification command: `docker compose exec -T -e PUBLIC_API_BASE_URL=http://api:
 
 Open tail: manual Telegram smoke remains: send `/today`, answer an interval drill if available, and verify post-attempt visual image/caption.
 
+---
+
 ## 2026-06-30 - Weekly digest run and mentor-note draft
 
 Status: digest read from DB; note drafted in chat, not published to TG.
@@ -351,6 +430,8 @@ Status: digest read from DB; note drafted in chat, not published to TG.
 Verification: read-only service calls through current `LearningService.weekly_digest`, `list_manual_reviews`, `list_attempt_history`; no DB writes.
 
 Open tail: operator should approve/edit the mentor-note text before publishing; then close the two old manual-review items if they are known correct/incorrect.
+
+---
 
 ## 2026-06-30 - Judge reliability + weekly digest
 
@@ -365,7 +446,9 @@ Verification: `backend\.venv312\Scripts\python.exe -m pytest backend\tests -q` -
 
 Open tail: use MCP `weekly_digest` for the next weekly mentor note; feedback compression and complex-practice track remain deferred until observed need.
 
-## 2026-06-29 — Заметка по срезу 28.06 опубликована и доставлена Ульяне
+---
+
+## 2026-06-29 - Заметка по срезу 28.06 опубликована и доставлена Ульяне
 
 Статус: на сайте + доставлена в TG (`delivered_at`=29.06 06:59)
 
@@ -374,7 +457,9 @@ Open tail: use MCP `weekly_digest` for the next weekly mentor note; feedback com
 - Заметка `9f113dd1` через `publish_feedback` (сайт-лента) → доставлена в чат ученика прод-ботом (`_deliver_mentor_notes`). Детальная+мотивирующая: победа по вероятности, фикс записи степеней, фокус (проценты №11, ОДЗ формально), часть 2 как рост. Два вопроса ей: отметить новые темы (темп за ней) и в каком формате давать задачи посложнее (она просила) — отдельно «для себя» или вперемешку, по каким предметам.
 - Открытый хвост: ждём ответы Ульяны (отметки тем + формат сложных задач); 2 старые попытки 17.06 (ответ x=5 — верный) всё ещё висят на ручной проверке — можно отметить зачтёнными по слову пользователя.
 
-## 2026-06-29 — Банк информатики part-1: +28 задач (контентный хвост слабого предмета)
+---
+
+## 2026-06-29 - Банк информатики part-1: +28 задач (контентный хвост слабого предмета)
 
 Статус: залито и одобрено в боевой БД через MCP; ответы проверены вычислением
 
@@ -385,7 +470,9 @@ Open tail: use MCP `weekly_digest` for the next weekly mentor note; feedback com
 
 Проверка: `gen_inf2.py` — 28 OK; прямой SQL-count (enum хранится как `INFORMATICS`/`APPROVED`). Побочное: темы, бывшие `open` с пустым банком (системы счисления, делители, пути, рекурсия, Фано, информ.объём), теперь могут попадать в ежедневную очередь новых тем. Открытый хвост: визуальные информ-темы (диаграммы/БД/Excel/файл) — отдельным каналом; наблюдать визуализацию неравенств.
 
-## 2026-06-29 — Визуализация: фигура решения в drill-разборе (post-attempt)
+---
+
+## 2026-06-29 - Визуализация: фигура решения в drill-разборе (post-attempt)
 
 Статус: ЗАДЕПЛОЕНО (коммит `d90a826`), live-проверено в прод-контейнере
 
@@ -397,359 +484,11 @@ Open tail: use MCP `weekly_digest` for the next weekly mentor note; feedback com
 
 Проверка: `pytest -q` 121 passed; ruff чист по новым файлам; live — `docker compose exec bot` отрисовал интервал (кириллица ок, PNG 8244B) и прод-бот доставил фото в родительский чат; bot RestartCount=0. Тесты: parse (скобки/объединения/неравенства/запятая, скаляр→None), render→PNG, склейка `drill_solution_figure` (interval→PNG, scalar→None). Открытый хвост: следующий рендерер (график параболы) по потребности; геометрия из условия может быть pre-attempt.
 
-## 2026-06-25 — Банк информатики (Python): +28 задач
+---
 
-Статус: залито и одобрено в боевой БД через MCP; ответ = реальный stdout Python
+## Архив
 
-- По выбору пользователя — 7 ядровых Python-тем (где Юля сейчас и где «забывает шаблоны»): основы/ввод-вывод, арифметика %//, условия, for, while, строки, списки/срезы. По +4 задачи.
-- Формат: смесь «что выведет программа?» (трассировка — тренирует понимание конструкций, её прямой гэп) и «напиши и дай число» (тренирует писать самой). **Ответ каждой задачи — фактический вывод исполнения кода** (`scratchpad/gen_inf.py` через `exec`+redirect_stdout) — сильнейшая независимая проверка. Guard: ответ одностроковый/непустой.
-- Залив: MCP `add_task`→`approve_task`, `source`=corpus, `source_url`=`corpus:inf:<тема>:<n>` (идемпотентно).
-- Итог банка по темам (боевая БД, read-only проверка): basics/arithmetic/conditions/for/strings = 5; while/lists = 4. Всего в банке 142 задачи (78+36+28).
-
-Проверка: прямой SQL-count к Postgres (нюанс: статус хранится как `APPROVED`, не lowercase). Открытый хвост: остальная информатика (системы счисления, кодирование, логика, алгоритмика ≥16) — не Python, пока пусто; деплой языка-прогресса.
-
-## 2026-06-25 — Банк математики части 1: +36 задач (3→6/тема)
-
-Статус: залито и одобрено в боевой БД через MCP; ответы проверены вычислением
-
-- Наполнили 12 тем части 1 (июнь, math_profile) — по +3 задачи каждая: степени/корни, лог/триг, простейшие уравнения, производная (геом/физ), экстремумы, движение, проценты (№11), планиметрия Ч1, стереометрия Ч1, векторы, вероятность (сложение, task_number d/e/f). Все темы теперь `tasks_in_bank=6`.
-- Каждый ответ **проверен независимым вычислением** в Python (`scratchpad/gen_math.py` — статус-источник: считает ответ из параметров, а не эхо). Это анти-poison для грейдера.
-- Путь записи: MCP `add_task` (DRAFT, `source`=corpus, уникальный `source_url`=`corpus:math:<тема>:<n>` → идемпотентно) → `approve_task`. Postgres → лили параллельными батчами.
-- Это анблок #1 «повтор другой задачей»: теперь в каждой теме есть неназначавшиеся siblings, `list_approved_for_topic(exclude_assigned_to)` их выдаст вместо `shortage`.
-- Часть 2 (№13/14/16/17/18) намеренно не трогали — там ответ символьный, точный матч ненадёжен (идут через ИИ/ручную проверку).
-
-Проверка: `program_progress` (боевой) — 12 тем math июня показывают `tasks_in_bank=6`. Открытый хвост: информатика (0–1/тема — самый тонкий банк); деплой языка-прогресса.
-
-## 2026-06-25 — Снижение тревоги: язык прогресса вместо «0% confirmed»
-
-Статус: ЗАДЕПЛОЕНО (коммит `87533fd`), смок GREEN
-
-Фикс по ревью Codex (overlap корзин): `in_progress` включает `under_review`, а я вывел их рядом как непересекающиеся → «в работе 18 · на повторении 7» читалось как 25. Исправлено в подаче (producer корректен, его ждут тесты/MCP): «в работе» = `in_progress − under_review` на странице и в `/progress` → корзины непересекающиеся (в работе + на повторении + подтверждено + не начато = total). +guard-тест `0 ≤ under_review ≤ in_progress`. Передеплой web+bot (api не менялся).
-
-Деплой (в конце дня): `docker compose up -d --build api web bot` — без миграции (схему не меняли), postgres не тронут. Проверка боевого: `/api/health` healthy; `/program` current-phase `coverage={confirmed:0, in_progress:18, under_review:7, open:20, total:38}` (поле `under_review` живо → новый код); web HTTP 200; bot — свежий образ (18:13), Running, RestartCount=0. MCP-сервер (хост-процесс) крутит старый код до своего рестарта — это норма, он не student-facing.
-
-- Контекст: разбор диалога с Ульяной (тревога «не успеваю / не понимаю на 100%»). Диагноз: дашборд показывает `confirmed=0 / 0%`, а ребёнок слышит «ничего не закрыла» — её планка 100% и метрика сошлись в ложно-мрачной точке. Решение (по ревью Codex): менять ЯЗЫК над существующими данными, не модель.
-- #2 (метрика): `coverage` получил `under_review`; фронт «Программа» больше не ведёт с «прогресс 0%» — теперь «в работе N · на повторении M · подтверждено K · не начато», полоса показывает «затронуто» (total−open). TG `/progress` получил строку «Темы: в работе … (на повторении …) · подтверждено …».
-- #3 (порог «зачтено»): одна строка-правило на странице «Программа» и в `/progress`: «тема засчитана не когда понял на 100%, а когда решил верно и прошёл повтор».
-- #1 (повтор другой задачей): **код уже корректен** — `build_daily_queue` берёт свежую (не назначавшуюся) задачу, при пустом пуле → `shortage` (старую НЕ переиздаёт). Блокер чисто контентный: тонкий банк (информатика 0–1 задача/тема). Анблок = наполнение банка.
-- #4 (олимпиадные) и #5 (полный разбор после борьбы): отложены из кода — словами/ручной заметкой сейчас; фичу не строим (YAGNI). Авто-раскрытие разбора — только за сценарным тестом (анти-утечка `_mask_answer` — инвариант).
-
-Проверка: `pytest -q` 115 passed; `tsc --noEmit` чисто; ruff по изменённым файлам чист (E501 в `use_cases.py:99` — предсуществующий, не трогал). Открытый хвост: наполнить банк верифицируемых вопросов по темам/программе (особенно информатика) — это и анблок #1; затем деплой.
-
-## 2026-06-24 — Полный отчёт-заметка опубликован и доставлен Ульяне
-
-Статус: доставлено вживую (delivered_at проставлен), одна чистая заметка
-
-- Формат по просьбе: ОДНА заметка — сверху мотивирующие абзацы для Ульяны, ниже подробный отчёт-аналитика (баллы, освоено, топ-ошибки, динамика срезов, ближайшее). Та же заметка = и ученику, и контролёру на дашборде.
-- Утреннюю короткую заметку `131481a4` (ещё не доставленную) удалили — по явной команде пользователя (предохранитель сначала заблокировал raw DELETE, прошло после явного «да, удали»). Осталась одна актуальная.
-- Опубликована `4c2d85ed` через `publish_feedback`; доставлена Ульяне **сразу** (разовый запуск `_deliver_mentor_notes` из host-venv, без ожидания 16:00). `delivered_at`=11:40 → на дашборде «✅ отправлено», родителю — пинг (если задан `TELEGRAM_PARENT_CHAT_ID`).
-- Решение по UX ручной отправки: кнопку на сайте НЕ делаем (YAGNI) — рабочий поток «попроси агента → ревью черновика → публикация/доставка» уже закрывает потребность; api как второй Telegram-сендер не вводим.
-
-Проверка: read-only выборка `mentor_notes` — `4c2d85ed` delivered_at=2026-06-24 11:40; `131481a4` отсутствует; `a94200c6` (18.06) delivered (бэкфилл). Открытый хвост: контент-глубина банка (>3/тема, информатика), единая политика на пути миссий.
-
-## 2026-06-24 — Деплой GREEN + опубликована заметка Ульяне
-
-Статус: задеплоено, смок GREEN, заметка опубликована (доставка ученику — при пуше 16:00 МСК)
-
-- Деплой шёл в два захода: сначала api/web (13:06) — миграция не доехала, бот остался старым; смок поймал RED (БД `b8e4f1a2c3d9`, bot 19ч). После второго захода (`up --build bot` + миграция) — всё встало.
-- `release_smoke.py` → **GREEN**: health OK, миграции `c0d1e2f3a4b5`==head, getMe OK (новый код), живой Qwen-judge OK.
-- Опубликована наставническая заметка `131481a4` через `publish_feedback` (корректный текст — похвала за дробные неравенства + следующий фокус «только одно из событий»; без обещаний недоставленного). История теперь = 2 заметки.
-- `delivered_at` пока NULL → на дашборде «⏳ ожидает отправки»; при утреннем пуше (`telegram_push_time` 16:00 МСК) бот доставит ученику → `delivered_at` проставится, бейдж станет «✅ отправлено», родителю уйдёт пинг (если задан `TELEGRAM_PARENT_CHAT_ID`).
-
-Проверка: смок GREEN; `student_overview` показывает 2 заметки. Открытый хвост: убедиться после 16:00, что доставка/бейдж/пинг сработали вживую; затем — контент-глубина банка и единая политика на пути миссий.
-
-## 2026-06-24 — Контролёрская видимость заметок (что отправлено ребёнку)
-
-Статус: реализовано, тесты зелёные; едет тем же деплоем
-
-- Запрос: родитель хочет верхнеуровнево видеть, какой анализ ИИ сделал и отправил ли его ребёнку + историю. Решение по AskUserQuestion: показывать в обоих каналах; отдельный approve-гейт в БД не нужен (я и так спрашиваю ОК перед публикацией).
-- Данные уже были (`source_ref`=кто, `created_at`=когда, `body`=что, `delivered_at`=отправлено ли) — не хватало вывода статуса доставки наружу.
-- Дашборд: `list_recent`/`MentorNoteOut` отдают `delivered_at`; на странице «Обратная связь наставника» бейдж «✅ отправлено ученику <дата> / ⏳ ожидает». Полная история + контент + статус в одном месте.
-- Telegram: новый `telegram_parent_chat_id`; при доставке заметки ученику родителю уходит пинг «📨 …доставлена ученику: <превью>» (`_notify_parent`, best-effort — сбой пинга не влияет на доставку ученику).
-- Гейт публикации остаётся ручным (агент → ОК пользователя → публикация → авто-доставка утром).
-
-Проверка: `pytest backend` — **115 passed** (+`test_parent_pinged_on_delivery`); ruff чист; фронт `tsc --noEmit` ок. Открытый хвост: задать `TELEGRAM_PARENT_CHAT_ID` в `.env`; едет общим деплоем (миграция `c0d1e2f3a4b5` + рестарт).
-
-## 2026-06-24 — Release-smoke живого стека + ответ про e2e
-
-Статус: смок-скрипт готов и прогнан против live (RED — деплой ещё не сделан, это и ожидалось)
-
-- Смок расслоили: (1) логика доставки/грейдинга — уже e2e в pytest (FakeBot+реальный сервис/БД); (2) живые границы — `scripts/release_smoke.py` (exit code, read-only); (3) реальная отправка ученику — ручной one-shot, в автотест не прячем (необратимый outward).
-- `release_smoke.py`: API `/api/health`, миграции (код-head vs `alembic_version` в БД), бот `getMe` (read-only, не сообщение), живой short-answer judge против Qwen. БД не мутирует, ученику не пишет.
-- Прогон против текущего live: health OK; getMe OK (`@egemathandinformbot`); живой judge OK (Qwen отвечает, equivalent=True); **миграции FAIL** — БД на `b8e4f1a2c3d9`, код-head `c0d1e2f3a4b5` → смок корректно ловит «не задеплоено».
-- `docker exec` в прод-контейнер заблокирован классификатором (remote-shell в прод — отдельная авторизация); живой смок сделал по HTTP/БД-коннекту/Telegram getMe, без shell в контейнер.
-
-Проверка: `ruff` на `release_smoke.py` чист; смок exit=1 (RED по миграциям, ожидаемо до деплоя). Открытый хвост: деплой (commit→rebuild→`alembic upgrade head`→рестарт) переведёт смок в GREEN; затем ручная доставка заметки в родительский чат и публикация актуального текста Yliana.
-
-Status: capable of tool calling; use an existing coding-agent runtime before building a custom agent.
-
-- Runtime reports `n_ctx=262144`, one execution slot, and Chat Completions support; `/v1/responses` is absent.
-- A forced tool-call probe returned a valid `read_file({"path":"README.md"})` call in about 1.5 seconds.
-- The main constraint is the single slot shared with product grading, not context size.
-- Preferred pilot: bounded Aider worker with auto-commit disabled, exact file scope, and main-agent diff review; 10 shadow tasks before any direct write authority.
-- A shared MCP wrapper is deferred until the CLI pilot demonstrates useful acceptance rate and latency.
-
-## 2026-06-24 — Будущая схема делегирования local Qwen
-
-Статус: архитектура согласована концептуально, не реализована
-
-- Codex/Claude остаются владельцами требований, плана, архитектурных решений, review и итоговой проверки.
-- Один общий stdio MCP `dev-helper` вызывает локальный Qwen для строго ограниченных задач: подготовить unified diff по allowlist файлов, запустить allowlisted checks, сжать логи в JSON; без commit/push/произвольного shell/секретов.
-- Начальный режим — shadow: Qwen только предлагает patch, основной агент проверяет и применяет. Прямые workspace-write рассматривать после серии измеренных успешных запусков.
-- Codex может иметь project custom agent, но текущий Qwen Chat-Completions endpoint не гарантирует требуемый Codex Responses API; MCP работает и в Codex, и в установленном Claude Code 2.1.187.
-
-Проверка: актуальный Codex manual — custom agents + MCP; локальный `claude --help`/`claude mcp --help` — custom agents и stdio MCP доступны. Открытый хвост — реализовывать после live-hardening отдельной задачей.
-
-## 2026-06-24 — Pre-live правки доставки заметок (по review)
-
-Статус: все 4 пункта review закрыты, тесты зелёные; готово к deploy+smoke
-
-- P1 супервайзер: `_morning_push` обёрнут в try/except (итерация вынесена в `_run_daily_push`) — сбой Telegram/DB логируется, цикл живёт, будущие пуши не умирают.
-- P1 миграция: `c0d1e2f3a4b5` бэкфилит `delivered_at = created_at` для существующих строк — заметка от 18.06 после upgrade НЕ уйдёт (доставляем только опубликованное после деплоя).
-- P1 длина: `_split_for_telegram` режет текст на части ≤4096 (лимит Telegram), длинная заметка доставку не срывает.
-- P2: формулировка доставки исправлена на at-least-once (редкий дубль при краше между send и commit допустим для пилота).
-- Черновик заметки НЕ публиковал: live ещё на старом коде, текст про «починено» был бы преждевременным.
-
-Проверка: `pytest backend` — **114 passed** (+`test_long_mentor_note_is_split_under_telegram_limit`). ruff чист на изменённых файлах. Открытый хвост: deploy (`alembic upgrade head` + рестарт bot) → live-smoke → потом актуальная заметка Yliana.
-
-## 2026-06-24 — Решение по scenario/release gates
-
-Статус: гейты нужны на внешних границах; общий framework сейчас не нужен
-
-- `_mask_answer`, Fraction и `record_slice` уже покрыты обычным pytest; оборачивать их в `Scenario/CheckResult` — дублировать runner и ухудшать диагностику.
-- Скопированный `tests/guards/scenario_gate.py` не подключён, содержит document-AI терминологию и дублирует уже существующий `backend/scripts/llm_review_gate.py`; не коммитить/удалить.
-- Нужен узкий release-smoke с exit code для живого стека: API health, Alembic current=head, bot/getMe/config и live short-answer judge против Qwen без DB-мутаций/сообщений ученику.
-- Реальную доставку Telegram оставить ручным post-deploy smoke в родительский chat_id; outward send нельзя прятать внутри автоматического теста.
-
-Проверка: root `tests/guards/scenario_gate.py` не имеет потребителей; deterministic regressions уже в `backend/tests/test_grader.py`; live EvidenceReviewer gate уже существует. Открытый хвост — выбрать минимальный release-smoke после pre-live фиксов.
-
-## 2026-06-24 — Code review доставки наставнических заметок
-
-Статус: архитектура подходит пилоту; перед live нужны правки
-
-- Решение «агент пишет человеческий текст → бот доставляет» сохраняет backend детерминированным и переиспользует student-facing `mentor_notes`; отдельный генератор аналитики сейчас не нужен.
-- `_morning_push` запущен как необслуживаемый background task: исключение Telegram/DB завершит цикл и остановит все будущие утренние пуши до рестарта.
-- Миграция оставляет legacy-строки с `delivered_at=NULL`; в live уже есть одна заметка от 18.06, которая автоматически уйдёт после upgrade, если её явно не backfill/не одобрить.
-- API допускает заметку до 20k символов, а доставка не ограничивает и не разбивает текст; длинная заметка сорвёт send. `send→mark` даёт at-least-once, а не строго exactly-once (crash-window допускает дубль).
-- Черновик не публиковать до deploy+smoke: он утверждает, что баг уже исправлен для ребёнка, хотя live ещё на миграции `b8e4f1a2c3d9`.
-
-Проверка: commit `22b4647`, live: 1 legacy mentor note, Alembic `b8e4f1a2c3d9`. Открытый хвост — исправить три pre-live пункта, затем миграция/restart/smoke.
-
-## 2026-06-24 — Доставка наставнических заметок в TG
-
-Статус: реализовано, тесты зелёные; нужна миграция на live + рестарт бота
-
-- Решение по продукту: аналитику ребёнку шлём не как сырые метрики, а как **наставническую заметку** — текст пишет агент через `publish_feedback` (тёплый язык, без ключей), бот только доставляет. Каденция — вместе с утренним пушем.
-- Переиспользовали существующее (`publish_feedback`/`mentor_notes`/`_morning_push`/`send_message`), новая механика только одна — идемпотентность доставки.
-- Миграция `c0d1e2f3a4b5`: `mentor_notes.delivered_at TIMESTAMPTZ NULL` (head был `b8e4f1a2c3d9`).
-- Репозиторий: `list_undelivered(student_id)` + `mark_delivered(ids)`; сервис: `list_undelivered_notes`/`mark_notes_delivered`; порт расширен.
-- Бот: `_deliver_mentor_notes(bot, chat_id)` зовётся в конце `_morning_push`; помечает доставленной сразу после успешной отправки (повтор/частичный сбой не дублируют). Префикс «💬 От наставника:».
-- EvidenceReviewer/часть-2 не трогали.
-
-Проверка: `pytest backend` — **113 passed** (новый `test_mentor_notes_delivered_once`: доставка + идемпотентность повтора). ruff чист на изменённых строках (pre-existing `_resolve_score` E501 не трогал). Открытый хвост: (1) `alembic upgrade head` на live + рестарт bot-контейнера; (2) опубликовать первую заметку Yliana (текст — за пользователем/агентом); (3) live-smoke утреннего пуша.
-
-## 2026-06-24 — Реализация short-answer фикса (кластер A/B/C)
-
-Статус: реализовано, тесты зелёные; live-smoke в TG за пользователем
-
-- Аналитика прогресса Yliana снята через MCP-сервер; баг из её фидбэка воспроизведён в коде.
-- **A (противоречие `✅ Верно!`/`Близко`)**: `_sanitize_feedback`→`_mask_answer` — маскируем эталон (`…`), разбор сохраняем; голую строку-фоллбэк по вердикту — только если маскировка не очистила текст. Снято на обоих вердиктах.
-- **B (`record_slice` терял extracted-correct + ложные error-events)**: метка `"exact"` теперь только для raw exact; извлечённо-заземлённый верный → `llm_equivalent` → попадает под существующую ветку доверия. `record_slice` не трогали.
-- **C (ИИ-непоследовательность на числах)**: `policies._as_fraction` (stdlib `Fraction`, без `Decimal`) + `numeric_mismatch`; `answer_is_correct` точно сравнивает скаляры (`0,5==1/2`); приоритет в `_grade_answer`: raw exact → raw numeric mismatch (стоп) → extracted → extracted numeric mismatch (стоп) → мнение ИИ. ИИ не переопределяет доказанное число (`0,667≠2/3`), включая «извлечённый» эталон из неверного сырого ответа.
-- `EvidenceReviewer` миссий — вне scope (как договорились).
-
-Проверка: `pytest backend` — **112 passed**; `test_grader.py` 11/11 (4 обновлены, 3 новых: contradiction-регресс, numeric-override, record_slice extracted-correct). ruff на изменённых файлах чист (pre-existing `_resolve_score` E501 не трогал). Открытый хвост — ручной live-smoke среза/дрилла в тестовом TG-чате.
-
-## 2026-06-24 — Финальное ревью short-answer плана
-
-Статус: план одобрен после одной обязательной правки приоритета
-
-- В предложенном псевдокоде `ai_blocked` ограничивает только `assessment.equivalent`, но не `extracted_ok`: при сыром `0,667` и ошибочно извлечённом `2/3` получится `grounded=True` и ответ снова будет принят.
-- Требуемый порядок: raw exact → принять; raw scalar numeric mismatch → отклонить независимо от ИИ; иначе проверять extracted exact/mismatch; только для недоказуемого нечислового случая разрешать `assessment.equivalent`.
-- `Fraction(s)` уже разбирает целые, десятичные и дроби после замены запятой; `Decimal`/`InvalidOperation` не нужны.
-- Регрессия numeric mismatch должна включать конфликт `raw=0,667`, `extracted=2/3`, `key=2/3`; record_slice-тест должен проходить реальный judge→record путь.
-
-Проверка: трассировка ветвей предложенного `_grade_answer`. Открытый хвост — внести правку в план и реализовать.
-
-## 2026-06-24 — Утверждён short-answer scope v2
-
-Статус: выбран вариант 1, реализация не начата
-
-- В одну итерацию входят: согласованный masked-feedback, исправление undercount/ложных error-events в `record_slice`, точное scalar-сравнение через stdlib `Fraction` и запрет ИИ переопределять доказанное числовое неравенство.
-- Это один policy-кластер с двумя live-проявлениями, а не три независимые фичи; общий `EvidenceReviewer` миссий остаётся вне scope.
-- Оценка `~250 строк` не принимается как цель: ожидается минимальный диф в `policies.py`, `use_cases.py` и точечных тестах без новых слоёв/зависимостей.
-
-Проверка: `answer_is_correct` — общий deterministic seam; `_grade_answer` и `record_slice` — две точки применения. Открытый хвост — реализация и фактический полный pytest.
-
-## 2026-06-24 — Ревью плана short-answer фикса
-
-Статус: план требует дополнения до реализации
-
-- Предложенная правка корректно лечит противоречивый текст и сохраняет разбор на неверном ответе.
-- Нельзя безусловно пропускать sanitize при `correct=True`: `correct` включает мнение ИИ, а live уже показал ложноположительное `0,667 = 2/3`; эталон следует маскировать при любом вердикте, используя положительный fallback для верного.
-- План пропустил подтверждённую потерю extracted-correct в `record_slice`: метод `exact` сейчас объединяет raw exact и ИИ-извлечённый exact, но повторный подсчёт доверяет только `llm_equivalent`.
-- План также пропустил детерминированное точное сравнение скалярных чисел/дробей; без него Qwen продолжит принимать приближения как равенство.
-
-Проверка: текущие `_grade_answer`, `_sanitize_feedback`, `record_slice` и live-кейс `0,667`/`2/3`. Открытый хвост — дополнить план тремя пунктами перед реализацией.
-
-## 2026-06-24 — Политика фидбэка неверного short-answer
-
-Статус: выбран вариант 1, реализация не начата
-
-- Во всех short-answer контекстах показывается полезный разбор ошибки, но эталонный ответ маскируется.
-- Срез также не раскрывает ключ: текущий тематический срез даёт фидбек между заданиями, поэтому раскрытие ответа загрязнит следующие задания и будущие повторы банка.
-- Маскировать нужно только утёкший ключ, сохраняя остальной разбор; текущая замена всего текста на «Близко» не подходит.
-
-Проверка: TG-срез отправляет фидбек сразу после каждого ответа и затем показывает следующую задачу. Открытый хвост — реализация вместе с short-answer P0.
-
-## 2026-06-24 — Выбран scope исправления грейдера
-
-Статус: решение принято, реализация не начата
-
-- Выбран вариант 2, но целиком в границе short-answer: согласованный фидбек, объяснение ошибки, сохранение extracted-correct при итоговом подсчёте и точное сравнение чисел/дробей.
-- Общий `EvidenceReviewer` миссий не унифицируется с short-answer: он проверяет также код и полные решения, где expected answer может отсутствовать, а корректность метода существенна.
-- Принцип «ключ авторитетен» уже действует для part-1 drill через `_grade_answer`; расширять его на все миссии без отдельного продуктового кейса нельзя.
-
-Проверка: трассировка `submit_attempt`: daily drill идёт в `_grade_answer`, остальные миссии — в `EvidenceReviewer`. Открытый хвост — реализация и регрессии short-answer.
-
-## 2026-06-24 — Разбор детского smoke TG-среза
-
-Статус: причина установлена, код не менялся
-
-- Live-срез по вероятности: `1/3`; один ответ действительно неверен, два пользовательских ответа математически верны.
-- Для `2/3` ответ `0,667` принят как `llm_equivalent`, но защита от утечки эталона заменила положительный фидбек на «Близко — проверь ещё раз», создав текстовое противоречие после `✅ Верно!`.
-- Для `0,25` ИИ извлёк правильный финальный ответ из хода, `_grade_answer` выдал correct + метод `exact`, но `record_slice` повторно сравнил весь сырой текст и доверяет только `llm_equivalent`; поэтому верный ответ потерян в итоговом счёте.
-- Минимальное исправление: `exact` оставлять только для raw exact; extracted-correct маркировать `llm_equivalent`; sanitize выбирать безопасный текст по итоговому вердикту.
-
-Проверка: live `study_log_entries.details_json` + условия/ключи задач `4013`, `4015`; открытый хвост — реализовать два P0-фикса и регрессионные тесты.
-
-## 2026-06-23 — TG: восстановлена авторизация родительского чата
-
-Статус: исправлено в live-конфигурации
-
-- Сообщение «чат не авторизован» вызвано отсутствием `TELEGRAM_EXTRA_CHAT_IDS` в фактическом корневом `.env`, хотя журнал ранее отмечал настройку как добавленную.
-- Добавлен `TELEGRAM_EXTRA_CHAT_IDS=1682176470`; без сборки пересозданы `bot` и зависимый `api`.
-- Проверка внутри `bot`: разрешённые ID — `1639494549` и `1682176470`; оба контейнера `Up`.
-
-Проверка: `Settings().authorized_chat_ids` в live-контейнере. Открытый хвост: вручную повторить `/start` из родительского чата.
-
-## 2026-06-23 — TG UI/UX v1: команды, меню и безопасные состояния
-
-Статус: реализовано, зелёное, задеплоено live
-
-- Зарегистрированы нативные команды `/start`, `/today`, `/slice`, `/progress`, `/help`, `/cancel`; `/start` показывает главное inline-меню и больше не запускает дрилл.
-- `/today` только читает подготовленную backend-очередь; пустая очередь не создаёт новые миссии. Текст вне активного режима, неизвестные команды и нетекстовые сообщения не попадают в grader.
-- Добавлен ученический прогресс из `get_dashboard`; срез редактирует inline-сообщение, умеет вернуться к предметам и возвращает меню после результата/отмены.
-- Утренний push получил меню; дефицит контента ушёл в лог. Compose передаёт host `HTTPS_PROXY` только как `TELEGRAM_PROXY_URL` для bot-контейнера.
-- В `AGENTS.md` закреплено: graphify обновляет `post-commit` hook, вручную `graphify update` не запускать; backend pytest Claude Code запускает через Stop-hook `scripts/verify.py`, Codex проверяет один раз сам.
-
-Проверка: Telegram-тесты 9 passed; полный `pytest` 109 passed (1 upstream warning); ruff изменённых Python-файлов чист; frontend build ok; docker bot/api up; `getMe OK`; Telegram API вернул все 6 команд.
-
-Открытый хвост: вручную нажать новые кнопки в тестовом чате; увеличить глубину банка задач.
-
-## 2026-06-23 — TG: мульти-чат авторизация + формат «покажи ход»
-
-Статус: реализовано, зелёное, задеплоено live
-
-- Мульти-чат авторизация: настройка `telegram_extra_chat_ids` (через запятую) + property `authorized_chat_ids` (ученик + тестовые); `_is_authorized` = членство. В `.env` добавлен `TELEGRAM_EXTRA_CHAT_IDS=1682176470` (родитель для тестов); ученик остаётся целью утреннего пуша. Также ранее дописан `TELEGRAM_PROXY_URL` (из `HTTPS_PROXY`) — у bot-контейнера своего нет.
-- Формат «покажи ход» (выбор пользователя — часть 1 + метод): промпты бота/дрилла просят кратко расписать решение и указать ответ. `AiAssessment += extracted_answer`; LLM извлекает финальный ответ + оценивает метод (метод-фидбек, явно флажит «ответ верный, но метод неверный»). `_grade_answer` заземляет вердикт на `extracted_answer` (+ exact на сыром), forced-correct → безопасный фидбек. `prompt_version=show-work-v2`.
-- Деплой: пересобран `bot` (+`api`, общий образ); в контейнере `show-work-v2`, `llm ON`, `getMe OK`. Миграций нет.
-
-Проверка: `pytest` 103 passed (show-work тесты в `test_grader.py`, мульти-чат в `test_bot.py`). ruff мои строки чисты (2 pre-existing).
-
-Открытый хвост: вердикт «покажи ход» заземляется на ИИ-извлечённый финальный ответ (сырой текст с ходом целиком не совпадёт) — слабее чистого exact, но сравнение детерминированное + провенанс; метод влияет на фидбек, не на вердикт/lifecycle. Часть 2 (полные задания 13-19; текст неудобен, естественно — фото/vision-модель) — отдельным решением.
-
-## 2026-06-23 — Срез в TG + ИИ-приём ответов (общий ShortAnswerJudge)
-
-Статус: реализовано, тесты зелёные, миграция применена; вживую (бот) не прогнано
-
-- Общий грейдер (по ревью Codex, 2 раунда): порт `ShortAnswerJudge.assess → AiAssessment` (сырое мнение ИИ, без политики); политика 1–6 в `LearningService._grade_answer` — exact-match авторитетен, ИИ только вытаскивает эквивалент на промахе, сбой ИИ → детерминированный exact (fail-open), провенанс, `_sanitize_feedback` (best-effort режет утечку ключа), forced-correct → безопасный фидбек. `LlmShortAnswerJudge` (JSON {equivalent,feedback}, temp0) + `ExactOnlyJudge`.
-- Поверхности: API/MCP = `ExactOnlyJudge` (веб-срез детерминирован, текст «по ключу» правдив, фронт НЕ трогаем); бот = `LlmShortAnswerJudge` — ИИ только в TG.
-- Срез: `judge_task_answer` (единая точка оценки) + `record_slice` (единая точка персистентности: re-load задач, пере-верификация exact, доверие только флагу `llm_equivalent` без повторного ИИ; аудит-детали в новой JSON-колонке `StudyLogEntry.details_json`, миграция `b8e4f1a2c3d9`). `grade_slice` стал async. Дрилл переведён на общий грейдер.
-- Срез в TG: `/slice` → предмет (inline) → тема (inline) → задачи по одной, `judge_task_answer` + фидбек сразу, `record_slice` в конце, `/cancel`; callback'и проверяют авторизацию + закрывают спиннер; маршрут режима срез>дрилл>nudge.
-- Docker: `Dockerfile` ставит `.[dev,bot]`; в compose добавлен сервис `bot` (long-poll, `restart: unless-stopped`) — пересборка api бота не обновляет.
-
-Проверка: `pytest` 101 passed (+ `test_grader.py`, срез-флоу в `test_bot.py`). ruff на моих строках чист (2 pre-existing). `alembic upgrade head` применён к боевой БД (details_json). Бот импортируется, aiogram-обвязка (4 msg + 2 callback) ок.
-
-Открытый хвост: (1) вживую не прогнано — нужен deploy: пересобрать docker (api+web+bot) + поднять сервис `bot`; в `.env` задать `TELEGRAM_STUDENT_CHAT_ID` и (если Telegram закрыт напрямую) `TELEGRAM_PROXY_URL`/`HTTPS_PROXY` для bot-контейнера. (2) Лёгкость ИИ-судьи (ложное «верно») — провенанс/`details_json` для аудита. (3) Контент-глубина банка; (4) ревизия/чистка сайта — отдельный план.
-
-## 2026-06-23 — Срез по выбранной теме (live)
-
-Статус: done, задеплоено (docker api+web), вживую через 8088
-
-- Запрос: ребёнок изучил теорию темы → хочет прорешать тематические верифицированные задачи; срез выбирается по теме.
-- Бэкенд: `list_gradable(subject, topic_id)`, `draw_slice(subject, size, topic_id)`, `grade_slice` подписывает диагностику темой (если все задачи из одной темы). Роут `/slices/draw?topic_id`.
-- Фронт: `SlicePage` — дропдаун «Тема» (из `getProgram`, темы предмета с `tasks_in_bank>0`), «Вся тема (случайно)» по умолчанию; заголовок и диагностика по теме. `client.drawSlice(topicId)`.
-- Семантика среза не изменена: это `topic_check` (балл не двигает), логирует диагностику + error-event на промах; lifecycle темы НЕ двигает.
-
-Проверка: `pytest` 94 passed (2 новых — `test_slice_topic.py`); `npm run build` ок; пересобрал docker `api`+`web`, health 200; срез по теме через 8088 (user-facing) → 3 задачи темы, по предмету → 10.
-
-Открытый хвост: (1) на host:8001 висит **сторонний старый uvicorn** (PID 32588) — теневой; фронт его не использует (ходит через 8088 → docker-сеть), но прямые тесты на 8001 отдают старый код — стоит погасить. (2) «умножение вероятностей» отдельной темы/задач нет — контент-гэп. (3) если нужно чтобы зачётный срез по теме двигал прогресс темы — отдельное решение.
-
-## 2026-06-23 — Phase 2: авто-сборщик дня + lifecycle повторов (по ревью Codex)
-
-Статус: реализовано, тесты зелёные; вживую (пуш/чат) не прогнано
-
-- `build_daily_queue(student, limit) -> {filled, shortage}`: повторы (DUE + back_to_work) вперёд, новые OPEN-темы фазы в остаток; уже открытые daily-миссии считаются в лимит (carry-over); дедуп темы между повтором и новой; пустой банк по теме → явный `shortage`, не молчаливый недобор. Чистая `select_daily_queue` в `policies.py`.
-- «Свежая задача = не назначавшаяся ученику» (а не просто нерешённая): `TaskSqlRepository.list_approved_for_topic(exclude_assigned_to)`.
-- Lifecycle повтора (швы №1+№6): origin парсится из `source_ref`; `review` PASS → карточка `DONE` БЕЗ новых +7/+30; FAIL → `BACK_TO_WORK` без спавна; карточку трогаем только пока `DUE`/`BACK_TO_WORK`. back_to_work (решение польз., option A): сборщик передриллит карточку свежей задачей, успех → `DONE` (чинит пред-баг вечного BACK_TO_WORK, тема может дойти до CONFIRMED).
-- Бот: `telegram_student_chat_id` обязателен (неавторизованному — его `chat_id` для онбординга, дриллы не выдаём); идемпотентный утренний пуш (`telegram_push_time`, `daily_drill_size`) через `build_daily_queue`, с уведомлением о дефиците. MCP: инструмент `build_daily_queue` (оператор собирает день + видит shortage).
-
-Проверка: `pytest` 92 passed (8 новых: `test_daily_queue.py`, `test_bot.py`). ruff на изменённых строках чист (остались pre-existing: `_resolve_score` E501, `publish_feedback` E501, сортировка импортов MCP — не мои строки). Бот импортируется; `_seconds_until` ок.
-
-Открытый хвост: (1) вживую не прогнано — нужен реконнект MCP (подхватить `build_daily_queue` + `drill`-флаг), `TELEGRAM_STUDENT_CHAT_ID` ребёнка, и/или дождаться пуша 16:00 MSK. (2) **ОБЯЗАТЕЛЬНЫЙ следующий срез — контент-глубина**: банк >3/тема + наполнить информатику. (3) дальше — часть 2 на сайте.
-
-## 2026-06-22 — Telegram-дрилл части 1 (Phase 1)
-
-Статус: Phase 1 done; Phase 2 не начата
-
-- Продуктовая граница (решения через AskUserQuestion): TG = ежедневный дрилл части 1 + повторы (мгновенная точная проверка в чате), сайт = части 2 + витрина-контролёр; очередь по правилам бэкенда, повторы вперёд → новые темы фазы в остаток лимита.
-- Грейдинг: `_grade_exact_answer` + ветка в `submit_attempt` (при drill+task+непустой `expected_answer`) → PASSED/FAILED без LLM, переиспользует `_apply_progression` (повторы +7/+30, error-event с категорией задачи).
-- Выделенная поверхность `list_daily_drill` (только `daily:`-миссии со связанной задачей), НЕ `missions/today` — чтобы части 2 / операторские миссии не утекли в чат.
-- Бот переписан как in-process adapter (как MCP): прямой `LearningService` через `SessionLocal`, без self-HTTP/токена; БД — source of truth, память — кэш; aiogram long-poll `/start`→условие→ответ→вердикт→следующая. `build_parent_digest` тоже на прямой вызов (чинит сломанный auth). Поправки по критике Codex.
-- MCP `create_mission` получил флаг `drill` (`source_ref=daily:manual`); config `telegram_student_chat_id`.
-
-- Живой прогон: установлен `[bot]` extra (aiogram 3.29). **Telegram в этом окружении доступен только через прокси** (прямой connect к `api.telegram.org` таймаутится; в env есть `HTTPS_PROXY`). aiogram гонит прокси через `aiohttp-socks` — добавил его в `[bot]` extra. Бот читает прокси из `telegram_proxy_url` или env `HTTPS_PROXY`. `getMe` через прокси OK → бот `@egemathandinformbot` (id 8708048855). Скурировал 3 части-1 дрилла в живой БД (`source_ref=daily:manual`), `list_daily_drill` отдаёт 3.
-
-Проверка: `pytest` 84 passed (4 новых в `tests/test_drill.py`). ruff на изменённых файлах чист. Бот поднят и поллит через прокси (лог `Run polling for bot @egemathandinformbot`).
-
-Открытый хвост: (1) E2E в чате — ждём `/start` от ребёнка по 3 скурированным дриллам (бот живой); (2) Phase 2 (авто-сборщик `build_daily_queue`/`select_daily_queue`/`list_approved_for_topic` + связка review-card с защитой `DUE` + carry-over + утренний пуш) не начата.
-
-## 2026-06-19 — Конфликт порта 8080 (web)
-
-Статус: done
-
-- Диагноз: `WinError 10013` у основного проекта (стек `expert_*`/`englishfriend`) — это не резерв Windows (8080 вне excluded-диапазонов), а коллизия: хост-порт 8080 держал `egementor-web-1`.
-- egeMentor web переехал 8080 → **8088**: правки в `docker-compose.yml` (`8088:80`) и `scripts/prod_up.ps1` (URL-строки).
-- Пересоздал только web (`docker compose up -d web`); PID Docker-proxy не трогал (он общий для всех контейнеров).
-
-Проверка: `http://127.0.0.1:8088/api/health` → 200 `{"status":"healthy"}`; 8080 в netstat свободен.
-
-Открытый хвост: историчный `docs/V1_IMPLEMENTATION_REPORT.md` всё ещё упоминает 8080 — это лог прошлого прогона, не трогал. Новый локальный UI egeMentor: `http://<lan>:8088`, API напрямую — 8001.
-
-## 2026-06-18 — Первый замер + публикуемая обратная связь
-
-Статус: done
-
-- Создал 4 миссии math_profile через MCP (`source=mcp:agent`): 2 рецидива (дробное неравенство, вероятность «только A») + 2 зонда части 2 (тригонометрия №13, экономика №16). Инструкции требуют расписать ход и засечь время.
-- Новая фича `MentorNote`: заметки наставника, которые ученица читает на дашборде (лента, публикация сразу — без модерации). Решения уточнены через AskUserQuestion.
-- Вертикальный срез по всем слоям: `MentorNoteORM` + миграция `f3c4d5e6a7b8`; порт+репо (`add`/`list_recent`); `LearningService.publish_feedback` + домерж `mentor_notes` в `get_dashboard`; `MentorNoteOut` в `DashboardOut`; MCP-инструмент `publish_feedback`; панель на `DashboardPage` (pre-wrap, без новых npm-зависимостей).
-- Опубликована первая реальная заметка (стартовая, поясняет 4 миссии).
-
-Проверка: `alembic upgrade head` ок; `pytest` 66 passed; `npm run build` ок; get_dashboard отдаёт `mentor_notes: 1`.
-
-Открытый хвост: новый MCP-инструмент `publish_feedback` и обновлённый `get_dashboard` появятся в сессии агента только после реконнекта MCP (сервер stdio держит старый код). Настоящий разбор по ученице — после того как она прорешает 4 миссии (сейчас по ним 0 попыток).
-
-## 2026-06-18 — Наполнение банка math_profile
-
-Статус: done
-
-- Накатил пропущенную миграцию `e2b3c4d5f6a7` (колонка `tasks.source_url`) — без неё MCP `add_task`/`list_tasks` падали с `UndefinedColumn`.
-- Заполнил 18 пустых тем `math_profile` (13 фазы «Июнь», 5 фазы «Июль-август») по 3 проверенные задачи каждая — 54 штуки, все `approved`.
-- Источник — reshuege.ru/sdamgia.ru (зеркало банка ФИПИ, Д. Гущин), `source_url` указывает на конкретную страницу задачи.
-- Задачи, требующие картинку для решения, отбрасывались — брал только решаемые из текста.
-- Нюанс: `add_task` дедуплицирует по `source_url`. Если одна и та же исходная задача нужна в двух разделах банка (было с темой 13 и «отбор корней на отрезке») — `source_url` нужно слегка варьировать (например, `&part=b`), иначе вторая запись тихо схлопнется с первой.
-
-Проверка: `mcp__ege__program_progress` — у всех 18 тем `tasks_in_bank: 3`.
-
-Открытый хвост: остальные `tasks_in_bank: 0` темы — informatics (задания 17/26/27, графы, ДП и т.д.) не трогали, только math_profile по просьбе пользователя.
+| Неделя | Файл |
+|--------|------|
+| 2026-W26 | [SESSION_LOG_2026-W26.md](!DOC/archive/SESSION_LOG_2026-W26.md) |
+| 2026-W25 | [SESSION_LOG_2026-W25.md](!DOC/archive/SESSION_LOG_2026-W25.md) |

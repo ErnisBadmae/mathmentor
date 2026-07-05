@@ -1,5 +1,7 @@
 # EGE Mentor
 
+Last updated: 2026-07-03
+
 Family LAN pilot for EGE preparation in profile mathematics and informatics.
 
 The product is intentionally not a generic AI tutor. It is a guided preparation loop:

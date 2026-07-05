@@ -1,6 +1,52 @@
 # Active Task
 
-## Current Snapshot (2026-07-03, after Qwen 093450)
+> Кросс-проектная стратегия (verifiable-AI рамка, роли Claude/Codex/Qwen, ege-трек
+> proven-delta в общей картине): канонический док — `expert-agent/!DOC/STRATEGY.md`.
+
+## Current Snapshot (2026-07-04, AI-judge calibration baseline)
+
+- New instrument: `backend/scripts/calibrate_ai_judge.py` (+5 tests) — offline-replay
+  калибровка `LlmShortAnswerJudge` против детерминированного exact-авторитета по протоколу
+  expert-agent ADR-013 (kappa-математика скопирована оттуда, VERSION 1.0). Exit non-zero
+  при judge-failure-rate > 10% → готов как weekly night-runner task (no-prompt acceptance).
+- Baseline (25 unique triples / 27 attempts, judge failures 0):
+  - raw judge vs raw exact: agreement 0.36, kappa 0.04 — низкий ПО ДИЗАЙНУ: почти все
+    ответы формата «покажи ход», raw exact совпал лишь на 1/25; судья и существует для
+    этого разрыва.
+  - guardrail-декомпозиция: из 16 judge-«спасений» **14 заземлены** extracted-ответом
+    (прод принял бы законно), **2 opinion-only — прод отверг бы** (fail-closed held);
+    false negatives 0 (судья не бракует верное).
+  - продуктовые находки: (a) unit-синонимы «768 кб» vs «768 Кбайт» — exact промахивается
+    на верном ответе → кандидат в `normalize_answer`; (b) code-задачи с описательным
+    эталоном структурно не подходят short-answer политике — зона MANUAL_GATE, не exact.
+- Next:
+  1. Human_verdict по 14 grounded-спасениям в `backend/data/ai_judge_disagreements.jsonl`
+     (~10 мин, поле `human_verdict: judge_right | exact_right` прямо в файле).
+  2. Добавить `calibrate_ai_judge.py` в weekly night queue (перезапуск по мере роста данных).
+  3. Малый slice: unit-синонимы (кб/Кбайт/КБ) в `normalize_answer` + тесты (Codex/Qwen класс).
+- Codex follow-up 2026-07-04:
+  - `backend/scripts/night_runner.py` синхронизирован с каноном expert-agent v1.1:
+    VERSION=1.1, `.env` копируется из корня репо в worktree, acceptance/executor пишут
+    full-log в `logs/<task>/`, отчёт показывает хвост `LOG_TAIL_CHARS=3000`; ege-пути и
+    `C:\tmp\egeMentor-qwen-runs` сохранены.
+  - `normalize_answer` теперь сводит синонимы единиц информации: `кб|кбайт|kb`,
+    `мб|мбайт|mb`, `гб|гбайт|gb`; одиночная `б` не нормализуется.
+  - Weekly queue получила no-prompt gate `T-calibrate-ai-judge` с acceptance
+    `backend/scripts/calibrate_ai_judge.py --max-failure-rate 0.1` и `files_allowed`
+    только для `data/ai_judge_disagreements.jsonl`.
+  - Проверка baseline rerun: кодовый exact-case `answer_is_correct("768 кб", "768 Кбайт")`
+    исправлен тестами, но live calibration rerun 2026-07-04 не дал валидной дельты:
+    LLM endpoint из `.env` (`http://192.168.0.18:8000/v1`) недоступен, judge returned
+    None 25/25 (`failure_rate=1.0`, rc=1). Дополнительно текущая replay-тройка в БД
+    содержит полный текст решения, начинающийся с `768 кб, ...`, поэтому raw exact
+    остаётся `False` без отдельного извлечения финального ответа.
+  - Import-linter package B 2026-07-05: backend получил два layering-контракта в
+    `backend/pyproject.toml` (`app.domain` не импортирует `app.infrastructure /
+    app.adapters / app.application`; `app.application` не импортирует `app.adapters`),
+    `import-linter` добавлен в `dev`, weekly queue получила `T-lint-imports`.
+    Под эти контракты кодовых нарушений нет; `importlinter`/`grimp` пришлось посадить в
+    локальную `.venv312` копированием из соседней venv, потому что `pip install -e .[dev]`
+    упёрся в сетевой/proxy deny.
 
 - Goal: execute the proven-delta strategy with verified small steps: monthly timed score events, weekly error-to-intervention review, part-2 manual-gated evidence, targeted content depth, and Qwen only as a bounded read-only/mechanical executor.
 - Status: latest completed live nightly batch `C:\tmp\egeMentor-qwen-runs\2026-07-03\report-093450.md` is 4/4 GREEN. The part-2 text-only manual-gate slice is committed as `4294d09`; the MANUAL_GATE real-reviewer regression and sandbox simulator case are committed as `34e1f75` and verified by live Qwen. Retention KPI v1 is implemented locally: dashboard exposes weekly active days and a Wednesday risk alert.
