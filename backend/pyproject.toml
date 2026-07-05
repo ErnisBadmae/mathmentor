@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.2", "ruff>=0.6", "mypy>=1.11"]
+dev = ["pytest>=8.2", "ruff>=0.6", "mypy>=1.11", "import-linter>=2.0"]
 bot = ["aiogram>=3.10", "aiohttp-socks>=0.9", "matplotlib>=3.8"]
 mcp = ["mcp>=1.0"]
 
@@ -37,3 +37,18 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+
+[tool.importlinter]
+root_package = "app"
+
+[[tool.importlinter.contracts]]
+name = "domain is pure"
+type = "forbidden"
+source_modules = ["app.domain"]
+forbidden_modules = ["app.infrastructure", "app.adapters", "app.application"]
+
+[[tool.importlinter.contracts]]
+name = "application does not import adapters"
+type = "forbidden"
+source_modules = ["app.application"]
+forbidden_modules = ["app.adapters"]

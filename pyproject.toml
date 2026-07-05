@@ -1,0 +1,11 @@
+[tool.docs-maintenance]
+# egeMentor: !DOC — основная документация, SESSION_LOG.md — в корне
+doc_dir = "!DOC"
+session_log = "SESSION_LOG.md"
+archive_dir = "!DOC/archive"
+tier0_files = [
+  "!DOC/README.md",
+  "!DOC/operations/ACTIVE_TASK.md",
+  "SESSION_LOG.md"
+]
+context_budget_lines = 2000

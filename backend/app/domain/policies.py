@@ -44,10 +44,26 @@ def score_event_moves_score(kind: str) -> bool:
     return kind not in NON_SCORING_SCORE_EVENT_KINDS
 
 
+_INFO_UNIT_SUFFIXES = (
+    (("кбайт", "кб", "kb"), "kb"),
+    (("мбайт", "мб", "mb"), "mb"),
+    (("гбайт", "гб", "gb"), "gb"),
+)
+
+
+def _normalize_information_unit_suffix(value: str) -> str:
+    for aliases, canonical in _INFO_UNIT_SUFFIXES:
+        for alias in aliases:
+            if value.endswith(alias):
+                return value[: -len(alias)] + canonical
+    return value
+
+
 def normalize_answer(value: str) -> str:
     """Normalize a short exact answer for deterministic comparison: casefold, decimal
-    comma -> dot, and drop all whitespace. Suits numeric/short math answers."""
-    return "".join(value.strip().casefold().replace(",", ".").split())
+    comma -> dot, unit synonyms, and drop all whitespace. Suits numeric/short answers."""
+    compact = "".join(value.strip().casefold().replace(",", ".").split())
+    return _normalize_information_unit_suffix(compact)
 
 
 def _as_fraction(value: str | None) -> Fraction | None:

@@ -9,6 +9,14 @@ Runner — тупой цикл. Состояние живёт в git + отчё�
 Сегодня = ПРОВЕРОЧНЫЙ прогон на крошечной очереди, не 8-часовой grind.
 Morning-review архитектором обязателен (отчёт содержит сырой вывод).
 
+Канонический источник — репозиторий expert-agent; в другие репозитории копируется
+как есть, сверка версий по VERSION ниже. В egeMentor разрешено сохранять
+репо-специфику путей: REPO / WORKTREE_ROOT / DEFAULT_QUEUE / OPENCODE /
+AUTO_APPROVE_EDITS.
+Changelog:
+  1.0 — базовый runner.
+  1.1 — копирование .env в worktree + sh_logged full-log + LOG_TAIL_CHARS.
+
 Запуск:
   python scripts/night_runner.py --dry-run   # проверить плумбинг без executor (безопасно)
   python scripts/night_runner.py             # реальный прогон
@@ -29,12 +37,15 @@ import shutil
 import subprocess
 import sys
 
+VERSION = "1.1"
+
 REPO = pathlib.Path(__file__).resolve().parents[1]
 WORKTREE_ROOT = pathlib.Path(
     os.environ.get("NIGHT_RUNNER_WORKTREE_ROOT", "C:/tmp/egeMentor-qwen-runs")
 )
 DEFAULT_QUEUE = REPO / "scripts" / "night_queue.json"
 BASE_REF = "HEAD"
+LOG_TAIL_CHARS = 3000
 # venv-python (auto-detect любого venv*/.venv); подставляется вместо токена "{PY}" в acceptance.
 _VENV_PY = next(
     (
@@ -68,7 +79,7 @@ SELF_VERIFY = (
 )
 
 
-def sh(cmd: list[str], cwd: pathlib.Path, timeout: int = 1800) -> tuple[int, str]:
+def sh_full(cmd: list[str], cwd: pathlib.Path, timeout: int = 1800) -> tuple[int, str]:
     try:
         p = subprocess.run(
             cmd,
@@ -81,8 +92,34 @@ def sh(cmd: list[str], cwd: pathlib.Path, timeout: int = 1800) -> tuple[int, str
         )
     except subprocess.TimeoutExpired:
         return 124, "TIMEOUT"
-    tail = (p.stdout or "")[-1500:] + (p.stderr or "")[-1500:]
-    return p.returncode, tail
+    return p.returncode, (p.stdout or "") + (p.stderr or "")
+
+
+def sh(cmd: list[str], cwd: pathlib.Path, timeout: int = 1800) -> tuple[int, str]:
+    rc, out = sh_full(cmd, cwd, timeout)
+    return rc, out[-LOG_TAIL_CHARS:]
+
+
+def _write_full_log(log_dir: pathlib.Path, name: str, content: str) -> str:
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        path = log_dir / f"{name}.log"
+        path.write_text(content, encoding="utf-8")
+        return str(path)
+    except OSError as exc:
+        return f"<full log unavailable: {exc}>"
+
+
+def sh_logged(
+    cmd: list[str],
+    cwd: pathlib.Path,
+    timeout: int,
+    log_dir: pathlib.Path,
+    name: str,
+) -> tuple[int, str, str]:
+    rc, out = sh_full(cmd, cwd, timeout)
+    log_path = _write_full_log(log_dir, name, out)
+    return rc, out[-LOG_TAIL_CHARS:], log_path
 
 
 def changed_files(wt: pathlib.Path) -> tuple[int, set[str]]:
@@ -111,7 +148,7 @@ def status_snapshot(path: pathlib.Path) -> tuple[int, set[str]]:
     return 0, lines
 
 
-def run_task(t: dict, wt: pathlib.Path, dry: bool) -> tuple[str, str]:
+def run_task(t: dict, wt: pathlib.Path, dry: bool, log_dir: pathlib.Path) -> tuple[str, str]:
     detail = ""
     has_prompt = bool(t.get("prompt"))
     kind = t.get("kind") or ("edit" if has_prompt else "run")
@@ -139,8 +176,14 @@ def run_task(t: dict, wt: pathlib.Path, dry: bool) -> tuple[str, str]:
         if AUTO_APPROVE_EDITS:
             cmd.append("--dangerously-skip-permissions")
         cmd.append(t["prompt"] + SELF_VERIFY)
-        erc, eout = sh(cmd, wt, t.get("timeout", 1800))
-        detail += f"executor rc={erc}\n```\n{eout[-1500:]}\n```\n"
+        erc, eout, log_path = sh_logged(
+            cmd,
+            wt,
+            t.get("timeout", 1800),
+            log_dir,
+            "executor",
+        )
+        detail += f"executor rc={erc}\nFull log: {log_path}\n```\n{eout}\n```\n"
         main_rc, main_after = status_snapshot(REPO)
         if main_rc != 0:
             return "BLOCKED", detail + "could not inspect main worktree after executor\n"
@@ -182,15 +225,35 @@ def run_task(t: dict, wt: pathlib.Path, dry: bool) -> tuple[str, str]:
 
     # acceptance = список команд (каждая — список аргументов), БЕЗ shell; "{PY}" → venv-python.
     status = "GREEN"
-    for cmd in t["acceptance"]:
+    for idx, cmd in enumerate(t["acceptance"], start=1):
         argv = [PY if a == "{PY}" else a for a in cmd]
-        rc, out = sh(argv, wt, t.get("timeout", 1800))
-        detail += f"$ {' '.join(cmd)}\nrc={rc}\n```\n{out}\n```\n"
+        rc, out, log_path = sh_logged(
+            argv,
+            wt,
+            t.get("timeout", 1800),
+            log_dir,
+            f"acceptance-{idx:02d}",
+        )
+        detail += f"$ {' '.join(cmd)}\nrc={rc}\nFull log: {log_path}\n```\n{out}\n```\n"
         if rc == 124:
             return "BLOCKED", detail
         if rc != 0:
             status = "RED"
             break
+    allowed = set(t.get("files_allowed") or [])
+    if status == "GREEN" and allowed:
+        rc, files = changed_files(wt)
+        if rc != 0:
+            return "BLOCKED", detail + "could not inspect changed files after acceptance\n"
+        unexpected = sorted(files - allowed)
+        if unexpected:
+            return (
+                "RED",
+                detail
+                + "files_allowed violation after acceptance:\n"
+                + "\n".join(f"- {path}" for path in unexpected)
+                + "\n",
+            )
     return status, detail
 
 
@@ -230,7 +293,11 @@ def main() -> None:
         if rc != 0:
             lines.append(f"## {tid} — BLOCKED (worktree add)\n```\n{wout}\n```\n")
             continue
-        status, detail = run_task(t, wt, args.dry_run)
+        env_file = REPO.parent / ".env"
+        if env_file.exists():
+            shutil.copy2(env_file, wt / ".env")
+        log_dir = out_dir / "logs" / f"{tid}-{run_id}"
+        status, detail = run_task(t, wt, args.dry_run, log_dir)
         if status == "GREEN" and not args.dry_run and t.get("prompt") and t.get("kind") != "report":
             sh(["git", "add", "-A"], wt)
             # --no-verify: гейт уже прогнал black/flake8/pytest; иначе pre-commit отбивает commit.

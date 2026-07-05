@@ -72,5 +72,37 @@
       ["{PY}", "-c", "from pathlib import Path; assert 'getScoreEvents' in Path('frontend/src/shared/api/client.ts').read_text(encoding='utf-8'); assert \"['score-events', studentId]\" in Path('frontend/src/pages/DashboardPage.tsx').read_text(encoding='utf-8'); assert \"invalidateQueries({ queryKey: ['score-events', studentId] })\" in Path('frontend/src/pages/OperatorPage.tsx').read_text(encoding='utf-8')"]
     ],
     "timeout": 900
+  },
+  {
+    "id": "T-calibrate-ai-judge",
+    "kind": "run",
+    "comment": "Weekly no-prompt calibration gate for live short-answer judge replay.",
+    "acceptance": [
+      [
+        "{PY}",
+        "backend/scripts/calibrate_ai_judge.py",
+        "--max-failure-rate",
+        "0.1"
+      ]
+    ],
+    "files_allowed": [
+      "data/ai_judge_disagreements.jsonl"
+    ],
+    "timeout": 1800
+  },
+  {
+    "id": "T-lint-imports",
+    "kind": "run",
+    "comment": "Weekly no-prompt layering gate for backend imports.",
+    "acceptance": [
+      [
+        "{PY}",
+        "-m",
+        "importlinter",
+        "--config",
+        "backend/pyproject.toml"
+      ]
+    ],
+    "timeout": 900
   }
 ]

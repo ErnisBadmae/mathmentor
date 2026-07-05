@@ -105,6 +105,22 @@ def test_decimal_approximation_still_not_treated_as_thousands(seeded_session):
     assert numeric_mismatch("0.667", "2/3") is True
 
 
+def test_information_unit_synonyms_are_exact_equivalent(seeded_session):
+    for submitted in ("768 кб", "768 КБ", "768 kb", "768   Кбайт"):
+        assert answer_is_correct(submitted, "768 Кбайт") is True
+    for submitted in ("12 мб", "12 МБ", "12 mb", "12 Мбайт"):
+        assert answer_is_correct(submitted, "12 Мбайт") is True
+    for submitted in ("3 гб", "3 ГБ", "3 gb", "3 Гбайт"):
+        assert answer_is_correct(submitted, "3 Гбайт") is True
+
+
+def test_information_unit_normalization_keeps_distinct_units_and_b(seeded_session):
+    assert answer_is_correct("768 кб", "768 мб") is False
+    assert answer_is_correct("12 mb", "12 gb") is False
+    assert answer_is_correct("8 б", "8 кб") is False
+    assert answer_is_correct("8 б", "8 b") is False
+
+
 def test_show_work_grounds_verdict_on_extracted_answer(seeded_session):
     # ученик прислал ход решения; сырой текст ≠ ключу, но ИИ извлёк финальный ответ "12"
     judge = MockJudge(equivalent=True, feedback="метод ок", extracted="12")
