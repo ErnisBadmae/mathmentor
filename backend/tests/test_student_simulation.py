@@ -12,7 +12,9 @@ def test_student_flow_simulator_script():
         cwd=root,
         text=True,
         capture_output=True,
-        timeout=30,
+        # 30s флейкнул в первую ночь флота (2026-07-05): subprocess завершился rc=0,
+        # но позже лимита — машина была прогрета очередями соседних репо.
+        timeout=120,
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
