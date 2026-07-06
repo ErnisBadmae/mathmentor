@@ -126,3 +126,16 @@ def test_seed_includes_part2_manual_gate_missions(seeded_session):
     assert all(row.ai_policy == AiPolicy.MANUAL_GATE for row in rows)
     assert all(row.task is not None for row in rows)
     assert all(row.task.expected_answer == "" for row in rows)
+
+
+def test_seed_part2_13_mission_and_task_share_math_topic(seeded_session):
+    mission = seeded_session.scalar(
+        select(MissionORM).where(MissionORM.source_ref == "part2:text:13:trig-equation-a")
+    )
+
+    assert mission is not None
+    assert mission.task is not None
+    assert mission.topic_id == mission.task.topic_id
+    assert mission.topic is not None
+    assert mission.topic.subject == Subject.MATH_PROFILE
+    assert mission.topic.task_number == "13"

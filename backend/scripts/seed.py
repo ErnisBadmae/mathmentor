@@ -42,6 +42,7 @@ TOPICS = [
     (Subject.INFORMATICS, "Python: цикл for и range", "python-for"),
     (Subject.INFORMATICS, "Кодирование изображений и звука", "encoding"),
     (Subject.INFORMATICS, "Комбинаторика: подсчёт слов и чисел", "combinatorics"),
+    (Subject.MATH_PROFILE, "Задача 13: тригонометрическое уравнение", "13"),
 ]
 
 # Учебная программа (фазы из app/domain/program.py): (phase_key, subject, title).
@@ -390,7 +391,7 @@ TASKS = [
     {
         "id": 4071,
         "subject": Subject.MATH_PROFILE,
-        "topic_index": 12,
+        "topic_index": 13,
         "task_number": "part2-13-text-a",
         "statement": (
             "Задача 13. Решите уравнение 2sin^2(x) - 3sin(x) + 1 = 0. "
@@ -993,9 +994,13 @@ def seed() -> None:
         for index, (subject, topic_index, title, instructions, threshold, task_ref) in enumerate(
             MISSIONS, start=1
         ):
-            topic_id = topic_ids[TOPICS[topic_index][0], TOPICS[topic_index][1]]
             task = task_by_ref.get(task_ref) if task_ref is not None else None
             is_part2_manual_gate = bool(task_ref and task_ref.startswith("part2:text:"))
+            topic_id = (
+                task.topic_id
+                if is_part2_manual_gate and task is not None
+                else topic_ids[TOPICS[topic_index][0], TOPICS[topic_index][1]]
+            )
             mission_source_ref = task_ref if is_part2_manual_gate else None
             if title in existing_mission_titles:
                 for mission in (

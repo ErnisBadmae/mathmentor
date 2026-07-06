@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.config import get_settings
 from app.domain.enums import (
@@ -244,12 +244,19 @@ class EvidenceSqlRepository:
         return evidence
 
     def list_manual_reviews(self, student_id: UUID) -> list[dict[str, object]]:
+        resolved = aliased(EvidenceORM)
         rows = self.session.execute(
             select(EvidenceORM, MissionORM.title, TopicORM.title)
             .join(MissionORM, MissionORM.id == EvidenceORM.mission_id)
             .outerjoin(TopicORM, TopicORM.id == EvidenceORM.topic_id)
             .where(EvidenceORM.student_id == student_id)
             .where(EvidenceORM.status == EvidenceStatus.NEEDS_MANUAL_REVIEW)
+            .where(
+                ~select(resolved.id)
+                .where(resolved.attempt_id == EvidenceORM.attempt_id)
+                .where(resolved.status != EvidenceStatus.NEEDS_MANUAL_REVIEW)
+                .exists()
+            )
             .order_by(EvidenceORM.created_at.desc())
         ).all()
         return [

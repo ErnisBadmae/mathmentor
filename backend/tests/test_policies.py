@@ -1,7 +1,23 @@
 from datetime import date
 
-from app.domain.enums import AttemptKind, AttemptMode, EvidenceStatus, ReviewStatus, TopicState
-from app.domain.policies import affects_clean_sheet, clean_sheet_ratio, compute_topic_state, evidence_status, is_topic_closed, review_due_dates, review_result_to_status
+from app.domain.enums import (
+    AttemptKind,
+    AttemptMode,
+    ErrorCategory,
+    EvidenceStatus,
+    ReviewStatus,
+    TopicState,
+)
+from app.domain.policies import (
+    affects_clean_sheet,
+    clean_sheet_ratio,
+    compute_topic_state,
+    evidence_status,
+    is_topic_closed,
+    review_due_dates,
+    review_result_to_status,
+    select_intervention_queue,
+)
 
 
 def test_topic_closes_at_threshold() -> None:
@@ -54,3 +70,34 @@ def test_topic_state_confirmed_needs_both_cards_done() -> None:
 def test_topic_state_back_to_work_outranks_in_work() -> None:
     # a failed review spawns a fresh ACTIVE mission, yet the topic must read back_to_work
     assert compute_topic_state(1, True, 0, 1, 1) == TopicState.BACK_TO_WORK
+
+
+def test_intervention_queue_requires_repeated_actionable_category() -> None:
+    assert select_intervention_queue({ErrorCategory.SIGN_TRANSFER: 1}) == []
+    assert select_intervention_queue({ErrorCategory.SIGN_TRANSFER: 2}) == [
+        ErrorCategory.SIGN_TRANSFER
+    ]
+
+
+def test_intervention_queue_ignores_non_actionable_categories() -> None:
+    assert (
+        select_intervention_queue(
+            {
+                ErrorCategory.OTHER: 10,
+                ErrorCategory.NONE: 10,
+                ErrorCategory.ODZ_LOGIC: 2,
+            }
+        )
+        == [ErrorCategory.ODZ_LOGIC]
+    )
+
+
+def test_intervention_queue_orders_by_count_then_category() -> None:
+    assert select_intervention_queue(
+        {
+            ErrorCategory.SIGN_TRANSFER: 3,
+            ErrorCategory.ARITHMETIC: 3,
+            ErrorCategory.CONDITION_READING: 4,
+        },
+        limit=2,
+    ) == [ErrorCategory.CONDITION_READING, ErrorCategory.ARITHMETIC]

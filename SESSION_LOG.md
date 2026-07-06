@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-07-06 - Qwen follow-up: part-2 topic, manual gate lifecycle, intervention selector
+
+Status: implemented and verified locally.
+
+- Fixed the seeded part-2 #13 topic mismatch: task `part2-13-text-a` now belongs to the math topic `Задача 13: тригонометрическое уравнение`, and part-2 manual-gate missions take `topic_id` from their linked task to prevent future task/mission drift.
+- Added the missing manual-gate lifecycle regression: submit text solution -> appears in manual-review queue -> manual PASSED verdict -> mission DONE -> +7/+30 review cards scheduled.
+- Made manual-review queue show only unresolved `NEEDS_MANUAL_REVIEW` evidence; append-only evidence history stays intact after the manual verdict.
+- Added pure, not-yet-wired `select_intervention_queue(...)`: requires repeated actionable category count >=2, ignores `none`/`other`, orders by count then category for deterministic future routing.
+- Fixed weekly `T-lint-imports` command to call `python -m importlinter.cli`.
+
+Verification: focused Qwen follow-up tests `14 passed`; full backend suite `187 passed`; frontend build green; weekly queue JSON parsed; import-linter rc=0.
+
+Open tail: deterministic repeated-error intervention remains frozen until weekly-review data is available; selector is covered but not connected to queue creation.
+
+---
+
 ## 2026-07-05 - Import-linter contracts for backend
 
 Status: implemented and verified locally.

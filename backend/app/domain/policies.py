@@ -2,7 +2,14 @@ import re
 from datetime import date, timedelta
 from fractions import Fraction
 
-from app.domain.enums import AttemptKind, AttemptMode, EvidenceStatus, ReviewStatus, TopicState
+from app.domain.enums import (
+    AttemptKind,
+    AttemptMode,
+    ErrorCategory,
+    EvidenceStatus,
+    ReviewStatus,
+    TopicState,
+)
 
 
 def is_topic_closed(score_percent: float, threshold_percent: float) -> bool:
@@ -125,6 +132,27 @@ def select_daily_queue(
     то, что нужно до-создать (длиной не больше остатка бюджета). Чистая функция, без БД."""
     budget = max(0, limit - open_count)
     return ([*due_reviews, *back_to_work, *new_topics])[:budget]
+
+
+def select_intervention_queue(
+    errors_by_category: dict[ErrorCategory, int],
+    *,
+    min_count: int = 2,
+    limit: int = 3,
+) -> list[ErrorCategory]:
+    """Pure selector for future repeated-error interventions.
+
+    Not wired into the product loop yet: the deterministic intervention rule is still
+    frozen until weekly reviews produce enough signal. ``OTHER`` and ``NONE`` are not
+    actionable categories, so they never trigger a drill by themselves.
+    """
+    actionable = [
+        (category, count)
+        for category, count in errors_by_category.items()
+        if category not in (ErrorCategory.NONE, ErrorCategory.OTHER) and count >= min_count
+    ]
+    actionable.sort(key=lambda item: (-item[1], item[0].value))
+    return [category for category, _count in actionable[: max(0, limit)]]
 
 
 def compute_topic_state(

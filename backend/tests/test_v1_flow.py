@@ -18,6 +18,7 @@ from app.domain.enums import (
     ErrorCategory,
     EvidenceStatus,
     MissionStatus,
+    ReviewStatus,
     Subject,
     TaskStatus,
 )
@@ -644,6 +645,47 @@ def test_manual_gate_with_rule_based_reviewer_remains_fail_closed(seeded_session
         row["id"] == result["evidence_id"]
         for row in service.list_manual_reviews(seed_module.DEMO_STUDENT_ID)
     )
+
+
+def test_manual_gate_passed_decision_finishes_mission_and_schedules_reviews(seeded_session):
+    mission = seeded_session.scalar(
+        select(MissionORM).where(MissionORM.source_ref == "part2:text:13:trig-equation-a")
+    )
+    assert mission is not None
+    service = LearningService(SqlAlchemyUnitOfWork(seeded_session), RuleBasedReviewer())
+
+    submitted = asyncio.run(
+        service.submit_attempt(
+            {
+                "mission_id": mission.id,
+                "kind": AttemptKind.TEXT,
+                "mode": AttemptMode.CLEAN_SHEET,
+                "answer_text": "Full solution with root families and interval selection.",
+            }
+        )
+    )
+    assert submitted["status"] == EvidenceStatus.NEEDS_MANUAL_REVIEW
+    assert any(
+        row["id"] == submitted["evidence_id"]
+        for row in service.list_manual_reviews(seed_module.DEMO_STUDENT_ID)
+    )
+
+    decided = service.apply_manual_decision(
+        submitted["evidence_id"],
+        {"status": EvidenceStatus.PASSED, "feedback": "Accepted by mentor."},
+    )
+
+    assert decided["status"] == EvidenceStatus.PASSED
+    assert seeded_session.get(MissionORM, mission.id).status == MissionStatus.DONE
+    assert service.list_manual_reviews(seed_module.DEMO_STUDENT_ID) == []
+    reviews = seeded_session.scalars(
+        select(ReviewItemORM)
+        .where(ReviewItemORM.source_evidence_id == decided["evidence_id"])
+        .order_by(ReviewItemORM.due_date)
+    ).all()
+    assert len(reviews) == 2
+    assert [row.status for row in reviews] == [ReviewStatus.DUE, ReviewStatus.DUE]
+    assert [row.topic_id for row in reviews] == [mission.topic_id, mission.topic_id]
 
 
 def test_submit_with_only_one_count_raises_value_error(seeded_session):

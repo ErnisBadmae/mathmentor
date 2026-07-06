@@ -48,6 +48,18 @@
     локальную `.venv312` копированием из соседней venv, потому что `pip install -e .[dev]`
     упёрся в сетевой/proxy deny.
 
+- Codex follow-up 2026-07-06:
+  - Closed Qwen backend findings from the night run: part-2 #13 seed now uses the math topic
+    `Задача 13: тригонометрическое уравнение`, and part-2 manual-gate missions take `topic_id`
+    from their linked task to prevent task/mission drift.
+  - Manual-gate lifecycle is covered through submit -> manual-review queue -> manual PASSED ->
+    mission DONE -> +7/+30 reviews; resolved manual-review evidence no longer stays visible in
+    the pending queue.
+  - Added pure `select_intervention_queue(...)` with repeated actionable category count >=2 and
+    `none`/`other` ignored. It is intentionally not wired while the deterministic intervention
+    rule remains frozen.
+  - Weekly `T-lint-imports` command now invokes `importlinter.cli`.
+
 - Goal: execute the proven-delta strategy with verified small steps: monthly timed score events, weekly error-to-intervention review, part-2 manual-gated evidence, targeted content depth, and Qwen only as a bounded read-only/mechanical executor.
 - Status: latest completed live nightly batch `C:\tmp\egeMentor-qwen-runs\2026-07-03\report-093450.md` is 4/4 GREEN. The part-2 text-only manual-gate slice is committed as `4294d09`; the MANUAL_GATE real-reviewer regression and sandbox simulator case are committed as `34e1f75` and verified by live Qwen. Retention KPI v1 is implemented locally: dashboard exposes weekly active days and a Wednesday risk alert.
 - Current operating rules:

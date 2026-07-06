@@ -98,7 +98,7 @@
       [
         "{PY}",
         "-m",
-        "importlinter",
+        "importlinter.cli",
         "--config",
         "backend/pyproject.toml"
       ]
