@@ -28,10 +28,17 @@ from mcp.server.fastmcp import FastMCP  # noqa: E402
 
 from app.application.use_cases import LearningService, RuleBasedReviewer  # noqa: E402
 from app.config import get_settings  # noqa: E402
-from app.domain.enums import AiPolicy, ErrorCategory, MissionStatus, Subject, TaskStatus  # noqa: E402
+from app.domain.enums import (  # noqa: E402
+    AiPolicy,
+    ErrorCategory,
+    MissionStatus,
+    Subject,
+    TaskStatus,
+)
 from app.infrastructure.db import SessionLocal  # noqa: E402
 from app.infrastructure.llm import OpenAICompatibleReviewer  # noqa: E402
 from app.infrastructure.repositories import SqlAlchemyUnitOfWork  # noqa: E402
+from app.infrastructure.telegram_send import deliver_pending_notes  # noqa: E402
 
 # One student in the family pilot (the all-zero UUID the frontend/seed use).
 DEFAULT_STUDENT_ID = "00000000-0000-0000-0000-000000000000"
@@ -179,6 +186,33 @@ def build_daily_queue(limit: int = 5, student_id: str = DEFAULT_STUDENT_ID) -> A
 
 
 @mcp.tool()
+def operator_close_daily_missions(
+    reason: str = "Guardian accepted these daily missions as completed.",
+    student_id: str = DEFAULT_STUDENT_ID,
+) -> Any:
+    """Close open daily missions as trusted-completed operator recovery.
+
+    Creates recovery attempts/evidence and uses normal mission progression. Tagged
+    model_id=operator-recovery; answer keys are not exposed to the student.
+    """
+    with SessionLocal() as session:
+        return _serialize(
+            _service(session).operator_close_daily_missions(UUID(student_id), reason)
+        )
+
+
+@mcp.tool()
+def operator_skip_daily_missions(
+    mission_ids: list[str],
+    reason: str = "Operator retired this mistakenly created daily mission.",
+) -> Any:
+    """Retire open daily missions without recording learning evidence."""
+    with SessionLocal() as session:
+        ids = [UUID(mission_id) for mission_id in mission_ids]
+        return _serialize(_service(session).operator_skip_daily_missions(ids, reason))
+
+
+@mcp.tool()
 def update_mission(
     mission_id: str,
     title: str | None = None,
@@ -274,7 +308,9 @@ def record_review_result(review_id: str, passed: bool) -> Any:
 def publish_feedback(body: str, topic_id: str | None = None, student_id: str = DEFAULT_STUDENT_ID) -> Any:
     """Publish a mentor note the STUDENT reads on the dashboard feed (transparent process).
     Write it for the student in plain language; never include answer keys. Optionally tag a
-    topic_id. Published immediately. Tagged source=mcp:agent."""
+    topic_id. Published to the dashboard feed AND delivered to the student's Telegram right
+    away. Tagged source=mcp:agent. If Telegram delivery fails, the note stays saved in the
+    feed but the call raises so the failure is visible."""
     values = {
         "student_id": UUID(student_id),
         "topic_id": UUID(topic_id) if topic_id else None,
@@ -282,7 +318,14 @@ def publish_feedback(body: str, topic_id: str | None = None, student_id: str = D
         "source_ref": "mcp:agent",
     }
     with SessionLocal() as session:
-        return _serialize(_service(session).publish_feedback(values))
+        note = _serialize(_service(session).publish_feedback(values))
+    try:
+        note["delivered_to_telegram"] = deliver_pending_notes(get_settings(), UUID(student_id))
+    except Exception as exc:  # noqa: BLE001 — заметка уже в ленте; сообщаем о провале доставки
+        raise RuntimeError(
+            f"Заметка сохранена в ленте, но доставка в Telegram не удалась: {exc}"
+        ) from exc
+    return note
 
 
 def main() -> None:

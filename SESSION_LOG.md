@@ -5,6 +5,95 @@
 
 ---
 
+## 2026-07-07 - Единая доставка заметок в Telegram (publish = отправка)
+
+Status: реализовано, тесты зелёные; для live нужен rebuild api+bot и reconnect MCP.
+
+- Проблема: `publish_feedback` клал заметку только в ленту; в Telegram она уходила лишь утренним пушем. Ручная отправка требовала `docker compose exec` (неэффективно).
+- Новый модуль `app/infrastructure/telegram_send.py` — одна функция доставки `deliver_pending_notes(settings, student_id)` (sync urllib+прокси, self-contained, без aiogram; работает из любого процесса) + `send_telegram_message`. Это «1 функция везде».
+- Подключено в трёх точках: MCP `publish_feedback` (сразу досылает, при ошибке ТГ — raise, заметка уже в ленте), API-роут `publish_mentor_note` = веб-форма оператора (то же, ошибка → HTTP 502), утренний пуш бота (переведён на общую функцию через `asyncio.to_thread`; старые aiogram `_deliver_mentor_notes`/`_notify_parent`/`_split_for_telegram` удалены).
+- Ручной ТГ-канал родителя: команда `/send <текст>` в боте (только из `telegram_parent_chat_id`) — публикует заметку и сразу доставляет ученику.
+- Заодно ранее в этой сессии: снят токен-гейт фронта (`App.tsx`) + `API_SHARED_TOKEN=` пусто; отправлена (вручную, exec) заметка Ульяне по срезу процентов 4/5.
+- Проверка: `pytest` 191 passed (3 теста доставки перенацелены на `deliver_pending_notes`); ruff чист по новым файлам (осталась предсуществующая E501 в сигнатуре `publish_feedback`).
+
+Open tail: выкатить — `docker compose up -d --build api bot` и переподключить MCP-сервер (текущий процесс держит старый код без `telegram_send`). После rebuild — проверить `/send` из родительского чата и что MCP-публикация сразу видна в ТГ.
+
+---
+
+## 2026-07-07 - Live Telegram attempt check via MCP
+
+Status: in-progress slice not visible until completion.
+
+- Checked the live student state through MCP while the learner was reportedly solving a slice and had sent one task through Telegram.
+- `attempt_history`, `weekly_digest`, and `manual_reviews` did not show a fresh learner attempt; the latest attempts are still the operator-recovery records from the daily-mission outage recovery.
+- The pending manual-review item is the old 2026-06-17 ODZ attempt, not today's Telegram submission.
+- Runtime checks stayed green: `bot` is healthy, Telegram `getMe` succeeds, and `api`/`bot` logs had no errors in the checked window.
+- Follow-up from the live chat confirmed the bot was processing the slice and returning verdicts. Code check: Telegram slice answers are kept in the in-process `_srez` session and persisted through `record_slice` only after the final task in the slice; MCP read tools see the completed diagnostic, not intermediate 1/5 answers.
+
+Open tail: after the learner finishes all 5 slice tasks, re-check MCP `diagnostics` / `weekly_digest`; if the completed slice is still absent, inspect Telegram DB wiring or the final `record_slice` path.
+
+---
+
+## 2026-07-07 - Local service stack start
+
+Status: running and verified.
+
+- Confirmed the Docker stack with `docker compose up -d`: `postgres`, `api`, `web`, and `bot` are running; `postgres` and `bot` report healthy.
+- Verified API health at `http://127.0.0.1:8001/api/health` and Docker web at `http://127.0.0.1:8088`.
+- Started the Vite dev frontend through the Windows scheduled task `egeMentorFrontendDev`; `http://127.0.0.1:5174` returns HTTP 200.
+
+Verification: `docker compose ps`; API health `healthy`; Vite dev frontend HTTP 200.
+
+---
+
+## 2026-07-07 - Daily mission recovery via MCP
+
+Status: applied live and guarded.
+
+- Used MCP read/write tools first: all due review cards through 2026-07-07 were marked passed, dropping operator-facing `due_reviews` to 0.
+- Added MCP recovery tools backed by `LearningService`: `operator_close_daily_missions` records `operator-recovery` attempts/evidence and normal progression; `operator_skip_daily_missions` retires mistaken daily missions without learning evidence.
+- Invoked the updated MCP server over stdio to close 5 stale open `daily:` missions as guardian-trusted completed work after the Telegram polling outage.
+- A fresh queue build initially exposed 4 part-2 topics as daily drills; those 4 missions were retired as `skipped`, and `build_daily_queue` now excludes current part-2/manual-review topics from auto daily drills.
+- Rebuilt/recreated live `api` and `bot` so the guard is active in the running services.
+
+Verification: daily queue tests `9 passed`; task-bank/MCP-adjacent tests `5 passed`; full backend suite `191 passed`; frontend build green; release smoke GREEN; Telegram runtime smoke GREEN; `bot` is healthy.
+
+Open tail: the current connected Codex MCP namespace will not hot-reload the two new tools until MCP reconnect/restart; the updated server was used via stdio for the live recovery.
+
+---
+
+## 2026-07-07 - Telegram polling regression guard
+
+Status: implemented and verified locally.
+
+- Added an in-process Telegram polling watchdog: repeated aiogram update/proxy/network failures now make the bot process exit with a non-zero code, letting Docker `restart: unless-stopped` recover it.
+- Added container healthcheck `backend/scripts/telegram_getme_health.py` and wired it to the `bot` service in `docker-compose.yml`.
+- Added read-only host smoke `backend/scripts/telegram_bot_runtime_smoke.py`: checks bot service state, fresh polling logs, and in-container Telegram `getMe`.
+- Updated release checklist with the new runtime smoke before manual Telegram drill verification.
+- Rebuilt/recreated the live `bot` path so the watchdog and Docker healthcheck are active now; Compose also recreated `api` from the shared backend image.
+
+Verification: focused bot tests `18 passed`; full backend suite `188 passed`; frontend build green; release smoke GREEN after escalation; live runtime smoke GREEN; `bot` is `healthy`.
+
+Open tail: ask the student to resend daily mission answers that may have been sent while polling was broken.
+
+---
+
+## 2026-07-07 - Telegram bot polling recovery
+
+Status: fixed operationally and verified live.
+
+- Investigated the mismatch between reported daily-mission work and empty attempt ledger.
+- Confirmed no attempts/evidence after 2026-07-01, while Telegram bot logs were flooded with update-polling network/proxy failures.
+- Confirmed direct Telegram API access from the bot container times out; the configured proxy is required.
+- Verified the configured proxy can reach Telegram `getMe`, then restarted only the `bot` service.
+- Post-restart verification: `egementor-bot-1` stayed up for 4 minutes, proxy `getMe` returned OK, and fresh bot logs had no `Failed to fetch updates` / `ProxyConnectionError` / `TelegramNetworkError`.
+
+Verification: `docker compose restart bot`; `docker compose ps bot`; `docker compose logs bot --since 4m` error filter clean; in-container Telegram `getMe` OK.
+
+Open tail: ask the student to resend the daily mission answers, because messages sent while polling was broken did not enter the product ledger.
+
+---
+
 ## 2026-07-06 - Qwen follow-up: part-2 topic, manual gate lifecycle, intervention selector
 
 Status: implemented and verified locally.

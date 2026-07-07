@@ -12,6 +12,7 @@ from app.domain.enums import (
     AiPolicy,
     AttemptKind,
     AttemptMode,
+    ErrorCategory,
     EvidenceStatus,
     MissionStatus,
     ReviewStatus,
@@ -19,7 +20,14 @@ from app.domain.enums import (
     TaskStatus,
 )
 from app.domain.policies import select_daily_queue
-from app.infrastructure.models import MissionORM, ReviewItemORM, TaskORM, TopicORM
+from app.infrastructure.models import (
+    AttemptORM,
+    EvidenceORM,
+    MissionORM,
+    ReviewItemORM,
+    TaskORM,
+    TopicORM,
+)
 from app.infrastructure.repositories import SqlAlchemyUnitOfWork
 from scripts import seed as seed_module
 
@@ -121,6 +129,92 @@ def test_build_daily_queue_picks_new_topic_and_is_idempotent(seeded_session, mon
         select(MissionORM).where(MissionORM.source_ref == f"daily:new:{topic.id}")
     ).all()
     assert len(missions) == 1
+
+
+def test_operator_close_daily_missions_records_recovery_evidence(seeded_session, monkeypatch):
+    svc = service(seeded_session, monkeypatch)
+    topic = _open_topic_with_tasks(svc, seeded_session, "DQ recovery", ["5"])
+    task = seeded_session.scalar(select(TaskORM).where(TaskORM.topic_id == topic.id))
+    payload = svc.create_mission(
+        {
+            "student_id": STUDENT,
+            "subject": Subject.MATH_PROFILE,
+            "title": "Recovery drill",
+            "instructions": "",
+            "status": MissionStatus.ACTIVE,
+            "ai_policy": AiPolicy.ATTEMPT_FIRST,
+            "threshold_percent": 80.0,
+            "topic_id": topic.id,
+            "task_id": task.id,
+            "due_date": FIXED_TODAY,
+            "source_ref": "daily:manual:recovery",
+        }
+    )
+    mission_id = payload["id"]
+
+    result = svc.operator_close_daily_missions(STUDENT, "guardian accepted completed drill")
+
+    assert mission_id in {row["mission_id"] for row in result["closed"]}
+    assert seeded_session.get(MissionORM, mission_id).status == MissionStatus.DONE
+    evidence = seeded_session.scalar(
+        select(EvidenceORM).where(EvidenceORM.mission_id == mission_id)
+    )
+    assert evidence is not None
+    assert evidence.status == EvidenceStatus.PASSED
+    assert evidence.error_category == ErrorCategory.NONE
+    assert evidence.model_id == "operator-recovery"
+    attempt = seeded_session.get(AttemptORM, evidence.attempt_id)
+    assert attempt.mode == AttemptMode.UNKNOWN
+    reviews = seeded_session.scalars(
+        select(ReviewItemORM).where(ReviewItemORM.source_evidence_id == evidence.id)
+    ).all()
+    assert len(reviews) == 2
+    assert svc.operator_close_daily_missions(STUDENT)["closed_count"] == 0
+
+
+def test_operator_skip_daily_missions_retires_without_evidence(seeded_session, monkeypatch):
+    svc = service(seeded_session, monkeypatch)
+    topic = _open_topic_with_tasks(svc, seeded_session, "DQ skip", ["5"])
+    task = seeded_session.scalar(select(TaskORM).where(TaskORM.topic_id == topic.id))
+    payload = svc.create_mission(
+        {
+            "student_id": STUDENT,
+            "subject": Subject.MATH_PROFILE,
+            "title": "Skip drill",
+            "instructions": "",
+            "status": MissionStatus.ACTIVE,
+            "ai_policy": AiPolicy.ATTEMPT_FIRST,
+            "threshold_percent": 80.0,
+            "topic_id": topic.id,
+            "task_id": task.id,
+            "due_date": FIXED_TODAY,
+            "source_ref": "daily:manual:skip",
+        }
+    )
+    mission_id = payload["id"]
+
+    result = svc.operator_skip_daily_missions([mission_id], "wrong queue")
+
+    assert result["skipped_count"] == 1
+    assert seeded_session.get(MissionORM, mission_id).status == MissionStatus.SKIPPED
+    evidence = seeded_session.scalar(
+        select(EvidenceORM).where(EvidenceORM.mission_id == mission_id)
+    )
+    assert evidence is None
+
+
+def test_build_daily_queue_skips_manual_review_part2_topics(seeded_session, monkeypatch):
+    svc = service(seeded_session)
+    monkeypatch.setattr(svc, "_today", lambda: date(2026, 7, 7))
+
+    result = svc.build_daily_queue(STUDENT, limit=5)
+
+    titles = [mission["title"] for mission in result["filled"]]
+    assert all("№14" not in title for title in titles)
+    assert all("№16" not in title for title in titles)
+    assert all("№17" not in title for title in titles)
+    assert all("№18" not in title for title in titles)
+    assert all("Задача 13" not in title for title in titles)
 
 
 def test_build_daily_queue_reports_shortage(seeded_session, monkeypatch):

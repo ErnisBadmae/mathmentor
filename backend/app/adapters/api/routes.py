@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.adapters.api.dependencies import get_learning_service, require_api_token
 from app.adapters.api.schemas import (
@@ -28,7 +28,9 @@ from app.adapters.api.schemas import (
     TopicLifecycleOut,
 )
 from app.application.use_cases import LearningService
+from app.config import get_settings
 from app.domain.enums import ErrorCategory, ReviewStatus, Subject
+from app.infrastructure.telegram_send import deliver_pending_notes
 
 router = APIRouter()
 protected_router = APIRouter(dependencies=[Depends(require_api_token)])
@@ -159,7 +161,15 @@ def publish_mentor_note(
     payload: MentorNoteIn,
     service: LearningService = Depends(get_learning_service),
 ) -> object:
-    return service.publish_feedback({**payload.model_dump(), "student_id": student_id})
+    note = service.publish_feedback({**payload.model_dump(), "student_id": student_id})
+    try:
+        deliver_pending_notes(get_settings(), student_id)
+    except Exception as exc:  # noqa: BLE001 — заметка уже сохранена; сообщаем о провале доставки
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Заметка сохранена в ленте, но доставка в Telegram не удалась: {exc}",
+        ) from exc
+    return note
 
 
 @protected_router.get("/students/{student_id}/slices/draw", response_model=SliceDrawOut)

@@ -59,7 +59,39 @@
     `none`/`other` ignored. It is intentionally not wired while the deterministic intervention
     rule remains frozen.
   - Weekly `T-lint-imports` command now invokes `importlinter.cli`.
+- Ops follow-up 2026-07-07:
+  - Telegram bot polling recovered by restarting only `bot` after repeated proxy/update failures.
+    Direct Telegram access from the container still times out, so the configured proxy remains required.
+    Fresh logs stayed clean after restart and `getMe` via proxy returned OK.
+  - Daily-mission recovery applied live through the MCP server: due review cards through
+    2026-07-07 were marked passed, 5 stale open `daily:` missions were closed with
+    `operator-recovery` evidence, and 4 accidental part-2 daily drills were retired as
+    `skipped`.
+  - MCP now has narrow operator tools for this class of recovery:
+    `operator_close_daily_missions` and `operator_skip_daily_missions`. `build_daily_queue`
+    now excludes current part-2/manual-review topics from auto daily drills.
+  - Regression guard added: bot now has an in-process polling-failure watchdog, a Docker healthcheck
+    for Telegram `getMe`, and a host-side `telegram_bot_runtime_smoke.py` for service/log/getMe checks.
+    Live `api`/`bot` were rebuilt/recreated; Compose reports `bot` as `healthy`, release smoke is GREEN,
+    and runtime smoke is GREEN.
+  - Local service stack check: `docker compose up -d` confirmed `postgres`, `api`, `web`, and `bot`
+    running; API health returned `healthy`, Docker web answered on 8088, and Vite dev frontend is
+    running through scheduled task `egeMentorFrontendDev` at 5174.
+  - Live Telegram slice check via MCP: the bot did process the learner's percent-slice answer and
+    returned a verdict, but in-progress slice answers are held in the bot's `_srez` session and only
+    persist via `record_slice` after the final task. MCP should show the completed slice in
+    `diagnostics` / `weekly_digest`, not as individual `attempt_history` rows.
 
+- Notes delivery unified 2026-07-07:
+  - New `app/infrastructure/telegram_send.py` `deliver_pending_notes(...)` is the single delivery
+    function (sync urllib+proxy, no aiogram, self-contained). Wired into MCP `publish_feedback`
+    (instant, hard-fail), API `publish_mentor_note` (web operator form, HTTP 502 on delivery fail),
+    and the bot morning push (now calls it via `asyncio.to_thread`; old aiogram
+    `_deliver_mentor_notes`/`_notify_parent`/`_split_for_telegram` removed).
+  - Parent manual TG channel: bot command `/send <text>` (parent chat only) publishes + delivers.
+  - Frontend token gate removed (`App.tsx`) and `.env` `API_SHARED_TOKEN` blanked (temporary).
+  - Verify: pytest 191 passed. NOT live yet — needs `docker compose up -d --build api bot` and an
+    MCP server reconnect (running MCP holds pre-change code).
 - Goal: execute the proven-delta strategy with verified small steps: monthly timed score events, weekly error-to-intervention review, part-2 manual-gated evidence, targeted content depth, and Qwen only as a bounded read-only/mechanical executor.
 - Status: latest completed live nightly batch `C:\tmp\egeMentor-qwen-runs\2026-07-03\report-093450.md` is 4/4 GREEN. The part-2 text-only manual-gate slice is committed as `4294d09`; the MANUAL_GATE real-reviewer regression and sandbox simulator case are committed as `34e1f75` and verified by live Qwen. Retention KPI v1 is implemented locally: dashboard exposes weekly active days and a Wednesday risk alert.
 - Current operating rules:

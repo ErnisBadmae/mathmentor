@@ -57,6 +57,12 @@ services:
       api:
         condition: service_started
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "scripts/telegram_getme_health.py"]
+      interval: 1m
+      timeout: 20s
+      retries: 3
+      start_period: 30s
 
 volumes:
   ege_mentor_pg:

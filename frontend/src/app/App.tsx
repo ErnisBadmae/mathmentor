@@ -10,7 +10,7 @@ import {
   RotateCcw,
   SlidersHorizontal,
 } from 'lucide-react';
-import { FormEvent, useState } from 'react';
+import { useState } from 'react';
 import { DashboardPage } from '../pages/DashboardPage';
 import { DailyWorkPage } from '../pages/DailyWorkPage';
 import { ErrorJournalPage } from '../pages/ErrorJournalPage';
@@ -20,12 +20,7 @@ import { ProgramPage } from '../pages/ProgramPage';
 import { ReviewQueuePage } from '../pages/ReviewQueuePage';
 import { SlicePage } from '../pages/SlicePage';
 import { TopicLifecyclePage } from '../pages/TopicLifecyclePage';
-import {
-  getOperatorMode,
-  getStoredApiToken,
-  setOperatorMode,
-  setStoredApiToken,
-} from '../shared/api/client';
+import { getOperatorMode, setOperatorMode } from '../shared/api/client';
 
 const studentNavItems = [
   { to: '/', label: 'Прогресс', icon: BarChart3 },
@@ -45,40 +40,13 @@ const operatorNavItem = {
 };
 
 export function App() {
-  const [token, setToken] = useState(getStoredApiToken());
-  const [draftToken, setDraftToken] = useState(token);
   const [operatorMode, setOperatorModeState] = useState(getOperatorMode());
   const navItems = operatorMode ? [...studentNavItems, operatorNavItem] : studentNavItems;
-
-  function saveToken(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setStoredApiToken(draftToken.trim());
-    setToken(draftToken.trim());
-  }
 
   function toggleOperatorMode() {
     const next = !operatorMode;
     setOperatorMode(next);
     setOperatorModeState(next);
-  }
-
-  if (!token) {
-    return (
-      <main className="tokenGate">
-        <form className="panel tokenPanel" onSubmit={saveToken}>
-          <h1>EGE Mentor</h1>
-          <p className="muted">Введите семейный API-токен из `.env`, чтобы открыть LAN-пилот.</p>
-          <input
-            autoFocus
-            onChange={(event) => setDraftToken(event.target.value)}
-            placeholder="X-EGE-MENTOR-TOKEN"
-            type="password"
-            value={draftToken}
-          />
-          <button type="submit">Открыть</button>
-        </form>
-      </main>
-    );
   }
 
   return (

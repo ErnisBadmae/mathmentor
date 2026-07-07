@@ -30,6 +30,11 @@
   - Бот getMe: токен валиден
   - Живой judge: модель доступна и возвращает `equivalent`
 
+- [ ] `backend\.venv312\Scripts\python.exe backend\scripts\telegram_bot_runtime_smoke.py --since 10m` → **GREEN**
+  - `bot` service is `Up` and not `unhealthy`
+  - fresh bot logs have no Telegram polling/proxy/network failures
+  - Telegram `getMe` works from inside the bot container with the active proxy
+
 - [ ] Отправить drill-задачу через Telegram → получить ответ → проверить визуализацию:
   - Если `expected_answer` — интервал (неравенство/ОДЗ):
     - Картинка пришла

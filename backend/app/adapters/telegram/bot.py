@@ -16,6 +16,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
+from collections import deque
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -32,6 +35,7 @@ from app.domain.enums import AttemptKind, AttemptMode, Subject
 from app.infrastructure.db import SessionLocal
 from app.infrastructure.llm import LlmShortAnswerJudge, OpenAICompatibleReviewer
 from app.infrastructure.repositories import SqlAlchemyUnitOfWork
+from app.infrastructure.telegram_send import deliver_pending_notes
 
 # One student in the family pilot (the all-zero UUID the frontend/seed/MCP use).
 PILOT_STUDENT_ID = UUID("00000000-0000-0000-0000-000000000000")
@@ -46,6 +50,78 @@ BOT_COMMANDS = (
 )
 
 logger = logging.getLogger(__name__)
+POLLING_FAILURE_MARKERS = (
+    "Failed to fetch updates",
+    "TelegramNetworkError",
+    "ProxyConnectionError",
+)
+POLLING_FAILURE_WINDOW_SECONDS = 5 * 60
+POLLING_FAILURE_THRESHOLD = 6
+POLLING_WATCHDOG_INTERVAL_SECONDS = 30
+POLLING_RESTART_EXIT_CODE = 75
+
+
+class PollingFailureMonitor(logging.Handler):
+    """Tracks repeated aiogram polling failures so Docker can restart the bot."""
+
+    def __init__(
+        self,
+        now: Callable[[], float] | None = None,
+        window_seconds: int = POLLING_FAILURE_WINDOW_SECONDS,
+        threshold: int = POLLING_FAILURE_THRESHOLD,
+    ) -> None:
+        super().__init__(level=logging.NOTSET)
+        self._now = now or time.monotonic
+        self.window_seconds = window_seconds
+        self.threshold = threshold
+        self._failures: deque[float] = deque()
+
+    def emit(self, record: logging.LogRecord) -> None:
+        message = record.getMessage()
+        if any(marker in message for marker in POLLING_FAILURE_MARKERS):
+            self.record_failure()
+
+    def record_failure(self) -> None:
+        self._failures.append(self._now())
+        self._prune()
+
+    def failure_count(self) -> int:
+        self._prune()
+        return len(self._failures)
+
+    def should_restart(self) -> bool:
+        return self.failure_count() >= self.threshold
+
+    def _prune(self) -> None:
+        cutoff = self._now() - self.window_seconds
+        while self._failures and self._failures[0] < cutoff:
+            self._failures.popleft()
+
+
+def _install_polling_failure_monitor() -> PollingFailureMonitor:
+    root = logging.getLogger()
+    for handler in root.handlers:
+        if isinstance(handler, PollingFailureMonitor):
+            return handler
+    monitor = PollingFailureMonitor()
+    root.addHandler(monitor)
+    return monitor
+
+
+async def _polling_failure_watchdog(
+    monitor: PollingFailureMonitor,
+    exit_fn: Callable[[int], object] = os._exit,
+) -> None:
+    while True:
+        await asyncio.sleep(POLLING_WATCHDOG_INTERVAL_SECONDS)
+        if monitor.should_restart():
+            logger.error(
+                "Telegram polling failed %s times in %s seconds; exiting for Docker restart",
+                monitor.failure_count(),
+                monitor.window_seconds,
+            )
+            exit_fn(POLLING_RESTART_EXIT_CODE)
+            return
 
 # Cache only (DB is the source of truth via list_daily_drill): which drill missions were
 # already shown this run, and which one each chat is currently answering. Survivable across
@@ -222,6 +298,25 @@ async def _on_help(message: Any) -> None:
         "Ответ присылай текстом: кратко распиши решение и в конце укажи ответ. "
         "/cancel остановит текущий режим.",
     )
+
+
+async def _on_send(message: Any) -> None:
+    """Родительская команда: /send <текст> — опубликовать заметку и сразу доставить ученику.
+    Доступна только из чата родителя-контролёра (telegram_parent_chat_id)."""
+    settings = get_settings()
+    parent_chat = settings.telegram_parent_chat_id.strip()
+    if not parent_chat or str(message.chat.id) != parent_chat:
+        return  # чужим командам не отвечаем
+    text = (message.text or "").partition(" ")[2].strip()
+    if not text:
+        await message.answer("Использование: /send текст — заметка уйдёт ученику в Telegram.")
+        return
+    with SessionLocal() as session:
+        _service(session).publish_feedback(
+            {"student_id": PILOT_STUDENT_ID, "body": text, "source_ref": "parent:telegram"}
+        )
+    delivered = await asyncio.to_thread(deliver_pending_notes, settings, PILOT_STUDENT_ID)
+    await message.answer(f"Отправлено ученику ✅ (доставлено заметок: {delivered})")
 
 
 async def _on_menu(callback: Any) -> None:
@@ -496,39 +591,9 @@ async def _run_daily_push(bot: Any, chat_id: int) -> None:
     if shortage:
         titles = ", ".join(str(item["title"]) for item in shortage)
         logger.warning("Telegram daily queue shortage: %s", titles)
-    await _deliver_mentor_notes(bot, chat_id)
-
-
-def _split_for_telegram(text: str, limit: int = 4096) -> list[str]:
-    """Telegram отклоняет сообщения длиннее 4096 символов — режем длинную заметку на части."""
-    return [text[i : i + limit] for i in range(0, len(text), limit)] or [""]
-
-
-async def _deliver_mentor_notes(bot: Any, chat_id: int) -> None:
-    """Доставка наставнических заметок (агент пишет их через publish_feedback). At-least-once:
-    повтор после успешной доставки заметку не шлёт; редкий дубль возможен только при краше между
-    отправкой и commit — для семейного пилота допустимо."""
-    parent_chat = get_settings().telegram_parent_chat_id.strip()
-    with SessionLocal() as session:
-        notes = _service(session).list_undelivered_notes(PILOT_STUDENT_ID)
-    for note in notes:
-        for chunk in _split_for_telegram(f"💬 От наставника:\n\n{note['body']}"):
-            await bot.send_message(chat_id, chunk)
-        with SessionLocal() as session:
-            _service(session).mark_notes_delivered([note["id"]])
-        if parent_chat:
-            await _notify_parent(bot, parent_chat, str(note["body"]))
-
-
-async def _notify_parent(bot: Any, parent_chat: str, body: str) -> None:
-    """Контролёру-родителю — пинг о доставке заметки ученику. Best-effort: сбой пинга не влияет
-    на доставку ученику (она уже зафиксирована в delivered_at)."""
-    preview = body if len(body) <= 200 else body[:200] + "…"
-    text = f"📨 Заметка наставника доставлена ученику:\n\n{preview}"
-    try:
-        await bot.send_message(int(parent_chat), text)
-    except Exception:
-        logger.exception("Failed to notify parent about mentor note delivery")
+    # Доставка заметок — общая синхронная функция (см. telegram_send). В async-контексте
+    # выносим её в поток, чтобы не блокировать поллинг на время сетевых отправок.
+    await asyncio.to_thread(deliver_pending_notes, get_settings(), PILOT_STUDENT_ID)
 
 
 async def _register_commands(bot: Any) -> None:
@@ -543,6 +608,8 @@ async def _register_commands(bot: Any) -> None:
 
 async def _run(dp: Any, bot: Any) -> None:
     await _register_commands(bot)
+    monitor = _install_polling_failure_monitor()
+    asyncio.create_task(_polling_failure_watchdog(monitor))
     if get_settings().telegram_student_chat_id:
         asyncio.create_task(_morning_push(bot))  # пуш только когда известен chat_id
     await dp.start_polling(bot)
@@ -572,6 +639,7 @@ def main() -> None:
     dp.message.register(_on_progress, Command("progress"))
     dp.message.register(_on_help, Command("help"))
     dp.message.register(_on_cancel, Command("cancel"))
+    dp.message.register(_on_send, Command("send"))  # родитель: /send <текст> ученику
     dp.message.register(_on_unknown_command, F.text.startswith("/"))
     dp.message.register(_on_answer, F.text)
     dp.message.register(_on_unsupported)

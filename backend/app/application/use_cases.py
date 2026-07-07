@@ -15,6 +15,8 @@ from app.application.ports import (
 from app.config import get_settings
 from app.domain.enums import (
     AiPolicy,
+    AttemptKind,
+    AttemptMode,
     ErrorCategory,
     EvidenceStatus,
     MissionStatus,
@@ -309,6 +311,22 @@ class LearningService:
         source_ref = getattr(mission, "source_ref", None)
         return bool(source_ref) and source_ref.startswith("daily:")
 
+    @staticmethod
+    def _requires_manual_review_path(topic: dict[str, object]) -> bool:
+        title = str(topic.get("topic_title") or "").lower()
+        markers = (
+            "задача 13",
+            "№14",
+            "№16",
+            "№17",
+            "№18",
+            "экономическая задача",
+            "стереометрия",
+            "планиметрия",
+            "параметр",
+        )
+        return any(marker in title for marker in markers)
+
     def _mission_payload(self, mission: object) -> dict[str, object]:
         task = getattr(mission, "task", None)
         topic = getattr(mission, "topic", None)
@@ -382,6 +400,7 @@ class LearningService:
                 topic["phase"] == phase
                 and topic["state"] == TopicState.OPEN
                 and topic["tasks_in_bank"] > 0
+                and not self._requires_manual_review_path(topic)
                 and source_ref not in open_refs
                 and topic["topic_id"] not in review_topic_ids
             ):
@@ -423,6 +442,107 @@ class LearningService:
             )
             filled.append(mission)
         return {"filled": filled, "shortage": shortage}
+
+    def operator_close_daily_missions(
+        self, student_id: UUID, reason: str | None = None
+    ) -> dict[str, object]:
+        """Operator recovery for trusted completed daily drills.
+
+        This records explicit recovery evidence instead of mutating mission status
+        directly, so the normal progression path still closes missions and handles
+        review cards.
+        """
+        reason_text = (reason or "").strip() or (
+            "Guardian accepted these daily missions as completed."
+        )
+        now = datetime.now(UTC)
+        closed: list[dict[str, object]] = []
+        for mission in list(self._uow.missions.list_today(student_id)):
+            if not self._is_drill(mission):
+                continue
+            attempt = self._uow.attempts.add(
+                {
+                    "id": uuid4(),
+                    "mission_id": mission.id,
+                    "student_id": mission.student_id,
+                    "kind": AttemptKind.TEXT,
+                    "mode": AttemptMode.UNKNOWN,
+                    "answer_text": reason_text,
+                    "code_text": None,
+                    "time_spent_minutes": None,
+                    "submitted_at": now,
+                }
+            )
+            evidence = self._uow.evidence.add(
+                {
+                    "id": uuid4(),
+                    "attempt_id": attempt.id,
+                    "mission_id": mission.id,
+                    "student_id": mission.student_id,
+                    "topic_id": mission.topic_id,
+                    "status": EvidenceStatus.PASSED,
+                    "score_percent": 100.0,
+                    "tasks_total": None,
+                    "tasks_correct": None,
+                    "error_category": ErrorCategory.NONE,
+                    "feedback": f"Operator recovery: {reason_text}",
+                    "next_action": "Mission accepted; continue with the next queue.",
+                    "model_id": "operator-recovery",
+                    "prompt_version": "daily-mission-recovery-v1",
+                    "rubric_version": "ege-mentor-v1",
+                    "created_at": now,
+                }
+            )
+            self._apply_progression(
+                mission,
+                evidence,
+                ErrorCategory.NONE,
+                f"Operator recovery: {reason_text}",
+            )
+            closed.append(
+                {
+                    "mission_id": mission.id,
+                    "attempt_id": attempt.id,
+                    "evidence_id": evidence.id,
+                    "topic_id": mission.topic_id,
+                    "title": mission.title,
+                    "source_ref": mission.source_ref,
+                    "status": EvidenceStatus.PASSED,
+                }
+            )
+        self._uow.commit()
+        return {"closed_count": len(closed), "closed": closed}
+
+    def operator_skip_daily_missions(
+        self, mission_ids: list[UUID], reason: str | None = None
+    ) -> dict[str, object]:
+        """Retire mistakenly created daily missions without marking learning evidence."""
+        reason_text = (reason or "").strip() or "Operator retired this daily mission."
+        skipped: list[dict[str, object]] = []
+        for mission_id in mission_ids:
+            mission = self._uow.missions.get_for_attempt(mission_id)
+            if not self._is_drill(mission):
+                raise ValueError("Only daily missions can be skipped by this operator tool.")
+            instructions = (mission.instructions or "").rstrip()
+            if instructions:
+                instructions = f"{instructions}\n\nOperator note: {reason_text}"
+            else:
+                instructions = f"Operator note: {reason_text}"
+            self._uow.missions.update(
+                mission.id,
+                {"status": MissionStatus.SKIPPED, "instructions": instructions},
+            )
+            skipped.append(
+                {
+                    "mission_id": mission.id,
+                    "title": mission.title,
+                    "topic_id": mission.topic_id,
+                    "source_ref": mission.source_ref,
+                    "status": MissionStatus.SKIPPED,
+                }
+            )
+        self._uow.commit()
+        return {"skipped_count": len(skipped), "skipped": skipped}
 
     async def _grade_answer(
         self, statement: str, correct_answer: str, student_answer: str | None

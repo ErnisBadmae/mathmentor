@@ -5,12 +5,14 @@ in-memory фабрику, так что бот работает на тех же
 """
 
 import asyncio
+import logging
 from datetime import date
 from uuid import uuid4
 
 from app.adapters.telegram import bot
 from app.application.use_cases import LearningService, RuleBasedReviewer
 from app.domain.enums import AiPolicy, MissionStatus, Subject
+from app.infrastructure import telegram_send
 from app.infrastructure.models import TopicORM
 from app.infrastructure.repositories import SqlAlchemyUnitOfWork
 from scripts import seed as seed_module
@@ -80,6 +82,36 @@ class FakeSettings:
 
     def llm_connection(self) -> None:
         return None
+
+
+def test_polling_failure_monitor_counts_recent_aiogram_failures():
+    now = [1_000.0]
+    monitor = bot.PollingFailureMonitor(
+        now=lambda: now[0],
+        window_seconds=60,
+        threshold=2,
+    )
+    record = logging.LogRecord(
+        "aiogram.dispatcher",
+        logging.ERROR,
+        "",
+        1,
+        "Failed to fetch updates - ProxyConnectionError",
+        (),
+        None,
+    )
+
+    monitor.emit(record)
+    assert monitor.failure_count() == 1
+    assert not monitor.should_restart()
+
+    monitor.emit(record)
+    assert monitor.failure_count() == 2
+    assert monitor.should_restart()
+
+    now[0] += 61
+    assert monitor.failure_count() == 0
+    assert not monitor.should_restart()
 
 
 def _make_drill(session) -> None:
@@ -265,21 +297,39 @@ def test_progress_uses_dashboard_truth(seeded_session, session_factory, monkeypa
     assert any("Код без подсказок: 40%" in reply for reply in message.replies)
 
 
+class _FakeSender:
+    """Заглушка send_telegram_message: собирает, что и куда ушло бы в Telegram."""
+
+    def __init__(self) -> None:
+        self.sent: list[str] = []
+        self.sent_chat_ids: list[int] = []
+
+    def __call__(self, settings, chat_id: int, text: str) -> None:
+        self.sent.append(text)
+        self.sent_chat_ids.append(chat_id)
+
+
+def _patch_delivery(monkeypatch, session_factory) -> _FakeSender:
+    monkeypatch.setattr(telegram_send, "SessionLocal", session_factory)
+    sender = _FakeSender()
+    monkeypatch.setattr(telegram_send, "send_telegram_message", sender)
+    return sender
+
+
 def test_mentor_notes_delivered_once(seeded_session, session_factory, monkeypatch):
-    # агент опубликовал заметку → бот доставляет её ученику ровно один раз (идемпотентно)
+    # агент опубликовал заметку → доставляется ученику ровно один раз (идемпотентно)
     LearningService(SqlAlchemyUnitOfWork(seeded_session), RuleBasedReviewer()).publish_feedback(
         {"student_id": STUDENT, "body": "Молодец, дробные неравенства теперь идут!"}
     )
-    _patch_bot(monkeypatch, session_factory)
-    fake = FakeBot()
+    sender = _patch_delivery(monkeypatch, session_factory)
 
-    asyncio.run(bot._deliver_mentor_notes(fake, 111))
-    assert any("дробные неравенства" in text for text in fake.sent)
-    assert any("От наставника" in text for text in fake.sent)
+    assert telegram_send.deliver_pending_notes(FakeSettings(), STUDENT) == 1
+    assert any("дробные неравенства" in text for text in sender.sent)
+    assert any("От наставника" in text for text in sender.sent)
 
-    fake.sent.clear()
-    asyncio.run(bot._deliver_mentor_notes(fake, 111))  # повтор не дублирует
-    assert fake.sent == []
+    sender.sent.clear()
+    assert telegram_send.deliver_pending_notes(FakeSettings(), STUDENT) == 0  # повтор не дублирует
+    assert sender.sent == []
 
 
 def test_parent_pinged_on_delivery(seeded_session, session_factory, monkeypatch):
@@ -287,14 +337,13 @@ def test_parent_pinged_on_delivery(seeded_session, session_factory, monkeypatch)
     LearningService(SqlAlchemyUnitOfWork(seeded_session), RuleBasedReviewer()).publish_feedback(
         {"student_id": STUDENT, "body": "Срез по вероятности: 1/3, разбираем тему."}
     )
-    _patch_bot(monkeypatch, session_factory)
+    sender = _patch_delivery(monkeypatch, session_factory)
     monkeypatch.setattr(FakeSettings, "telegram_parent_chat_id", "222")
-    fake = FakeBot()
 
-    asyncio.run(bot._deliver_mentor_notes(fake, 111))
-    assert 111 in fake.sent_chat_ids  # ученик получил заметку
-    assert 222 in fake.sent_chat_ids  # родитель получил пинг
-    assert any("доставлена ученику" in text for text in fake.sent)
+    telegram_send.deliver_pending_notes(FakeSettings(), STUDENT)
+    assert 111 in sender.sent_chat_ids  # ученик получил заметку
+    assert 222 in sender.sent_chat_ids  # родитель получил пинг
+    assert any("доставлена ученику" in text for text in sender.sent)
 
 
 def test_long_mentor_note_is_split_under_telegram_limit(
@@ -304,12 +353,11 @@ def test_long_mentor_note_is_split_under_telegram_limit(
     LearningService(SqlAlchemyUnitOfWork(seeded_session), RuleBasedReviewer()).publish_feedback(
         {"student_id": STUDENT, "body": "А" * 9000}
     )
-    _patch_bot(monkeypatch, session_factory)
-    fake = FakeBot()
+    sender = _patch_delivery(monkeypatch, session_factory)
 
-    asyncio.run(bot._deliver_mentor_notes(fake, 111))
-    assert len(fake.sent) == 3  # 9000 + префикс → 4096 + 4096 + остаток
-    assert all(len(text) <= 4096 for text in fake.sent)
+    telegram_send.deliver_pending_notes(FakeSettings(), STUDENT)
+    assert len(sender.sent) == 3  # 9000 + префикс → 4096 + 4096 + остаток
+    assert all(len(text) <= 4096 for text in sender.sent)
 
 
 def test_registers_native_telegram_commands():
