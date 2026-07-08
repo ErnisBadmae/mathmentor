@@ -36,7 +36,7 @@ from app.domain.policies import (
     select_daily_queue,
 )
 from app.domain.probability_visual import parse_probability_visual_spec
-from app.domain.program import PHASES, current_phase_key
+from app.domain.program import PHASES, PHASES_BY_KEY, current_phase_key
 
 
 @dataclass
@@ -312,6 +312,11 @@ class LearningService:
         return bool(source_ref) and source_ref.startswith("daily:")
 
     @staticmethod
+    def _phase_started(phase_key: object, today: date) -> bool:
+        phase = PHASES_BY_KEY.get(str(phase_key))
+        return phase is not None and phase.start <= today
+
+    @staticmethod
     def _requires_manual_review_path(topic: dict[str, object]) -> bool:
         title = str(topic.get("topic_title") or "").lower()
         markers = (
@@ -390,14 +395,25 @@ class LearningService:
         )
         phase = current_phase_key(today)
         review_topic_ids = {ref["topic_id"] for ref in (*due_refs, *back_to_work_refs)}
-        new_refs = []
-        for topic in sorted(
+        program_rows = sorted(
             self._uow.topics.list_program(student_id),
             key=lambda t: (t["program_order"] or 0, t["topic_title"]),
-        ):
+        )
+        # Режим /ready: если ученик отметил хоть одну тему «теорию изучила», новые дриллы
+        # идут ТОЛЬКО по отмеченным темам любой уже начавшейся фазы; неотмеченные темы
+        # текущей фазы придерживаются. Без отметок — прежнее поведение (темы текущей фазы).
+        ready_mode = any(t.get("theory_ready") for t in program_rows)
+        new_refs = []
+        for topic in program_rows:
             source_ref = f"daily:new:{topic['topic_id']}"
+            if ready_mode:
+                phase_ok = bool(topic.get("theory_ready")) and self._phase_started(
+                    topic["phase"], today
+                )
+            else:
+                phase_ok = topic["phase"] == phase
             if (
-                topic["phase"] == phase
+                phase_ok
                 and topic["state"] == TopicState.OPEN
                 and topic["tasks_in_bank"] > 0
                 and not self._requires_manual_review_path(topic)
@@ -442,6 +458,43 @@ class LearningService:
             )
             filled.append(mission)
         return {"filled": filled, "shortage": shortage}
+
+    def list_theory_ready_candidates(self, student_id: UUID) -> list[dict[str, object]]:
+        """Темы для отметки /ready: открытые, с задачами в банке, из уже начавшихся фаз.
+        Отмеченные тоже возвращаются (чтобы отметку можно было снять)."""
+        today = self._today()
+        rows: list[dict[str, object]] = []
+        for topic in sorted(
+            self._uow.topics.list_program(student_id),
+            key=lambda t: (t["program_order"] or 0, t["topic_title"]),
+        ):
+            if (
+                topic["state"] == TopicState.OPEN
+                and topic["tasks_in_bank"] > 0
+                and not self._requires_manual_review_path(topic)
+                and self._phase_started(topic["phase"], today)
+            ):
+                rows.append(
+                    {
+                        "topic_id": topic["topic_id"],
+                        "title": topic["topic_title"],
+                        "subject": topic["subject"],
+                        "theory_ready": bool(topic.get("theory_ready")),
+                    }
+                )
+        return rows
+
+    def set_topic_theory_ready(self, topic_id: UUID, ready: bool) -> dict[str, object]:
+        """Отметка «теорию изучила» — сигнал приоритета для сборщика дня, не evidence."""
+        topic = self._uow.topics.set_theory_ready(topic_id, ready)
+        if topic is None:
+            raise ValueError(f"topic {topic_id} not found")
+        self._uow.commit()
+        return {
+            "topic_id": topic.id,
+            "title": topic.title,
+            "theory_ready": topic.theory_ready_at is not None,
+        }
 
     def operator_close_daily_missions(
         self, student_id: UUID, reason: str | None = None

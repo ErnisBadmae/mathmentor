@@ -42,6 +42,9 @@ class FakeMessage:
         self.replies.append(text)
         self.reply_markups.append(kwargs.get("reply_markup"))
 
+    async def edit_reply_markup(self, reply_markup: object | None = None, **kwargs: object) -> None:
+        self.reply_markups.append(reply_markup)
+
     async def answer_photo(self, photo: object, **kwargs: object) -> None:
         self.photos.append(photo)
         self.photo_captions.append(kwargs.get("caption"))
@@ -369,6 +372,7 @@ def test_registers_native_telegram_commands():
         "start",
         "today",
         "slice",
+        "ready",
         "progress",
         "help",
         "cancel",
@@ -478,3 +482,87 @@ def test_help_shows_home_keyboard(session_factory, monkeypatch):
 
     assert message.replies
     assert message.reply_markups[-1] is not None
+
+
+def _make_ready_topic(session, title: str = "Бот ready тема") -> TopicORM:
+    """Открытая тема июньской фазы с одобренной задачей — кандидат для /ready."""
+    svc = LearningService(SqlAlchemyUnitOfWork(session), RuleBasedReviewer())
+    topic = TopicORM(
+        id=uuid4(),
+        subject=Subject.MATH_PROFILE,
+        title=title,
+        spec_year=2026,
+        task_number=None,
+        phase="june_diagnostics",
+        program_order=950,
+    )
+    session.add(topic)
+    session.commit()
+    url = f"https://example.org/bot/ready/{topic.id}"
+    task = svc.add_task(
+        {
+            "subject": Subject.MATH_PROFILE,
+            "statement": "Сколько будет 3+3?",
+            "expected_answer": "6",
+            "source": "official",
+            "source_url": url,
+            "source_ref": url,
+            "topic_id": topic.id,
+        }
+    )
+    svc.approve_task(task.id)
+    return topic
+
+
+def test_ready_lists_candidates_with_keyboard(seeded_session, session_factory, monkeypatch):
+    _make_ready_topic(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+
+    message = FakeMessage(111, text="/ready")
+    asyncio.run(bot._on_ready(message))
+
+    assert any("Отметь темы" in reply for reply in message.replies)
+    markup = message.reply_markups[-1]
+    assert markup is not None
+    button_texts = [btn.text for row in markup.inline_keyboard for btn in row]
+    assert any("Бот ready тема" in text for text in button_texts)
+    assert any(text == "Готово" for text in button_texts)
+    # part-2/manual-path темы не предлагаются
+    assert all("Стереометрия" not in text for text in button_texts)
+
+
+def test_ready_toggle_marks_topic_and_updates_keyboard(
+    seeded_session, session_factory, monkeypatch
+):
+    topic = _make_ready_topic(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+    svc = LearningService(SqlAlchemyUnitOfWork(seeded_session), RuleBasedReviewer())
+
+    callback = FakeCallback(111, f"ready:t:{topic.id}")
+    asyncio.run(bot._on_ready_toggle(callback))
+
+    assert callback.answers and "Отмечено" in callback.answers[-1]
+    seeded_session.expire_all()
+    rows = svc.list_theory_ready_candidates(STUDENT)
+    assert next(r for r in rows if r["topic_id"] == topic.id)["theory_ready"] is True
+    # клавиатура перерисована с галочкой
+    markup = callback.message.reply_markups[-1]
+    assert any(
+        btn.text.startswith("✅") and "Бот ready тема" in btn.text
+        for row in markup.inline_keyboard
+        for btn in row
+    )
+
+
+def test_ready_callbacks_unauthorized_rejected(session_factory, monkeypatch):
+    _patch_bot(monkeypatch, session_factory)
+
+    toggle = FakeCallback(999, f"ready:t:{uuid4()}")
+    asyncio.run(bot._on_ready_toggle(toggle))
+    done = FakeCallback(999, "ready:done")
+    asyncio.run(bot._on_ready_done(done))
+
+    assert toggle.show_alerts == [True]
+    assert done.show_alerts == [True]
+    assert toggle.message.replies == []
+    assert done.message.replies == []

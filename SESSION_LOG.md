@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-07-07 - /ready: отметка «теорию изучила» управляет новыми темами очереди
+
+Status: реализовано и проверено локально; для live нужны alembic upgrade + rebuild api/bot.
+
+- Колонка `topics.theory_ready_at` (миграция `d5a6b7c8e9f0`), `set_theory_ready` в репо/порте.
+- `build_daily_queue`: при наличии хоть одной отметки новые дриллы идут только по отмеченным темам любой начавшейся фазы; неотмеченные темы текущей фазы придерживаются; без отметок — прежнее поведение. Ready-тема без свежей задачи попадает в shortage, не пропускается тихо.
+- Сервис: `list_theory_ready_candidates` (открытые темы начавшихся фаз с банком, без manual-path) + `set_topic_theory_ready`; `theory_ready` виден в `list_program` / `program_progress`.
+- TG: `/ready` + кнопка меню, inline-toggle с перерисовкой клавиатуры, «Готово» с итогом; help/команды обновлены; unauthorized-колбэки отбиваются.
+- Перед слайсом закоммичен завершённый Codex-слайс telegram_send (`1833f8f`, 191 passed).
+
+Verification: backend pytest `198 passed` (35 в test_bot, 4 новых queue-теста); ruff по затронутым файлам чист.
+
+Open tail: деплой (alembic + rebuild), три простых задачи Кодексу в карточке (текст пустой очереди, карта фазы в /progress, бейдж на «Программе»).
+
 ## 2026-07-07 - Единая доставка заметок в Telegram (publish = отправка)
 
 Status: реализовано, тесты зелёные; для live нужен rebuild api+bot и reconnect MCP.

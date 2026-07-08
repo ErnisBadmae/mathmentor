@@ -870,6 +870,15 @@ class TopicSqlRepository:
                     "attempts_count": life["attempts_count"] if life else 0,
                     "solved_count": life["solved_count"] if life else 0,
                     "tasks_in_bank": task_counts.get(topic.id, 0),
+                    "theory_ready": topic.theory_ready_at is not None,
                 }
             )
         return rows
+
+    def set_theory_ready(self, topic_id: UUID, ready: bool) -> TopicORM | None:
+        topic = self.session.get(TopicORM, topic_id)
+        if topic is None:
+            return None
+        topic.theory_ready_at = datetime.now(UTC) if ready else None
+        self.session.flush()
+        return topic

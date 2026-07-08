@@ -296,6 +296,85 @@ def test_back_to_work_redrill_with_fresh_task_resolves_to_done(seeded_session, m
     assert seeded_session.get(ReviewItemORM, card.id).status == ReviewStatus.DONE
 
 
+def test_ready_mode_serves_marked_topic_and_holds_back_unmarked(seeded_session, monkeypatch):
+    svc = service(seeded_session, monkeypatch)
+    marked = _open_topic_with_tasks(svc, seeded_session, "DQ ready", ["1", "2"], order=901)
+    _open_topic_with_tasks(svc, seeded_session, "DQ не ready", ["3", "4"], order=902)
+    svc.set_topic_theory_ready(marked.id, True)
+
+    res = svc.build_daily_queue(STUDENT, limit=5)
+
+    titles = [m["title"] for m in res["filled"]]
+    assert "Дрилл: DQ ready" in titles
+    # неотмеченная тема текущей фазы придерживается, пока есть хоть одна отметка
+    assert "Дрилл: DQ не ready" not in titles
+
+
+def test_ready_mode_serves_past_phase_topic_on_later_date(seeded_session, monkeypatch):
+    svc = service(seeded_session)
+    monkeypatch.setattr(svc, "_today", lambda: date(2026, 7, 7))
+    topic = _open_topic_with_tasks(svc, seeded_session, "DQ прошлая фаза", ["5", "6"])
+
+    # июньская тема на июльской дате без отметки не выдаётся (фаза не текущая)
+    res = svc.build_daily_queue(STUDENT, limit=10)
+    assert "Дрилл: DQ прошлая фаза" not in [m["title"] for m in res["filled"]]
+
+    svc.set_topic_theory_ready(topic.id, True)
+    res2 = svc.build_daily_queue(STUDENT, limit=10)
+    assert "Дрилл: DQ прошлая фаза" in [m["title"] for m in res2["filled"]]
+
+
+def test_ready_marked_topic_without_fresh_task_reports_shortage(seeded_session, monkeypatch):
+    svc = service(seeded_session, monkeypatch)
+    topic = _open_topic_with_tasks(svc, seeded_session, "DQ ready короткий", ["9"])
+    task = seeded_session.scalar(select(TaskORM).where(TaskORM.topic_id == topic.id))
+    seeded_session.add(
+        MissionORM(
+            id=uuid4(),
+            student_id=STUDENT,
+            subject=Subject.MATH_PROFILE,
+            topic_id=topic.id,
+            task_id=task.id,
+            title="прошлая",
+            instructions="",
+            status=MissionStatus.DONE,
+            ai_policy=AiPolicy.ATTEMPT_FIRST,
+            threshold_percent=80.0,
+        )
+    )
+    seeded_session.commit()
+    svc.set_topic_theory_ready(topic.id, True)
+
+    res = svc.build_daily_queue(STUDENT, limit=5)
+
+    assert topic.id in {s["topic_id"] for s in res["shortage"]}
+
+
+def test_theory_ready_candidates_and_program_flag(seeded_session, monkeypatch):
+    svc = service(seeded_session, monkeypatch)
+    topic = _open_topic_with_tasks(svc, seeded_session, "DQ candidates", ["1"])
+
+    rows = svc.list_theory_ready_candidates(STUDENT)
+    assert next(r for r in rows if r["topic_id"] == topic.id)["theory_ready"] is False
+    # part-2/manual-path темы (стерео, параметр и т.п.) в кандидаты не попадают
+    assert all("стереометрия" not in str(r["title"]).lower() for r in rows)
+    assert all("параметр" not in str(r["title"]).lower() for r in rows)
+
+    svc.set_topic_theory_ready(topic.id, True)
+    rows = svc.list_theory_ready_candidates(STUDENT)
+    assert next(r for r in rows if r["topic_id"] == topic.id)["theory_ready"] is True
+
+    # флаг виден в program_progress — для бейджа «теория изучена» на «Программе»
+    phases = svc.list_program_progress(STUDENT)
+    june = next(p for p in phases if p["key"] == "june_diagnostics")
+    assert next(t for t in june["topics"] if t["topic_id"] == topic.id)["theory_ready"] is True
+
+    # снятие отметки возвращает прежнее поведение
+    svc.set_topic_theory_ready(topic.id, False)
+    rows = svc.list_theory_ready_candidates(STUDENT)
+    assert next(r for r in rows if r["topic_id"] == topic.id)["theory_ready"] is False
+
+
 def test_list_approved_for_topic_excludes_assigned(seeded_session):
     svc = service(seeded_session)
     topic = _open_topic_with_tasks(svc, seeded_session, "DQ assign", ["1", "2"])

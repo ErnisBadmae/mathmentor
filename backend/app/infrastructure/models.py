@@ -81,6 +81,11 @@ class TopicORM(Base):
     # Привязка к фазе учебной программы (app/domain/program.py). None — тема вне программы.
     phase: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
     program_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Отметка ученика «/ready: теорию изучила» — сигнал приоритета для сборщика дня,
+    # НЕ evidence: закрытие темы по-прежнему только через решение + подтверждённый повтор.
+    theory_ready_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class TaskORM(Base):

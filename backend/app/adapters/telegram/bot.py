@@ -44,6 +44,7 @@ BOT_COMMANDS = (
     ("start", "Главное меню"),
     ("today", "Задания на сегодня"),
     ("slice", "Срез по теме"),
+    ("ready", "Отметить: теорию изучила"),
     ("progress", "Мой прогресс"),
     ("help", "Как пользоваться ботом"),
     ("cancel", "Остановить текущий режим"),
@@ -204,6 +205,7 @@ def _home_keyboard() -> Any:
         inline_keyboard=[
             [InlineKeyboardButton(text="📚 Сегодня", callback_data="menu:today")],
             [InlineKeyboardButton(text="🧪 Срез по теме", callback_data="menu:slice")],
+            [InlineKeyboardButton(text="📖 Готова к новым темам", callback_data="menu:ready")],
             [InlineKeyboardButton(text="📊 Прогресс", callback_data="menu:progress")],
         ]
     )
@@ -294,10 +296,83 @@ async def _on_help(message: Any) -> None:
         "Как пользоваться ботом:\n"
         "• Сегодня — подготовленные задания и повторы.\n"
         "• Срез по теме — 5 задач с результатом в конце.\n"
+        "• Готова к новым темам (/ready) — отметь, по каким темам изучила теорию: "
+        "новые задачи буду брать из твоего списка.\n"
         "• Прогресс — текущие баллы и повторы.\n\n"
         "Ответ присылай текстом: кратко распиши решение и в конце укажи ответ. "
         "/cancel остановит текущий режим.",
     )
+
+
+READY_PROMPT = (
+    "Отметь темы, по которым уже изучила теорию и готова решать. ✅ — в работу, "
+    "повторное нажатие снимает отметку. Пока есть хотя бы одна отметка, новые темы "
+    "в «Сегодня» беру только из твоего списка."
+)
+
+
+def _ready_keyboard(rows: list[dict[str, Any]]) -> Any:
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                text=("✅ " if row["theory_ready"] else "▫️ ") + str(row["title"]),
+                callback_data=f"ready:t:{row['topic_id']}",
+            )
+        ]
+        for row in rows
+    ]
+    keyboard.append([InlineKeyboardButton(text="Готово", callback_data="ready:done")])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+async def _on_ready(message: Any) -> None:
+    if not await _ensure_authorized(message):
+        return
+    with SessionLocal() as session:
+        rows = _service(session).list_theory_ready_candidates(PILOT_STUDENT_ID)
+    if not rows:
+        await _show_home(message, "Открытых тем для отметки сейчас нет — всё уже в работе. 👍")
+        return
+    await message.answer(READY_PROMPT, reply_markup=_ready_keyboard(rows))
+
+
+async def _on_ready_toggle(callback: Any) -> None:
+    if not _is_authorized(callback.message.chat.id):
+        await callback.answer("Не авторизовано", show_alert=True)
+        return
+    topic_id = UUID(callback.data.split(":", 2)[2])
+    with SessionLocal() as session:
+        service = _service(session)
+        rows = service.list_theory_ready_candidates(PILOT_STUDENT_ID)
+        current = next((r for r in rows if r["topic_id"] == topic_id), None)
+        if current is None:
+            await callback.answer("Эта тема уже недоступна", show_alert=True)
+            return
+        updated = service.set_topic_theory_ready(topic_id, not current["theory_ready"])
+        rows = service.list_theory_ready_candidates(PILOT_STUDENT_ID)
+    await callback.answer("Отмечено ✅" if updated["theory_ready"] else "Отметка снята")
+    await callback.message.edit_reply_markup(reply_markup=_ready_keyboard(rows))
+
+
+async def _on_ready_done(callback: Any) -> None:
+    if not _is_authorized(callback.message.chat.id):
+        await callback.answer("Не авторизовано", show_alert=True)
+        return
+    await callback.answer()
+    with SessionLocal() as session:
+        rows = _service(session).list_theory_ready_candidates(PILOT_STUDENT_ID)
+    marked = [row for row in rows if row["theory_ready"]]
+    if marked:
+        text = (
+            f"Отмечено тем: {len(marked)}. Новые задачи в «Сегодня» теперь только из "
+            "твоего списка. Отметки можно менять в любой момент через /ready."
+        )
+    else:
+        text = "Отметок нет — новые темы буду выдавать по плану фазы."
+    await callback.message.edit_text(text)
+    await _show_home(callback.message)
 
 
 async def _on_send(message: Any) -> None:
@@ -325,7 +400,12 @@ async def _on_menu(callback: Any) -> None:
         return
     await callback.answer()
     action = callback.data.split(":", 1)[1]
-    handlers = {"today": _on_today, "slice": _on_slice, "progress": _on_progress}
+    handlers = {
+        "today": _on_today,
+        "slice": _on_slice,
+        "progress": _on_progress,
+        "ready": _on_ready,
+    }
     await handlers[action](callback.message)
 
 
@@ -636,6 +716,7 @@ def main() -> None:
     dp.message.register(_on_start, CommandStart())
     dp.message.register(_on_today, Command("today"))
     dp.message.register(_on_slice, Command("slice"))
+    dp.message.register(_on_ready, Command("ready"))
     dp.message.register(_on_progress, Command("progress"))
     dp.message.register(_on_help, Command("help"))
     dp.message.register(_on_cancel, Command("cancel"))
@@ -647,6 +728,8 @@ def main() -> None:
     dp.callback_query.register(_on_slice_subject, F.data.startswith("slice:subj:"))
     dp.callback_query.register(_on_slice_topic, F.data.startswith("slice:topic:"))
     dp.callback_query.register(_on_slice_back, F.data == "slice:back")
+    dp.callback_query.register(_on_ready_toggle, F.data.startswith("ready:t:"))
+    dp.callback_query.register(_on_ready_done, F.data == "ready:done")
     bot = Bot(token=settings.telegram_bot_token, session=session)
     asyncio.run(_run(dp, bot))
 
