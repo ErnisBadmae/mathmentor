@@ -80,11 +80,16 @@ class FakeSettings:
     telegram_student_chat_id = "111"
     telegram_extra_chat_ids = ""
     telegram_parent_chat_id = ""
+    public_frontend_base_url = "https://mentor.example.test"
     local_timezone = "Europe/Moscow"
     authorized_chat_ids = ["111"]
 
     def llm_connection(self) -> None:
         return None
+
+
+class PrivateFrontendSettings(FakeSettings):
+    public_frontend_base_url = "http://192.168.1.60:8088"
 
 
 def test_polling_failure_monitor_counts_recent_aiogram_failures():
@@ -157,7 +162,11 @@ def _make_drill(session) -> None:
 def _make_interval_drill(session) -> None:
     svc = LearningService(SqlAlchemyUnitOfWork(session), RuleBasedReviewer())
     topic = TopicORM(
-        id=uuid4(), subject=Subject.MATH_PROFILE, title="Р‘РѕС‚ РёРЅС‚РµСЂРІР°Р»", spec_year=2026, task_number=None
+        id=uuid4(),
+        subject=Subject.MATH_PROFILE,
+        title="Р‘РѕС‚ РёРЅС‚РµСЂРІР°Р»",
+        spec_year=2026,
+        task_number=None,
     )
     session.add(topic)
     session.commit()
@@ -247,6 +256,69 @@ def test_authorized_drill_flow_sends_task_and_grades(seeded_session, session_fac
     answer = FakeMessage(111, text="4")
     asyncio.run(bot._on_answer(answer))
     assert any("Верно" in reply for reply in answer.replies)
+
+
+def test_task_text_includes_visual_concept_link(monkeypatch):
+    monkeypatch.setattr(bot, "get_settings", lambda: FakeSettings())
+    topic_id = uuid4()
+
+    text = bot._task_text(
+        {
+            "title": "Векторы",
+            "instructions": "Реши самостоятельно.",
+            "statement": "Найдите координаты суммы векторов.",
+            "topic_id": topic_id,
+            "visual_ready": True,
+        }
+    )
+
+    assert f"https://mentor.example.test/theory/{topic_id}" in text
+    assert "expected_answer" not in text
+
+
+def test_task_text_hides_private_visual_link(monkeypatch):
+    monkeypatch.setattr(bot, "get_settings", lambda: PrivateFrontendSettings())
+    topic_id = uuid4()
+
+    text = bot._task_text(
+        {
+            "title": "Векторы",
+            "instructions": "Реши и отправь ответ числом.",
+            "statement": "Найдите скалярное произведение.",
+            "topic_id": topic_id,
+            "visual_ready": True,
+        }
+    )
+
+    assert "192.168.1.60" not in text
+    assert "Визуализация есть на сайте" in text
+    assert "кратко распиши ход решения" not in text
+
+
+def test_srez_task_includes_visual_concept_link(monkeypatch):
+    monkeypatch.setattr(bot, "get_settings", lambda: FakeSettings())
+    topic_id = uuid4()
+    bot._srez[111] = {
+        "subject": Subject.MATH_PROFILE,
+        "items": [
+            {
+                "task_id": uuid4(),
+                "topic_id": topic_id,
+                "statement": "Найдите координаты суммы векторов.",
+                "visual_ready": True,
+            }
+        ],
+        "idx": 0,
+        "judged": [],
+    }
+    message = FakeMessage(111)
+
+    try:
+        asyncio.run(bot._send_srez_task(message, 111))
+    finally:
+        bot._srez.clear()
+
+    assert f"https://mentor.example.test/theory/{topic_id}" in message.replies[-1]
 
 
 def test_interval_drill_answer_sends_visual_photo(seeded_session, session_factory, monkeypatch):
@@ -385,7 +457,7 @@ def test_today_does_not_build_an_empty_queue(session_factory, monkeypatch):
     message = FakeMessage(111)
     asyncio.run(bot._on_today(message))
 
-    assert any("открытых заданий нет" in reply.lower() for reply in message.replies)
+    assert any("всё сделано" in reply.lower() for reply in message.replies)
     with session_factory() as session:
         assert LearningService(
             SqlAlchemyUnitOfWork(session), RuleBasedReviewer()

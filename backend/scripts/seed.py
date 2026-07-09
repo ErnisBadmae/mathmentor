@@ -21,6 +21,7 @@ from app.infrastructure.models import (
     StudyLogEntryORM,
     SubjectTrackORM,
     TaskORM,
+    TheoryCardORM,
     TopicORM,
     UserORM,
 )
@@ -107,6 +108,78 @@ PROGRAM = [
     ("july_aug_foundation", Subject.INFORMATICS, "Задание 26: топ-значения, два прохода"),
     ("july_aug_foundation", Subject.INFORMATICS, "Задание 27: однопроходный алгоритм"),
     ("july_aug_foundation", Subject.INFORMATICS, "Оптимизация решения по времени"),
+]
+
+THEORY_CARDS = [
+    {
+        "id": 9001,
+        "topic": (Subject.MATH_PROFILE, "Векторы"),
+        "title": "Сложение векторов на координатной сетке",
+        "body_md": (
+            "Вектор показывает сдвиг: на сколько клеток идём вправо или влево "
+            "и на сколько вверх или вниз. Чтобы сложить два вектора, перенеси "
+            "второй в конец первого. Итоговый вектор идёт из начала первого "
+            "в конец перенесённого второго. В координатах складываются отдельно "
+            "горизонтальные и вертикальные сдвиги."
+        ),
+        "visual_kind": "vector_2d",
+        "visual_json": {
+            "alt_text": "Два вектора на координатной сетке и их сумма по правилу треугольника.",
+            "params": {
+                "vectors": [
+                    {"name": "a", "x": 3, "y": 2, "color": "#2d6cdf"},
+                    {"name": "b", "x": 1, "y": 3, "color": "#d05a36"},
+                ],
+                "show_sum": True,
+            },
+        },
+        "source_ref": "seed:theory:vectors:concept-v1",
+    },
+    {
+        "id": 9003,
+        "topic": (Subject.MATH_PROFILE, "Векторы"),
+        "title": "Скалярное произведение в координатах",
+        "body_md": (
+            "Скалярное произведение двух векторов в координатах считается по парам: "
+            "если a=(x1; y1), b=(x2; y2), то a·b = x1·x2 + y1·y2. "
+            "Сначала перемножь первые координаты, затем вторые, потом сложи результаты. "
+            "Это число, не вектор."
+        ),
+        "visual_kind": "vector_dot_product",
+        "visual_json": {
+            "alt_text": "Формула скалярного произведения векторов через координаты.",
+            "params": {},
+        },
+        "source_ref": "seed:theory:vectors-dot-product:concept-v1",
+    },
+    {
+        "id": 9002,
+        "topic": (Subject.MATH_PROFILE, "Производная: геометрический смысл"),
+        "title": "Производная как наклон касательной",
+        "body_md": (
+            "Геометрический смысл производной: f'(x0) равна угловому коэффициенту "
+            "касательной к графику в точке x0. Если дана прямая, параллельная "
+            "касательной, её коэффициент k нужно приравнять к f'(x0). "
+            "После этого остаётся решить уравнение для x0."
+        ),
+        "visual_kind": "derivative_tangent",
+        "visual_json": {
+            "alt_text": (
+                "Парабола, точка касания и касательная; наклон касательной "
+                "равен значению производной."
+            ),
+            "params": {
+                "function": "x^2 - 2x + 1",
+                "x0": 2,
+                "slope": 2,
+                "x_min": -1,
+                "x_max": 4,
+                "y_min": -1,
+                "y_max": 7,
+            },
+        },
+        "source_ref": "seed:theory:derivative-tangent:concept-v1",
+    },
 ]
 
 MISSIONS = [
@@ -866,6 +939,38 @@ def seed() -> None:
             else:
                 topic.phase = phase_key
                 topic.program_order = order
+
+        for card_spec in THEORY_CARDS:
+            topic = topic_objs.get(card_spec["topic"])
+            if topic is None:
+                continue
+            existing_card = (
+                session.query(TheoryCardORM)
+                .filter_by(source_ref=card_spec["source_ref"])
+                .first()
+            )
+            values = {
+                "topic_id": topic.id,
+                "title": card_spec["title"],
+                "body_md": card_spec["body_md"],
+                "visual_kind": card_spec["visual_kind"],
+                "visual_mode": "concept",
+                "visual_json": card_spec["visual_json"],
+                "version": "v1",
+                "status": "approved",
+                "source_ref": card_spec["source_ref"],
+            }
+            if existing_card is not None:
+                for field, value in values.items():
+                    setattr(existing_card, field, value)
+                continue
+            session.add(
+                TheoryCardORM(
+                    id=stable_uuid(card_spec["id"]),
+                    created_at=datetime.now(UTC),
+                    **values,
+                )
+            )
 
         # Срез-история (диагностика, §11): study-log результаты + ошибки журнала.
         # Источник: Desktop\ЕГЭ\срезы знаний\история первых срезов.md. Идемпотентно по source_ref.

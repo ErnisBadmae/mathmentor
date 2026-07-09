@@ -3,6 +3,55 @@
 > Кросс-проектная стратегия (verifiable-AI рамка, роли Claude/Codex/Qwen, ege-трек
 > proven-delta в общей картине): канонический док — `expert-agent/!DOC/STRATEGY.md`.
 
+## Current Snapshot (2026-07-09, visual feedback hardening)
+
+- Реализовано (Codex): минимальный hardening по реальной обратной связи ученицы “визуализация не открывается”
+  и по текущему дриллу “Векторы — скалярное произведение”.
+- Telegram: прямой URL на `/theory/<topic_id>` теперь отправляется только если `PUBLIC_FRONTEND_BASE_URL`
+  выглядит публичным. Для `localhost`, `.local`, loopback/link-local/private IP (`192.168.x.x`) бот пишет
+  коротко: `Визуализация есть на сайте: «Программа» → эта тема.` Это убирает битые LAN-ссылки у ученицы.
+- Telegram UX: `_task_text` больше не добавляет общий хвост “кратко распиши ход...” поверх уже заданных
+  `instructions`, поэтому дриллы формата “отправь ответ числом” не получают противоречивую вторую инструкцию.
+- Content/frontend: в seed добавлена approved concept card `Скалярное произведение в координатах`
+  (`vector_dot_product`) для темы `Векторы`; frontend `/theory/:topicId` получил простой SVG-рендер
+  формулы `a·b = x1·x2 + y1·y2`. Сортировка карточек теперь по title, поэтому scalar-product карточка
+  идёт первой, без новой skill-tag модели.
+- Verification: targeted pytest `28 passed`; full backend pytest `205 passed`; frontend `npm.cmd run build` OK;
+  targeted ruff по `bot.py`/bot+theory tests clean; release smoke GREEN.
+- ВЫКАЧЕНО live (2026-07-09): `docker compose up -d --build api`, `alembic upgrade head`,
+  `python scripts/seed.py`, `docker compose up -d --build bot web`. Live API по векторам отдаёт две карточки
+  (`vector_dot_product`, `vector_2d`), live bot-text не содержит `192.168`, web `/theory/...5012` отдаёт 200.
+- Хвост: reconnect ege-MCP. Текущий MCP-процесс всё ещё держит старый контракт: `topic_theory` tool не виден,
+  а `program_progress` не отдаёт `visual_ready`, несмотря на обновлённые live API/bot/web. После reconnect проверить
+  `program_progress`/`topic_theory`.
+
+## Current Snapshot (2026-07-08, visual concept cards v1)
+
+- Реализовано (Codex): безопасные визуальные concept cards до попытки, отдельно от `/ready`
+  (`theory_ready` = ученик отметил теорию изученной; `visual_ready` = по теме есть approved
+  визуальная карточка). Содержимое не содержит ключей ответов и не является task-specific
+  разбором.
+- Backend: новая таблица `theory_cards` (alembic `e6f7a8b9c0d1`), репозиторий/порт
+  `theory_cards`, `LearningService.list_topic_theory`, API `GET /topics/{topic_id}/theory`,
+  `visual_ready` в `program_progress`, mission payload и slice draw payload. MCP получил read-tool
+  `topic_theory(topic_id)`; `program_progress` автоматически отдаёт `visual_ready`.
+- Content seed: approved карточки для двух тем из реального запроса ученицы:
+  `Векторы` (`vector_2d`) и `Производная: геометрический смысл` (`derivative_tangent`).
+- Telegram/site: `/today` и `/slice` добавляют ссылку `PUBLIC_FRONTEND_BASE_URL/theory/<topic_id>`
+  при `visual_ready`; сайт получил маршрут `/theory/:topicId` с локальными SVG-рендерами,
+  ссылки из «Программы», «Сегодня» и «Среза».
+- Verification: backend pytest `204 passed`; frontend `npm.cmd run build` OK; Docker web build OK;
+  release smoke GREEN; ruff clean на новом `backend/tests/test_theory_cards.py`. Широкий ruff по
+  старым изменённым backend-файлам всё ещё шумит существующими B008/E501 в routes/seed/use_cases,
+  не связанными с этим слайсом.
+- ВЫКАЧЕНО live (2026-07-08): `docker compose up -d --build api`, `alembic upgrade head`
+  (`e6f7a8b9c0d1`), `python scripts/seed.py`, затем `docker compose up -d --build bot web`.
+  Контейнеры running/healthy; `/theory/00000000-0000-0000-0000-000000005012` отдаёт 200;
+  live service check показал `visual_ready=True` для `Векторы` и `Производная: геометрический смысл`.
+- Хвост: reconnect ege-MCP. Текущий MCP-процесс в этой сессии держит старый код: `topic_theory`
+  tool не виден, а `program_progress` ещё не отдаёт `visual_ready`. После reconnect проверить MCP
+  `program_progress` + `topic_theory`.
+
 ## Current Snapshot (2026-07-07, /ready: теория изучена → приоритет очереди)
 
 - Реализовано (Claude): отметка ученика «/ready — теорию изучила, готова решать» как
@@ -17,16 +66,17 @@
   manual-path темы (стерео/параметр/№13–18) в кандидаты не попадают. `theory_ready`
   прокинут в `program_progress` (API/MCP) для бейджа на «Программе».
 - Verification: backend pytest `198 passed`; ruff по затронутым файлам чист.
-- Деплой-хвост: `alembic upgrade head` + rebuild `api`+`bot` (вместе с недокаченным
-  telegram_send-слайсом Кодекса, закоммичен `1833f8f`).
-- Задачи Кодексу (простые, «другого рода» — UI/тексты, backend готов):
-  1. TG: пустая очередь — заменить «На сегодня открытых заданий нет.» на
-     «На сегодня всё сделано ✅ Новая порция — завтра утром» (+тест). Мотивационная
-     семантика: «нет задач» читается как отказ.
-  2. TG `/progress`: блок-карта фазы — название/даты, закрыто X из Y, следующие 2–3 темы
-     (данные уже в `list_program_progress`).
-  3. Сайт «Программа»: бейдж «📖 теория изучена» у тем с `theory_ready` (поле уже в API)
-     + поле в TS-типе.
+- ВЫКАЧЕНО live (2026-07-08): `alembic upgrade head` (`d5a6b7c8e9f0`, theory_ready_at)
+  применён к БД; `docker compose up -d --build api bot web`. api/bot `healthy`, `/program`
+  отдаёт `theory_ready`, runtime-smoke GREEN.
+- Три UI-задачи (были «Кодексу») СДЕЛАНЫ Claude 2026-07-08 (pytest 198, tsc/ruff чист):
+  1. TG пустая очередь → «На сегодня всё сделано ✅ Новая порция — завтра утром» (тест обновлён).
+  2. TG `/progress`: карта фазы — «📚 Фаза «label» (дд.мм–дд.мм)», «Закрыто X из Y · в работе
+     · на повторении», «Дальше: …» (до 3 открытых тем).
+  3. Сайт «Программа»: бейдж «📖 теория изучена»; `theory_ready` добавлен в `ProgramTopicOut`
+     (pydantic его резал), TS-тип и CSS `badge--ready`.
+- Хвост: переподключить ege-MCP (держит код до `telegram_send`), затем live-проверить
+  MCP `publish_feedback`→ТГ, `/send` из родительского чата, `/ready`-тоггл + бейдж.
 
 ## Current Snapshot (2026-07-04, AI-judge calibration baseline)
 

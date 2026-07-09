@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     daily_drill_size: int = 5
     telegram_push_time: str = "16:00"
     public_api_base_url: str = "http://localhost:8001"
+    public_frontend_base_url: str = "http://127.0.0.1:5174"
 
     @property
     def cors_origins(self) -> list[str]:
@@ -95,5 +96,4 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
 

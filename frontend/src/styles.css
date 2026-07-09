@@ -81,6 +81,9 @@ select { cursor: pointer; }
 /* Button variants — distinguish "accept" (primary) from "send back" (secondary). */
 .buttonSecondary { background: #fff; color: #216b5a; border: 1px solid #cfd8d2; }
 .buttonSecondary:hover:not(:disabled) { background: #eef4f1; }
+.linkButton { display: inline-flex; align-items: center; justify-content: center; width: fit-content; text-decoration: none; border-radius: 8px; padding: 7px 10px; font-size: 13px; font-weight: 700; }
+.missionTheoryLink { margin: -4px 0 12px; }
+.sliceTheoryLink { justify-self: start; }
 
 /* Status badges — replace per-page hardcoded colors with one tokenized vocabulary. */
 .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; }
@@ -90,6 +93,10 @@ select { cursor: pointer; }
 .badge--work { color: #8a5d00; background: #fbf2da; border-color: #efdfac; }
 .badge--open { color: #5b6660; background: #eef0ec; border-color: #dfe2dc; }
 .badge--back { color: #b03a2e; background: #fbeae7; border-color: #f3d2cb; }
+.badge--ready { color: #6a4bb0; background: #efe9fb; border-color: #ddd0f2; }
+.badge--ready::before { display: none; }
+.badge--visual { color: #1f5fa8; background: #e8f0fb; border-color: #d2e2f6; }
+.badge--visual::before { display: none; }
 
 /* Right-hand column of a row reads as a right-aligned stack (but leave action rows as flex). */
 .tableRow > div:last-child:not(.rowActions) { display: grid; gap: 4px; justify-items: end; align-content: start; text-align: right; }
@@ -106,7 +113,28 @@ select { cursor: pointer; }
 .sliceStatement { font-size: 15px; line-height: 1.45; color: #17201a; }
 .sliceTask input { max-width: 320px; }
 
+/* Visual concept cards. */
+.theoryPage .pageHeader { display: grid; gap: 8px; align-items: start; }
+.theoryCards { display: grid; gap: 16px; }
+.theoryCard { display: grid; grid-template-columns: minmax(260px, 0.9fr) minmax(360px, 1.1fr); gap: 18px; align-items: center; background: #fffdf8; border: 1px solid #e2ded3; border-radius: 8px; padding: 18px; box-shadow: 0 1px 2px rgba(20, 30, 24, 0.06); }
+.theoryText { display: grid; gap: 10px; align-content: start; }
+.theoryText h2 { margin: 0; font-size: 22px; line-height: 1.2; }
+.theoryText p { line-height: 1.55; color: #33413b; }
+.visualFrame { width: 100%; aspect-ratio: 16 / 9; min-height: 240px; border: 1px solid #d9e6df; border-radius: 8px; background: #f8fbfd; overflow: hidden; }
+.visualSvg { display: block; width: 100%; height: 100%; }
+.visualGridLine { stroke: #dfe8e3; stroke-width: 1; }
+.visualAxis { stroke: #7a8780; stroke-width: 1.5; }
+.visualCurve { fill: none; stroke: #2d6cdf; stroke-width: 4; stroke-linecap: round; }
+.visualTangent { stroke: #d05a36; stroke-width: 4; stroke-linecap: round; }
+.visualPoint { fill: #23835f; stroke: #fff; stroke-width: 3; }
+.visualStrongArrow { stroke-width: 5; }
+.visualLabel { fill: #26352e; font-size: 17px; font-weight: 700; paint-order: stroke; stroke: #f8fbfd; stroke-width: 4px; stroke-linejoin: round; }
+.visualLabelStrong { fill: #14543e; }
+.visualFormula { fill: #1f2f28; font-size: 28px; font-weight: 800; paint-order: stroke; stroke: #f8fbfd; stroke-width: 5px; stroke-linejoin: round; }
+
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }
   .metricGrid, .workLayout, .formGrid { grid-template-columns: 1fr; }
+  .theoryCard { grid-template-columns: 1fr; }
+  .visualFrame { min-height: 210px; }
 }

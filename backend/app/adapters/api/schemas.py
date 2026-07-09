@@ -101,6 +101,25 @@ class ProgramTopicOut(BaseModel):
     solved_count: int
     attempts_count: int
     percent: int | None = None
+    theory_ready: bool = False
+    visual_ready: bool = False
+
+
+class TheoryVisualOut(BaseModel):
+    kind: str
+    mode: str
+    params: dict[str, object]
+    alt_text: str
+
+
+class TheoryCardOut(BaseModel):
+    id: UUID
+    topic_id: UUID
+    topic_title: str
+    title: str
+    body_md: str
+    visual: TheoryVisualOut
+    version: str
 
 
 class ProgramCoverageOut(BaseModel):
@@ -135,6 +154,7 @@ class DiagnosticOut(BaseModel):
 class MissionOut(BaseModel):
     id: UUID
     subject: Subject
+    topic_id: UUID | None = None
     title: str
     instructions: str
     statement: str | None = None
@@ -144,6 +164,7 @@ class MissionOut(BaseModel):
     due_date: date | None = None
     timebox_minutes: int | None = None
     source_ref: str | None = None
+    visual_ready: bool = False
     model_config = {"from_attributes": True}
 
 
@@ -282,8 +303,10 @@ class ManualDecisionIn(BaseModel):
 
 class SliceTaskOut(BaseModel):
     task_id: UUID
+    topic_id: UUID | None = None
     task_number: str | None = None
     statement: str
+    visual_ready: bool = False
 
 
 class SliceDrawOut(BaseModel):

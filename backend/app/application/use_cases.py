@@ -336,19 +336,28 @@ class LearningService:
         task = getattr(mission, "task", None)
         topic = getattr(mission, "topic", None)
         statement = task.statement if task is not None else None
+        topic_id = getattr(mission, "topic_id", None)
+        task_number = task.task_number if task is not None else getattr(topic, "task_number", None)
         return {
             "id": mission.id,
             "subject": mission.subject,
+            "topic_id": topic_id,
             "title": mission.title,
             "instructions": mission.instructions,
             "statement": statement,
             "ai_policy": mission.ai_policy,
-            "task_number": task.task_number if task is not None else getattr(topic, "task_number", None),
+            "task_number": task_number,
             "threshold_percent": mission.threshold_percent,
             "due_date": mission.due_date,
             "timebox_minutes": mission.timebox_minutes,
             "source_ref": mission.source_ref,
+            "visual_ready": bool(
+                topic_id is not None and self._uow.theory_cards.has_concept_for_topic(topic_id)
+            ),
         }
+
+    def list_topic_theory(self, topic_id: UUID) -> list[dict[str, object]]:
+        return self._uow.theory_cards.list_approved_for_topic(topic_id)
 
     def list_daily_drill(self, student_id: UUID) -> list[dict[str, object]]:
         """Очередь Telegram-дрилла: только открытые daily:-миссии со связанной задачей.
@@ -1011,7 +1020,16 @@ class LearningService:
         pool = self._uow.tasks.list_gradable(subject, topic_id)
         chosen = random.sample(pool, min(size, len(pool)))
         return [
-            {"task_id": task.id, "task_number": task.task_number, "statement": task.statement}
+            {
+                "task_id": task.id,
+                "topic_id": task.topic_id,
+                "task_number": task.task_number,
+                "statement": task.statement,
+                "visual_ready": bool(
+                    task.topic_id is not None
+                    and self._uow.theory_cards.has_concept_for_topic(task.topic_id)
+                ),
+            }
             for task in chosen
         ]
 

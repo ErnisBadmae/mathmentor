@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { getCurrentStudent, getTodayMissions, submitAttempt } from '../shared/api/client';
 
 export function DailyWorkPage() {
@@ -46,6 +47,11 @@ export function DailyWorkPage() {
         </div>
         <div className="panel attemptPanel">
           <h2>{mission?.title ?? 'Выберите миссию'}</h2>
+          {mission?.visual_ready && mission.topic_id ? (
+            <Link className="buttonSecondary linkButton missionTheoryLink" to={`/theory/${mission.topic_id}`}>
+              Визуализация темы
+            </Link>
+          ) : null}
           {mission?.statement ? (
             <div className="taskStatement">
               <span>Условие</span>

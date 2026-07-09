@@ -19,6 +19,7 @@ import { Part2Page } from '../pages/Part2Page';
 import { ProgramPage } from '../pages/ProgramPage';
 import { ReviewQueuePage } from '../pages/ReviewQueuePage';
 import { SlicePage } from '../pages/SlicePage';
+import { TheoryPage } from '../pages/TheoryPage';
 import { TopicLifecyclePage } from '../pages/TopicLifecyclePage';
 import { getOperatorMode, setOperatorMode } from '../shared/api/client';
 
@@ -87,6 +88,7 @@ export function App() {
           <Route path="/daily" element={<DailyWorkPage />} />
           <Route path="/part2" element={<Part2Page />} />
           <Route path="/slice" element={<SlicePage />} />
+          <Route path="/theory/:topicId" element={<TheoryPage />} />
           <Route path="/errors" element={<ErrorJournalPage />} />
           <Route path="/review" element={<ReviewQueuePage />} />
           <Route path="/operator" element={<OperatorPage />} />

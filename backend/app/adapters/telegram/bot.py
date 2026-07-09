@@ -20,7 +20,9 @@ import time
 from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timedelta
+from ipaddress import ip_address
 from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -182,8 +184,37 @@ def _task_text(payload: dict[str, object]) -> str:
         parts.append(str(payload["statement"]))
     if payload.get("instructions"):
         parts.append(str(payload["instructions"]))
-    parts.append("Реши, кратко распиши ход решения и в конце укажи ответ.")
+    if payload.get("visual_ready") and payload.get("topic_id"):
+        parts.append(_topic_theory_line(payload["topic_id"]))
+    if not payload.get("instructions"):
+        parts.append("Реши, кратко распиши ход решения и в конце укажи ответ.")
     return "\n\n".join(parts)
+
+
+def _topic_theory_url(topic_id: object) -> str:
+    base = get_settings().public_frontend_base_url.rstrip("/")
+    return f"{base}/theory/{topic_id}"
+
+
+def _is_public_frontend_url(url: str) -> bool:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return False
+    host = parsed.hostname.lower()
+    if host == "localhost" or host.endswith(".local"):
+        return False
+    try:
+        parsed_ip = ip_address(host)
+    except ValueError:
+        return True
+    return not (parsed_ip.is_private or parsed_ip.is_loopback or parsed_ip.is_link_local)
+
+
+def _topic_theory_line(topic_id: object) -> str:
+    base_url = get_settings().public_frontend_base_url
+    if _is_public_frontend_url(base_url):
+        return f"Визуализация темы: {_topic_theory_url(topic_id)}"
+    return "Визуализация есть на сайте: «Программа» → эта тема."
 
 
 def _verdict_text(result: dict[str, object]) -> str:
@@ -227,10 +258,23 @@ def _progress_text(data: dict[str, object], phase: dict[str, object] | None = No
         cov = phase["coverage"]
         # in_progress включает under_review — вычитаем, чтобы корзины не пересекались.
         in_work = cov["in_progress"] - cov["under_review"]
+        start, end = phase.get("start_date"), phase.get("end_date")
+        dates = ""
+        if hasattr(start, "strftime") and hasattr(end, "strftime"):
+            dates = f" ({start.strftime('%d.%m')} – {end.strftime('%d.%m')})"
+        lines.append("")
+        lines.append(f"📚 Фаза «{phase['label']}»{dates}")
         lines.append(
-            f"Темы: в работе {in_work} · на повторении {cov['under_review']} · "
-            f"подтверждено {cov['confirmed']}"
+            f"Закрыто {cov['confirmed']} из {cov['total']} · "
+            f"в работе {in_work} · на повторении {cov['under_review']}"
         )
+        upcoming = [
+            str(topic["topic_title"])
+            for topic in phase.get("topics", [])
+            if getattr(topic["state"], "value", topic["state"]) == "open"
+        ][:3]
+        if upcoming:
+            lines.append("Дальше: " + ", ".join(upcoming))
     lines.append(f"Повторы на сегодня: {data.get('due_reviews', 0)}")
     lines.append(f"Код без подсказок: {float(data.get('clean_sheet_ratio', 0)):.0%}")
     lines.append("")
@@ -246,7 +290,7 @@ async def _send_next(message: Any) -> None:
     nxt = next((d for d in drills if d["id"] not in presented), None)
     if nxt is None:
         _awaiting.pop(chat_id, None)
-        await _show_home(message, "На сегодня открытых заданий нет.")
+        await _show_home(message, "На сегодня всё сделано ✅ Новая порция — завтра утром.")
         return
     mission_id = nxt["id"]
     assert isinstance(mission_id, UUID)
@@ -568,9 +612,14 @@ async def _send_srez_task(message: Any, chat_id: int) -> None:
     idx = session["idx"]
     items = session["items"]
     task = items[idx]
+    visual_line = (
+        f"\n\n{_topic_theory_line(task['topic_id'])}"
+        if task.get("visual_ready") and task.get("topic_id")
+        else ""
+    )
     await message.answer(
         f"Задача {idx + 1}/{len(items)}:\n\n{task['statement']}\n\n"
-        "Реши, кратко распиши ход и в конце укажи ответ."
+        f"Реши, кратко распиши ход и в конце укажи ответ.{visual_line}"
     )
 
 

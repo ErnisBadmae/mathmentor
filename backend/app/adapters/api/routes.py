@@ -25,6 +25,7 @@ from app.adapters.api.schemas import (
     StudentOut,
     SubmitAttemptIn,
     SubmitAttemptOut,
+    TheoryCardOut,
     TopicLifecycleOut,
 )
 from app.application.use_cases import LearningService
@@ -64,6 +65,14 @@ def topic_lifecycle(student_id: UUID, service: LearningService = Depends(get_lea
 @protected_router.get("/students/{student_id}/program", response_model=list[ProgramPhaseOut])
 def program_progress(student_id: UUID, service: LearningService = Depends(get_learning_service)) -> list[dict[str, object]]:
     return service.list_program_progress(student_id)
+
+
+@protected_router.get("/topics/{topic_id}/theory", response_model=list[TheoryCardOut])
+def topic_theory(
+    topic_id: UUID,
+    service: LearningService = Depends(get_learning_service),
+) -> list[dict[str, object]]:
+    return service.list_topic_theory(topic_id)
 
 
 @protected_router.get("/students/{student_id}/diagnostics", response_model=list[DiagnosticOut])

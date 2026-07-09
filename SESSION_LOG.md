@@ -5,6 +5,63 @@
 
 ---
 
+## 2026-07-09 - Visual feedback hardening: приватные ссылки и скалярное произведение
+
+Status: реализовано, проверено и выкачено live; нужен reconnect ege-MCP.
+
+- По обратной связи ученицы “визуализация не открывается” Telegram больше не отправляет прямую ссылку,
+  если `PUBLIC_FRONTEND_BASE_URL` — private/LAN/localhost URL. Для текущего `http://192.168.1.60:8088`
+  бот пишет: `Визуализация есть на сайте: «Программа» → эта тема.`
+- `_task_text` больше не добавляет общий хвост “кратко распиши ход...” поверх уже заданных `instructions`;
+  дриллы “отправь ответ числом” не получают противоречивую вторую инструкцию.
+- В seed добавлена concept card `Скалярное произведение в координатах` (`vector_dot_product`) для темы
+  `Векторы`; frontend `/theory/:topicId` получил простой SVG-рендер формулы `a·b = x1·x2 + y1·y2`.
+  Карточки темы сортируются по title, поэтому scalar-product карточка идёт первой.
+- Проверка: targeted pytest `28 passed`; full backend pytest `205 passed`; frontend `npm.cmd run build` OK;
+  targeted ruff clean; Docker deploy сделан (`api` + seed + `bot web`), release smoke GREEN.
+- Live check: API `/api/topics/00000000-0000-0000-0000-000000005012/theory` отдаёт
+  `vector_dot_product` и `vector_2d`; live bot-text не содержит `192.168`; web route `/theory/...5012` отдаёт 200.
+
+Open tail: reconnect ege-MCP. Текущий MCP-процесс всё ещё старый: `topic_theory` tool не виден,
+а `program_progress` не отдаёт `visual_ready`. После reconnect проверить MCP `program_progress`/`topic_theory`.
+
+## 2026-07-08 - Visual concept cards v1 для векторов и производной
+
+Status: реализовано, проверено и выкачено live; нужен reconnect ege-MCP.
+
+- Добавлена backend-модель `theory_cards` + alembic `e6f7a8b9c0d1`, порт/репозиторий,
+  `LearningService.list_topic_theory`, API `GET /topics/{topic_id}/theory` и MCP read-tool
+  `topic_theory(topic_id)`.
+- `visual_ready` прокинут отдельно от `/ready`: в `program_progress`, mission payload и slice draw.
+  `theory_ready` остаётся отметкой ученицы «теорию изучила», а не наличием визуального материала.
+- Seed добавляет approved concept cards без ключей ответов: `Векторы` (`vector_2d`) и
+  `Производная: геометрический смысл` (`derivative_tangent`).
+- Telegram `/today` и `/slice` добавляют ссылку на `/theory/<topic_id>`; сайт получил маршрут
+  `/theory/:topicId` с локальными SVG-рендерами и ссылками из «Программы», «Сегодня», «Среза».
+- Regression: `test_theory_cards.py` + bot-тесты на ссылки; проверка — backend pytest `204 passed`,
+  frontend `npm.cmd run build` OK, Docker web build OK, ruff clean на новом `test_theory_cards.py`.
+- Live deploy: `docker compose up -d --build api`, `alembic upgrade head` до `e6f7a8b9c0d1`,
+  `python scripts/seed.py`, затем `docker compose up -d --build bot web`. Контейнеры running/healthy,
+  release smoke GREEN, `/theory/00000000-0000-0000-0000-000000005012` отдаёт 200, live service check
+  видит `visual_ready=True` для `Векторы` и `Производная: геометрический смысл`.
+
+Open tail: reconnect ege-MCP. Текущий MCP-процесс в этой сессии держит старый код: нового
+`topic_theory` tool нет, а `program_progress` ещё не отдаёт `visual_ready`. После reconnect проверить
+MCP `program_progress`/`topic_theory`.
+
+## 2026-07-08 - UI-хвосты /ready + деплой (миграция, rebuild, smoke)
+
+Status: сделано и выкачено live; для MCP-теста доставки — нужен reconnect ege-MCP.
+
+- Три задачи из карточки (backend уже был готов):
+  1. Текст пустой очереди в боте → «На сегодня всё сделано ✅ Новая порция — завтра утром» (`_send_next`); тест перенацелен.
+  2. Карта фазы в `/progress` (`_progress_text`): «📚 Фаза «label» (дд.мм – дд.мм)», «Закрыто X из Y · в работе · на повторении», «Дальше: …» (до 3 открытых тем).
+  3. Бейдж «📖 теория изучена» на «Программе»: поле `theory_ready` добавлено в `ProgramTopicOut` (pydantic его резал!) + TS-тип + бейдж `badge--ready` + CSS.
+- Деплой: alembic `c0d1e2f3a4b5 → d5a6b7c8e9f0` применён к живой БД (theory_ready_at); `docker compose up -d --build api bot web`.
+- Проверка: pytest `198 passed`, ruff чист, фронт tsc чист; live: api `healthy`, bot `healthy`, `/program` отдаёт `theory_ready`, runtime-smoke GREEN (`getMe @egemathandinformbot`, логи чистые).
+
+Open tail: переподключить ege-MCP (текущий процесс держит код до `telegram_send`), затем проверить: MCP `publish_feedback` сразу шлёт в ТГ; `/send` из родительского чата; `/ready`-переключение тем + бейдж на «Программе».
+
 ## 2026-07-07 - /ready: отметка «теорию изучила» управляет новыми темами очереди
 
 Status: реализовано и проверено локально; для live нужны alembic upgrade + rebuild api/bot.

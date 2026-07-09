@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { errorMessage, getCurrentStudent, getProgram, type TopicState } from '../shared/api/client';
 
 const STATE_LABEL: Record<TopicState, string> = {
@@ -70,6 +71,16 @@ export function ProgramPage() {
                   </div>
                   <div>
                     <span className={`badge ${STATE_BADGE[topic.state]}`}>{STATE_LABEL[topic.state]}</span>
+                    {topic.theory_ready ? (
+                      <span className="badge badge--ready" title="Ученица отметила, что изучила теорию">
+                        📖 теория изучена
+                      </span>
+                    ) : null}
+                    {topic.visual_ready ? (
+                      <Link className="buttonSecondary linkButton" to={`/theory/${topic.topic_id}`}>
+                        Визуализация
+                      </Link>
+                    ) : null}
                     <small>
                       банк: {topic.tasks_in_bank} · решено: {topic.solved_count}
                       {topic.percent !== null ? ` · ${topic.percent}%` : ' · —'}

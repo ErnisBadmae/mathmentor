@@ -89,6 +89,25 @@ export type ProgramTopic = {
   solved_count: number;
   attempts_count: number;
   percent: number | null;
+  theory_ready: boolean;
+  visual_ready: boolean;
+};
+
+export type TheoryVisual = {
+  kind: string;
+  mode: 'concept';
+  params: Record<string, unknown>;
+  alt_text: string;
+};
+
+export type TheoryCard = {
+  id: string;
+  topic_id: string;
+  topic_title: string;
+  title: string;
+  body_md: string;
+  visual: TheoryVisual;
+  version: string;
 };
 
 export type ProgramPhase = {
@@ -115,6 +134,7 @@ export type Diagnostic = {
 export type Mission = {
   id: string;
   subject: Subject;
+  topic_id: string | null;
   title: string;
   instructions: string;
   statement: string | null;
@@ -124,6 +144,7 @@ export type Mission = {
   due_date: string | null;
   timebox_minutes: number | null;
   source_ref: string | null;
+  visual_ready: boolean;
 };
 
 export type MissionDraft = {
@@ -302,6 +323,10 @@ export function getProgram(studentId: string): Promise<ProgramPhase[]> {
   return request<ProgramPhase[]>(`/students/${studentId}/program`);
 }
 
+export function getTopicTheory(topicId: string): Promise<TheoryCard[]> {
+  return request<TheoryCard[]>(`/topics/${topicId}/theory`);
+}
+
 export function getDiagnostics(studentId: string): Promise<Diagnostic[]> {
   return request<Diagnostic[]>(`/students/${studentId}/diagnostics`);
 }
@@ -359,8 +384,10 @@ export function publishMentorNote(
 
 export type SliceTask = {
   task_id: string;
+  topic_id: string | null;
   task_number: string | null;
   statement: string;
+  visual_ready: boolean;
 };
 
 export type SliceResult = {

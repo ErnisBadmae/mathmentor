@@ -88,6 +88,26 @@ class TopicORM(Base):
     )
 
 
+class TheoryCardORM(Base):
+    __tablename__ = "theory_cards"
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    topic_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("topics.id"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(240))
+    body_md: Mapped[str] = mapped_column(Text)
+    visual_kind: Mapped[str] = mapped_column(String(80))
+    visual_mode: Mapped[str] = mapped_column(String(20), default="concept", index=True)
+    visual_json: Mapped[dict[str, object]] = mapped_column(JSON)
+    version: Mapped[str] = mapped_column(String(40), default="v1")
+    status: Mapped[str] = mapped_column(String(20), default="approved", index=True)
+    source_ref: Mapped[str | None] = mapped_column(
+        String(700), nullable=True, unique=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    topic: Mapped[TopicORM] = relationship()
+
+
 class TaskORM(Base):
     __tablename__ = "tasks"
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)

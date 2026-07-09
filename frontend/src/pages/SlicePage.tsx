@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   drawSlice,
   errorMessage,
@@ -94,6 +95,13 @@ export function SlicePage() {
                 ))}
               </select>
             </label>
+            {selectedTopic?.visual_ready ? (
+              <div className="formHint">
+                <Link className="buttonSecondary linkButton" to={`/theory/${selectedTopic.topic_id}`}>
+                  Визуализация темы
+                </Link>
+              </div>
+            ) : null}
             <label>
               <span>Тема</span>
               <select value={topicId} onChange={(event) => setTopicId(event.target.value)}>
@@ -129,6 +137,11 @@ export function SlicePage() {
               {tasks.map((task, index) => (
                 <div key={task.task_id} className="sliceTask">
                   <p className="sliceStatement">{index + 1}. {task.statement}</p>
+                  {task.visual_ready && task.topic_id ? (
+                    <Link className="buttonSecondary linkButton sliceTheoryLink" to={`/theory/${task.topic_id}`}>
+                      Визуализация темы
+                    </Link>
+                  ) : null}
                   <input
                     value={answers[task.task_id] ?? ''}
                     placeholder="Ответ"

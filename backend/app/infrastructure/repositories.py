@@ -35,6 +35,7 @@ from app.infrastructure.models import (
     StudyLogEntryORM,
     SubjectTrackORM,
     TaskORM,
+    TheoryCardORM,
     TopicORM,
 )
 
@@ -64,6 +65,7 @@ class SqlAlchemyUnitOfWork:
         self.scores = ScoreSqlRepository(session)
         self.topics = TopicSqlRepository(session)
         self.tasks = TaskSqlRepository(session)
+        self.theory_cards = TheoryCardSqlRepository(session)
         self.mentor_notes = MentorNoteSqlRepository(session)
 
     def commit(self) -> None:
@@ -214,6 +216,58 @@ class TaskSqlRepository:
             )
             stmt = stmt.where(TaskORM.id.notin_(assigned))
         return list(self.session.scalars(stmt).all())
+
+
+class TheoryCardSqlRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def has_concept_for_topic(self, topic_id: UUID) -> bool:
+        return (
+            self.session.scalar(
+                select(func.count(TheoryCardORM.id))
+                .where(TheoryCardORM.topic_id == topic_id)
+                .where(TheoryCardORM.status == "approved")
+                .where(TheoryCardORM.visual_mode == "concept")
+            )
+            or 0
+        ) > 0
+
+    def approved_topic_ids(self) -> set[UUID]:
+        rows = self.session.scalars(
+            select(TheoryCardORM.topic_id)
+            .where(TheoryCardORM.status == "approved")
+            .where(TheoryCardORM.visual_mode == "concept")
+            .distinct()
+        ).all()
+        return set(rows)
+
+    def list_approved_for_topic(self, topic_id: UUID) -> list[dict[str, object]]:
+        rows = self.session.execute(
+            select(TheoryCardORM, TopicORM.title)
+            .join(TopicORM, TopicORM.id == TheoryCardORM.topic_id)
+            .where(TheoryCardORM.topic_id == topic_id)
+            .where(TheoryCardORM.status == "approved")
+            .where(TheoryCardORM.visual_mode == "concept")
+            .order_by(TheoryCardORM.title.asc(), TheoryCardORM.created_at.asc())
+        ).all()
+        return [
+            {
+                "id": card.id,
+                "topic_id": card.topic_id,
+                "topic_title": topic_title,
+                "title": card.title,
+                "body_md": card.body_md,
+                "visual": {
+                    "kind": card.visual_kind,
+                    "mode": card.visual_mode,
+                    "params": card.visual_json.get("params", {}),
+                    "alt_text": card.visual_json.get("alt_text", ""),
+                },
+                "version": card.version,
+            }
+            for card, topic_title in rows
+        ]
 
 
 class AttemptSqlRepository:
@@ -850,6 +904,13 @@ class TopicSqlRepository:
         Reuses ``list_topic_lifecycle``; untouched program topics default to OPEN."""
         lifecycle = {row["topic_id"]: row for row in self.list_topic_lifecycle(student_id)}
         task_counts = dict(self._approved_task_counts())
+        visual_topic_ids = self.session.scalars(
+            select(TheoryCardORM.topic_id)
+            .where(TheoryCardORM.status == "approved")
+            .where(TheoryCardORM.visual_mode == "concept")
+            .distinct()
+        ).all()
+        visual_ready = set(visual_topic_ids)
         topics = self.session.scalars(
             select(TopicORM).where(TopicORM.phase.is_not(None))
         ).all()
@@ -871,6 +932,7 @@ class TopicSqlRepository:
                     "solved_count": life["solved_count"] if life else 0,
                     "tasks_in_bank": task_counts.get(topic.id, 0),
                     "theory_ready": topic.theory_ready_at is not None,
+                    "visual_ready": topic.id in visual_ready,
                 }
             )
         return rows

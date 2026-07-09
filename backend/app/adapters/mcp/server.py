@@ -88,6 +88,12 @@ def program_progress(student_id: str = DEFAULT_STUDENT_ID) -> Any:
 
 
 @mcp.tool()
+def topic_theory(topic_id: str) -> Any:
+    """Approved visual concept cards for a topic. Contains no answer keys."""
+    return _read(lambda s: s.list_topic_theory(UUID(topic_id)))
+
+
+@mcp.tool()
 def topic_lifecycle(student_id: str = DEFAULT_STUDENT_ID) -> Any:
     """Computed state of every active topic (open/in_work/under_review/confirmed/back_to_work)."""
     return _read(lambda s: s.list_topic_lifecycle(UUID(student_id)))
