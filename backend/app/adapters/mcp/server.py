@@ -76,6 +76,12 @@ def _read(fn: Any) -> Any:
 
 
 @mcp.tool()
+def mentor_brief(student_id: str = DEFAULT_STUDENT_ID, days: int = 14) -> Any:
+    """Compact first-read context for mentor agents; use drill-down tools for details."""
+    return _read(lambda s: s.mentor_brief(UUID(student_id), days))
+
+
+@mcp.tool()
 def student_overview(student_id: str = DEFAULT_STUDENT_ID) -> Any:
     """Dashboard: subject scores, clean-sheet ratio, top errors, due reviews."""
     return _read(lambda s: s.get_dashboard(UUID(student_id)))

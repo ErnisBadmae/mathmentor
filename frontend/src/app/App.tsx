@@ -23,6 +23,8 @@ import { TheoryPage } from '../pages/TheoryPage';
 import { TopicLifecyclePage } from '../pages/TopicLifecyclePage';
 import { getOperatorMode, setOperatorMode } from '../shared/api/client';
 
+const operatorModeAvailable = import.meta.env.VITE_OPERATOR_MODE_AVAILABLE !== 'false';
+
 const studentNavItems = [
   { to: '/', label: 'Прогресс', icon: BarChart3 },
   { to: '/program', label: 'Программа', icon: GraduationCap },
@@ -41,10 +43,12 @@ const operatorNavItem = {
 };
 
 export function App() {
-  const [operatorMode, setOperatorModeState] = useState(getOperatorMode());
-  const navItems = operatorMode ? [...studentNavItems, operatorNavItem] : studentNavItems;
+  const [operatorMode, setOperatorModeState] = useState(operatorModeAvailable && getOperatorMode());
+  const navItems =
+    operatorModeAvailable && operatorMode ? [...studentNavItems, operatorNavItem] : studentNavItems;
 
   function toggleOperatorMode() {
+    if (!operatorModeAvailable) return;
     const next = !operatorMode;
     setOperatorMode(next);
     setOperatorModeState(next);
@@ -60,14 +64,16 @@ export function App() {
             <span>family pilot</span>
           </div>
         </div>
-        <button type="button" className="modeToggle" onClick={toggleOperatorMode}>
-          <strong>{operatorMode ? 'Operator mode: on' : 'Operator mode: off'}</strong>
-          <span>
-            {operatorMode
-              ? 'Операторские действия открыты'
-              : 'Показать operator surface'}
-          </span>
-        </button>
+        {operatorModeAvailable ? (
+          <button type="button" className="modeToggle" onClick={toggleOperatorMode}>
+            <strong>{operatorMode ? 'Operator mode: on' : 'Operator mode: off'}</strong>
+            <span>
+              {operatorMode
+                ? 'Операторские действия открыты'
+                : 'Показать operator surface'}
+            </span>
+          </button>
+        ) : null}
         <nav>
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -91,7 +97,10 @@ export function App() {
           <Route path="/theory/:topicId" element={<TheoryPage />} />
           <Route path="/errors" element={<ErrorJournalPage />} />
           <Route path="/review" element={<ReviewQueuePage />} />
-          <Route path="/operator" element={<OperatorPage />} />
+          <Route
+            path="/operator"
+            element={operatorModeAvailable ? <OperatorPage /> : <DashboardPage />}
+          />
         </Routes>
       </main>
     </div>

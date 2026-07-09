@@ -60,6 +60,10 @@ From the repo root:
 
 This builds containers, starts Postgres/API/nginx, runs Alembic, runs seed, imports the Excel tracker from `C:\Users\badmaev_es\Desktop\ЕГЭ`, and prints the LAN URL.
 
+For access outside the LAN without exposing Qwen/Postgres/MCP, see
+`!DOC/operations/PUBLISHING_SITE.md`. Student setup instructions are in
+`!DOC/operations/STUDENT_SITE_ACCESS.md`.
+
 Backup:
 
 ```powershell

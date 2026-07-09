@@ -227,3 +227,18 @@ def test_weekly_digest_uses_existing_learning_events(seeded_session):
     assert digest["diagnostics"]["captured"] >= 1
     assert digest["errors"]["count"] >= 1
     assert digest["manual_reviews_pending"] >= 0
+
+
+def test_mentor_brief_is_compact_first_read(seeded_session):
+    svc = _svc(seeded_session, ExactOnlyJudge())
+
+    brief = svc.mentor_brief(STUDENT)
+
+    assert brief["contract"]["purpose"] == "compact first-read context"
+    assert "attempt_history" in brief["contract"]["drill_down_tools"]
+    assert "program_progress" in brief["contract"]["drill_down_tools"]
+    assert "scores" in brief
+    assert "current_phase" in brief
+    assert "next_actions" in brief
+    assert "answer_text" not in str(brief)
+    assert "code_text" not in str(brief)

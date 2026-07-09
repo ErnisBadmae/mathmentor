@@ -864,6 +864,184 @@ class LearningService:
             "manual_reviews_pending": len(self.list_manual_reviews(student_id)),
         }
 
+    def mentor_brief(self, student_id: UUID, days: int = 14) -> dict[str, object]:
+        """Compact first-read context for a senior mentor agent.
+
+        Raw attempts, full program state, and error details remain available through
+        drill-down MCP tools. This brief intentionally avoids full answer/code text.
+        """
+        days = max(1, min(int(days), 30))
+        dashboard = self.get_dashboard(student_id)
+        digest = self.weekly_digest(student_id, days)
+        phases = self.list_program_progress(student_id)
+
+        def _enum_value(value: object) -> str:
+            return getattr(value, "value", str(value))
+
+        def _short(value: object, limit: int = 180) -> str | None:
+            if value is None:
+                return None
+            text = str(value).strip()
+            return text if len(text) <= limit else f"{text[: limit - 1]}…"
+
+        current_phase = next((phase for phase in phases if phase["is_current"]), None)
+        if current_phase is None and phases:
+            current_phase = phases[0]
+
+        topics_to_watch: list[dict[str, object]] = []
+        if current_phase is not None:
+            topic_rows = [
+                topic
+                for topic in current_phase["topics"]
+                if _enum_value(topic.get("state")) != TopicState.OPEN.value
+                or topic.get("error_count")
+                or topic.get("reviews_due_today")
+                or topic.get("theory_ready")
+                or topic.get("visual_ready")
+            ]
+
+            def _topic_priority(topic: dict[str, object]) -> tuple[int, int, str]:
+                state = _enum_value(topic.get("state"))
+                state_priority = {
+                    TopicState.BACK_TO_WORK.value: 0,
+                    TopicState.UNDER_REVIEW.value: 1,
+                    TopicState.IN_WORK.value: 2,
+                    TopicState.CONFIRMED.value: 3,
+                    TopicState.OPEN.value: 4,
+                }.get(state, 5)
+                errors = int(topic.get("error_count") or 0)
+                return (state_priority, -errors, str(topic.get("topic_title") or ""))
+
+            topics_to_watch = [
+                {
+                    "topic_id": topic["topic_id"],
+                    "title": topic["topic_title"],
+                    "subject": topic["subject"],
+                    "state": _enum_value(topic["state"]),
+                    "attempts_count": topic["attempts_count"],
+                    "solved_count": topic["solved_count"],
+                    "tasks_in_bank": topic["tasks_in_bank"],
+                    "error_count": topic["error_count"],
+                    "reviews_due_today": topic["reviews_due_today"],
+                    "theory_ready": topic.get("theory_ready", False),
+                    "visual_ready": topic.get("visual_ready", False),
+                    "percent": topic.get("percent"),
+                }
+                for topic in sorted(topic_rows, key=_topic_priority)[:10]
+            ]
+
+        recent_errors = [
+            {
+                "topic_title": row.get("topic_title"),
+                "category": _enum_value(row.get("category")),
+                "detail": _short(row.get("detail")),
+                "created_at": row.get("created_at"),
+            }
+            for row in digest["errors"]["recent"][:5]
+        ]
+        recent_attempts = [
+            {
+                "topic_title": row.get("topic_title"),
+                "status": _enum_value(row.get("status")),
+                "score_percent": row.get("score_percent"),
+                "error_category": _enum_value(row.get("error_category")),
+                "feedback": _short(row.get("feedback")),
+                "next_action": _short(row.get("next_action")),
+                "created_at": row.get("created_at"),
+            }
+            for row in self.list_attempt_history(student_id, limit=5)
+        ]
+        due_review_statuses = {ReviewStatus.DUE.value, ReviewStatus.BACK_TO_WORK.value}
+        due_reviews = [
+            {
+                "review_id": row["id"],
+                "topic_id": row["topic_id"],
+                "topic_title": row["topic_title"],
+                "status": _enum_value(row["status"]),
+                "due_date": row["due_date"],
+            }
+            for row in self.list_reviews(student_id, due_only=True)
+            if _enum_value(row.get("status")) in due_review_statuses
+        ][:5]
+        manual_reviews = [
+            {
+                "evidence_id": row["id"],
+                "topic_title": row.get("topic_title"),
+                "mission_title": row.get("mission_title"),
+                "created_at": row.get("created_at"),
+            }
+            for row in self.list_manual_reviews(student_id)[:5]
+        ]
+
+        next_actions: list[str] = []
+        if manual_reviews:
+            next_actions.append(f"Resolve {len(manual_reviews)} pending manual review item(s).")
+        if due_reviews:
+            next_actions.append(f"Run or mark {len(due_reviews)} due spaced review item(s).")
+        if topics_to_watch:
+            titles = ", ".join(str(row["title"]) for row in topics_to_watch[:3])
+            next_actions.append(f"Focus current-phase work on: {titles}.")
+        if digest["errors"]["by_category"]:
+            top_error = digest["errors"]["by_category"][0]
+            next_actions.append(
+                f"Inspect repeated error category: {top_error['category']} "
+                f"({top_error['count']} recent)."
+            )
+        if not next_actions:
+            next_actions.append("Continue current daily loop; no urgent mentor intervention.")
+
+        return {
+            "contract": {
+                "purpose": "compact first-read context",
+                "raw_history_retained_in": "Postgres",
+                "drill_down_tools": [
+                    "program_progress",
+                    "attempt_history",
+                    "error_journal",
+                    "reviews",
+                    "manual_reviews",
+                    "topic_theory",
+                ],
+            },
+            "period": digest["period"],
+            "scores": digest["scores"]["latest_by_subject"],
+            "retention": dashboard["retention"],
+            "engagement": digest["engagement"],
+            "current_phase": (
+                {
+                    "key": current_phase["key"],
+                    "label": current_phase["label"],
+                    "coverage": current_phase["coverage"],
+                    "topics_to_watch": topics_to_watch,
+                }
+                if current_phase is not None
+                else None
+            ),
+            "recent_learning": {
+                "passed_attempts": digest["learning"]["passed_attempts"],
+                "pass_rate": digest["learning"]["pass_rate"],
+                "topics_touched": digest["learning"]["topics_touched"][:10],
+                "diagnostics": {
+                    "count": digest["diagnostics"]["count"],
+                    "captured": digest["diagnostics"]["captured"],
+                    "recent": digest["diagnostics"]["recent"][:3],
+                },
+                "attempts": recent_attempts,
+            },
+            "error_focus": {
+                "count": digest["errors"]["count"],
+                "by_category": digest["errors"]["by_category"][:5],
+                "recent": recent_errors,
+            },
+            "queues": {
+                "reviews_due": due_reviews,
+                "review_status_counts": digest["reviews"],
+                "manual_reviews": manual_reviews,
+                "manual_reviews_pending": digest["manual_reviews_pending"],
+            },
+            "next_actions": next_actions,
+        }
+
     def list_tasks(self, status: TaskStatus | None = None) -> list[dict[str, object]]:
         return self._uow.tasks.list_tasks(status)
 
