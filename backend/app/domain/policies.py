@@ -134,6 +134,29 @@ def select_daily_queue(
     return ([*due_reviews, *back_to_work, *new_topics])[:budget]
 
 
+def describe_pick(reason: dict) -> str:
+    """Презентер #1 (оператор/агент): структурный ``reason`` → компактная строка «почему».
+
+    ``reason`` — единый источник правды из domain (только данные). Детский и родительский
+    тексты, когда понадобятся, будут отдельными тонкими форматтерами над ТЕМ ЖЕ dict —
+    domain при этом не меняется. LLM ни в одном из них: объяснение = честный след выбора."""
+    kind = reason.get("kind")
+    if kind == "due_review":
+        return "повтор по расписанию (интервальное закрепление)"
+    if kind == "back_to_work":
+        return "вернулась в работу после проваленного повтора"
+    if kind == "new_topic":
+        prereqs = reason.get("prerequisites") or []
+        base = "новая тема"
+        if prereqs:
+            base += f"; пререквизиты закрыты: {', '.join(prereqs)}"
+        base += f"; доступна по фазе «{reason.get('phase')}»"
+        if reason.get("error_count"):
+            base += f"; прошлых ошибок: {reason['error_count']}"
+        return base
+    return "выбрана планировщиком дня"
+
+
 def select_intervention_queue(
     errors_by_category: dict[ErrorCategory, int],
     *,

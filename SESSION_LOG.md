@@ -5,6 +5,72 @@
 
 ---
 
+## 2026-07-10 - Deterministic learning planner MVP: prereq-gate + explanation
+
+Status: реализовано и проверено локально (тесты + живое наблюдение на реальном seed); НЕ задеплоено.
+
+- Оценка идеи Кодекса: Дейкстра — неверный инструмент (задача не shortest-path, а prerequisite-closure);
+  weighted-frontier тоже преждевременен (= замороженная error-intervention логика, N=1, тюнить не на чем).
+  Выбран lean-MVP: prereq-gate + объяснение; weighted отложен и подключится через `select_intervention_queue`.
+- `domain/prerequisites.py` (новый): статичная `PREREQUISITES` (4 defensible-ребра Части 1 на реальных
+  названиях тем) + чистый `prerequisites_met`. `domain/policies.py`: чистый презентер `describe_pick(reason)`.
+- `build_daily_queue`: `passed_titles` (темы с `solved_count>0`), один gate-предикат в фильтр новых тем,
+  структурный `reason` (данные) + строка `why` на каждый пик. `select_daily_queue` не тронут (reason едет
+  сквозь как лишний ключ). Без миграций.
+- «3 потребителя» = single-source structured `reason` + N тонких форматтеров на краю; в MVP один
+  (оператор/агент). Детский/родительский тексты — позже, тем же dict, LLM ни в одном → честный след выбора.
+- Инварианты целы (due→btw→new, open-count в лимит, идемпотентный source_ref, manual-review вне дрилла,
+  phase/ready_mode, LLM не выбирает). Ворота работают и в ready-mode.
+- Проверка: targeted pytest 17 passed (+4 новых), full backend 210 passed, ruff clean (--ignore E501),
+  import-linter 2 kept/0 broken. Живьё: база «Вычисления: логарифмы…» закрыта → зависимая «Простейшие
+  уравнения…» разблокирована, `why` называет пререквизит.
+
+Open tail: решить про ADR (каталога `!DOC/adr/` нет — схему не заводил); прокинуть `why` в
+`mentor_brief`/дашборд как первого видимого потребителя; детский/родительский форматтеры — когда фича
+подтвердится.
+
+## 2026-07-09 - MCP mentor brief и публикация сайта без домена
+
+Status: реализовано и проверено локально; для доступности в агенте нужен reconnect MCP-клиента.
+
+- Добавлен компактный MCP read-tool `mentor_brief(student_id, days=14)` поверх `LearningService`.
+  Он отдаёт scores, retention, engagement, текущую фазу, темы для внимания, краткие попытки,
+  ошибки, очереди ревью/manual review и next actions, но не отдаёт полные `answer_text`/`code_text`.
+- Сырые данные остаются в Postgres и доступны через существующие drill-down tools:
+  `program_progress`, `attempt_history`, `error_journal`, `reviews`, `manual_reviews`,
+  `topic_theory`. Решение без pgvector намеренное: сейчас нужна компактная deterministic summary,
+  а не семантический поиск.
+- Добавлен runbook `!DOC/operations/PUBLISHING_SITE.md`: домен не обязателен. Базовый путь —
+  Tailscale Serve для семейного tailnet; временный публичный путь — Cloudflare Quick Tunnel;
+  стабильный публичный путь позже — Cloudflare Tunnel + Access с доменом.
+- Добавлен public/student build flag `VITE_OPERATOR_MODE_AVAILABLE`. При `false` фронт скрывает
+  operator toggle и не показывает `/operator`; build arg прокинут через `frontend/Dockerfile` и
+  `docker-compose.yml`, `.env.example` обновлён.
+- Publish attempt: Cloudflare Quick Tunnel через Docker не заработал в текущей сети — precheck
+  показал блокировку outbound к Cloudflare Tunnel edge (`7844`, QUIC/TCP). Установлен Tailscale
+  `1.98.8`; host уже авторизован в tailnet (`100.113.226.52`). `tailscale serve` CLI в Windows
+  окружении зависает при установке config, поэтому текущая рабочая публикация — прямой tailnet URL
+  `http://100.113.226.52:8088`.
+- Runtime switched: локальный `.env` выставлен на
+  `PUBLIC_FRONTEND_BASE_URL=http://100.113.226.52:8088` и `VITE_OPERATOR_MODE_AVAILABLE=false`;
+  `web` пересобран, `bot` перезапущен. Проверено: web HTML `200`, `GET /api/health` через
+  Tailscale IP возвращает `{"status":"healthy"}`, bot env видит новый URL, release smoke GREEN.
+- Проверка: targeted pytest `26 passed`; full backend pytest `206 passed`; frontend
+  `npm.cmd run build` OK; ruff по затронутым файлам с `--ignore E501` clean. Широкий ruff падает
+  только на 4 старые E501.
+
+Open tail: остановить вручную запущенный `python -m app.adapters.mcp.server` (`Ctrl+C`) и
+перезапустить MCP-клиент/Codex/Claude, чтобы он сам поднял stdio-сервер и увидел `mentor_brief`.
+Для ученицы: поставить/включить Tailscale на её устройстве в том же tailnet и открыть
+`http://100.113.226.52:8088`.
+
+Follow-up: добавлена отдельная инструкция для ученицы
+`!DOC/operations/STUDENT_SITE_ACCESS.md` с прямыми ссылками на Tailscale download, сайт,
+разделы `/program`, `/daily`, `/slice`, `/review`, визуализацию по векторам и Telegram-бота.
+Также ужесточён `docker-compose.yml`: `api` и `postgres` теперь опубликованы только на
+`127.0.0.1`, внешней/tailnet-точкой остаётся `web:8088`; после `docker compose up -d`
+проверено `GET /api/health` через Tailscale IP и release smoke GREEN.
+
 ## 2026-07-09 - Visual feedback hardening: приватные ссылки и скалярное произведение
 
 Status: реализовано, проверено и выкачено live; нужен reconnect ege-MCP.

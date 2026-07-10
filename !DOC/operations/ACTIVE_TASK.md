@@ -3,6 +3,83 @@
 > Кросс-проектная стратегия (verifiable-AI рамка, роли Claude/Codex/Qwen, ege-трек
 > proven-delta в общей картине): канонический док — `expert-agent/!DOC/STRATEGY.md`.
 
+## Current Snapshot (2026-07-10, deterministic planner MVP: prereq-gate + explanation)
+
+- Реализовано (Claude): детерминированный learning planner MVP поверх существующего
+  `build_daily_queue` — БЕЗ Дейкстры, weighted-frontier, LearningPlanner-класса, goal-входа и
+  миграций. Оценка идеи Кодекса: Дейкстра — неверный инструмент (задача не shortest-path, а
+  prerequisite-closure); weighted-scoring тоже преждевременен — это по сути замороженная
+  error-intervention логика, тюнить не на чем (N=1). Ценные 20% (ворота + объяснение) едут дёшево,
+  weighted-80% отложено до weekly-review данных и подключится через готовый `select_intervention_queue`.
+- Что добавлено (~40 строк чистого domain, без БД):
+  - `domain/prerequisites.py`: статичная карта `PREREQUISITES` (4 defensible-ребра внутри Части 1 на
+    реальных названиях тем) + чистый предикат `prerequisites_met`.
+  - `domain/policies.py`: чистый презентер `describe_pick(reason)` — строка «почему» для оператора/агента.
+  - `application/use_cases.py` `build_daily_queue`: посчитан `passed_titles` (темы с `solved_count>0`),
+    добавлен один gate-предикат в фильтр новых тем, к каждому пику прицеплены структурный `reason` (данные)
+    и строка `why`. `select_daily_queue` (инвариантная функция) НЕ тронут — `reason` едет сквозь неё как
+    лишний ключ dict.
+- «Проблема 3 потребителей» решена архитектурно: domain отдаёт ОДИН структурный `reason` (узкий
+  интерфейс), сверху N тонких форматтеров. В MVP реализован только один (`describe_pick`, оператор/агент).
+  Детский и родительский тексты — будущие форматтеры над тем же dict; domain при их добавлении не меняется.
+  Детский текст обязан вести «от достижения, а не от дефицита» (правило снижения тревоги от 25.06).
+  LLM ни в одном форматтере: объяснение = честный след выбора (ложится в verifiable-AI линию).
+- Инварианты целы: due→back_to_work→new, open-count в лимит, идемпотентный `source_ref`,
+  manual-review темы вне авто-дрилла, phase/ready_mode, LLM не выбирает тему. Ворота применяются и в
+  ready-mode (общий фильтр).
+- Verification: targeted pytest `17 passed` (13 старых + 4 новых), full backend `210 passed`
+  (было 206, +4), ruff по затронутым файлам с `--ignore E501` clean, import-linter `2 kept, 0 broken`
+  («domain is pure» держится). Живое наблюдение на реальном seed: пара «Вычисления: логарифмы…» (база) →
+  «Простейшие уравнения…» (зависимая) — до закрытия базы зависимая в очередь не попадает; после сдачи
+  базы появляется, `why` называет закрытый пререквизит. НЕ задеплоено (deploy — отдельный шаг).
+- Хвост: (1) решить, писать ли ADR и где (каталога `!DOC/adr/` пока нет — заводить схему не стал под
+  Simplicity First); (2) когда фича подтвердится — детский форматтер `why` в утренний пуш TG и
+  родительский в mentor-note/дашборд; (3) прокинуть `why` в `mentor_brief`/операторский дашборд как
+  первый видимый потребитель; (4) при желании расширить `PREREQUISITES` за пределы 4 рёбер.
+
+## Current Snapshot (2026-07-09, MCP context + no-domain publishing)
+
+- Реализовано (Codex): компактный первый слой для MCP — `mentor_brief(student_id, days=14)`.
+  Это не замена истории: сырые попытки, ошибки, ревью и программа остаются в Postgres и доступны
+  через drill-down tools (`attempt_history`, `program_progress`, `error_journal`, `reviews`,
+  `manual_reviews`, `topic_theory`). В `mentor_brief` намеренно не попадают полные `answer_text`
+  и `code_text`, чтобы не раздувать контекст агента при первом чтении.
+- Бизнес-логика оставлена простой: без pgvector/Qdrant/нового слоя памяти. Векторный поиск имеет смысл
+  добавить позже только для задачи "найди похожие прошлые ошибки/задачи"; для текущей mentor-сводки
+  достаточно детерминированной агрегации из Postgres.
+- MCP: добавлен tool `mentor_brief`; после перезапуска MCP-клиента он должен стать первым read-tool
+  перед глубокими запросами. Ручной запуск `python -m app.adapters.mcp.server` в отдельном терминале
+  сам по себе не подключает Codex/Claude — stdio-сервер должен быть запущен MCP-клиентом.
+- Публикация сайта: добавлен runbook `!DOC/operations/PUBLISHING_SITE.md`. Домен покупать не обязательно.
+  Рекомендуемый no-domain путь для семьи — Tailscale Serve (`https://<machine>.<tailnet>.ts.net`);
+  временный публичный путь — Cloudflare Quick Tunnel; стабильный публичный путь позже — Cloudflare
+  Tunnel + Access и домен.
+- Frontend/public mode: добавлен `VITE_OPERATOR_MODE_AVAILABLE`. При `false` операторский toggle
+  скрывается, а `/operator` не показывает операторскую поверхность. `docker-compose.yml` и
+  `frontend/Dockerfile` прокидывают этот build arg; `.env.example` документирует флаг и
+  `PUBLIC_FRONTEND_BASE_URL`.
+- Публикация начата live (2026-07-09): Cloudflare Quick Tunnel через Docker выдал
+  `trycloudflare.com` URL, но не смог установить соединение — в сети заблокирован outbound к
+  Cloudflare Tunnel edge (`7844`, QUIC/TCP). Установлен Tailscale `1.98.8`; host уже авторизован
+  в tailnet как `100.113.226.52`. Tailscale Serve config из CLI зависает в этом Windows-окружении,
+  поэтому текущий рабочий no-domain URL: `http://100.113.226.52:8088`.
+- Runtime update: локальный `.env` переключён на
+  `PUBLIC_FRONTEND_BASE_URL=http://100.113.226.52:8088` и `VITE_OPERATOR_MODE_AVAILABLE=false`;
+  `web` пересобран, `bot` перезапущен и видит эти env values. Доступность проверена:
+  `curl http://100.113.226.52:8088/api/health` → `{"status":"healthy"}`; release smoke GREEN.
+- Verification: targeted pytest `26 passed`; full backend pytest `206 passed`; frontend
+  `npm.cmd run build` OK; ruff по затронутым файлам с `--ignore E501` clean. Широкий ruff всё ещё
+  падает на 4 старые E501 в `mcp/server.py` и `use_cases.py`, не связанные с этим слайсом.
+- Хвост: устройство ученицы должно быть в том же Tailscale tailnet; тогда ссылка
+  `http://100.113.226.52:8088` откроется. Остановить вручную запущенный MCP terminal (`Ctrl+C`) и
+  перезапустить MCP-клиент/Codex/Claude, чтобы новый tool contract загрузился.
+- Добавлена инструкция для ученицы: `!DOC/operations/STUDENT_SITE_ACCESS.md` — куда нажимать в
+  Tailscale, какие ссылки открывать (`/program`, `/daily`, `/slice`, `/review`, визуализация по
+  векторам) и что написать родителю, если сайт не открывается.
+- Security hardening после публикации: `docker-compose.yml` теперь биндует `api` и `postgres`
+  только на `127.0.0.1`; внешней/tailnet-точкой остаётся только `web` на `8088`. Проверено:
+  `curl http://100.113.226.52:8088/api/health` OK, release smoke GREEN.
+
 ## Current Snapshot (2026-07-09, visual feedback hardening)
 
 - Реализовано (Codex): минимальный hardening по реальной обратной связи ученицы “визуализация не открывается”

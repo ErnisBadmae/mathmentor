@@ -28,6 +28,7 @@ from app.domain.enums import (
 from app.domain.figures import parse_interval_answer, parse_interval_answer_from_text
 from app.domain.policies import (
     answer_is_correct,
+    describe_pick,
     evidence_status,
     normalize_answer,
     numeric_mismatch,
@@ -35,6 +36,7 @@ from app.domain.policies import (
     review_result_to_status,
     select_daily_queue,
 )
+from app.domain.prerequisites import PREREQUISITES, prerequisites_met
 from app.domain.probability_visual import parse_probability_visual_spec
 from app.domain.program import PHASES, PHASES_BY_KEY, current_phase_key
 
@@ -380,7 +382,7 @@ class LearningService:
         ]
         open_refs = {m.source_ref for m in open_daily}
 
-        def _review_refs(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+        def _review_refs(rows: list[dict[str, object]], kind: str) -> list[dict[str, object]]:
             refs = []
             for row in rows:
                 source_ref = f"daily:review:{row['id']}"
@@ -390,6 +392,7 @@ class LearningService:
                             "topic_id": row["topic_id"],
                             "title": row["topic_title"],
                             "source_ref": source_ref,
+                            "reason": {"kind": kind},
                         }
                     )
             return refs
@@ -397,10 +400,12 @@ class LearningService:
         due_refs = _review_refs(
             self._uow.reviews.list_reviews(
                 student_id, status=ReviewStatus.DUE, due_on_or_before=today
-            )
+            ),
+            "due_review",
         )
         back_to_work_refs = _review_refs(
-            self._uow.reviews.list_reviews(student_id, status=ReviewStatus.BACK_TO_WORK)
+            self._uow.reviews.list_reviews(student_id, status=ReviewStatus.BACK_TO_WORK),
+            "back_to_work",
         )
         phase = current_phase_key(today)
         review_topic_ids = {ref["topic_id"] for ref in (*due_refs, *back_to_work_refs)}
@@ -412,6 +417,10 @@ class LearningService:
         # идут ТОЛЬКО по отмеченным темам любой уже начавшейся фазы; неотмеченные темы
         # текущей фазы придерживаются. Без отметок — прежнее поведение (темы текущей фазы).
         ready_mode = any(t.get("theory_ready") for t in program_rows)
+        # Пререквизит-ворота: тему не даём, пока её базовые темы не закрыты хоть раз
+        # (есть PASSED-evidence → solved_count > 0). program_order задаёт порядок,
+        # эти ворота — жёсткая зависимость поверх него.
+        passed_titles = {t["topic_title"] for t in program_rows if t["solved_count"] > 0}
         new_refs = []
         for topic in program_rows:
             source_ref = f"daily:new:{topic['topic_id']}"
@@ -426,6 +435,7 @@ class LearningService:
                 and topic["state"] == TopicState.OPEN
                 and topic["tasks_in_bank"] > 0
                 and not self._requires_manual_review_path(topic)
+                and prerequisites_met(topic["topic_title"], passed_titles, PREREQUISITES)
                 and source_ref not in open_refs
                 and topic["topic_id"] not in review_topic_ids
             ):
@@ -434,6 +444,12 @@ class LearningService:
                         "topic_id": topic["topic_id"],
                         "title": topic["topic_title"],
                         "source_ref": source_ref,
+                        "reason": {
+                            "kind": "new_topic",
+                            "prerequisites": list(PREREQUISITES.get(topic["topic_title"], ())),
+                            "phase": topic["phase"],
+                            "error_count": topic["error_count"],
+                        },
                     }
                 )
 
@@ -465,6 +481,8 @@ class LearningService:
                     "source_ref": ref["source_ref"],
                 }
             )
+            mission["reason"] = ref["reason"]
+            mission["why"] = describe_pick(ref["reason"])
             filled.append(mission)
         return {"filled": filled, "shortage": shortage}
 

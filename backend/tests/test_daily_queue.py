@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from sqlalchemy import select
 
+from app.application import use_cases
 from app.application.ports import AttemptForReview, EvidenceDraft
 from app.application.use_cases import LearningService
 from app.domain.enums import (
@@ -19,7 +20,8 @@ from app.domain.enums import (
     Subject,
     TaskStatus,
 )
-from app.domain.policies import select_daily_queue
+from app.domain.policies import describe_pick, select_daily_queue
+from app.domain.prerequisites import prerequisites_met
 from app.infrastructure.models import (
     AttemptORM,
     EvidenceORM,
@@ -373,6 +375,69 @@ def test_theory_ready_candidates_and_program_flag(seeded_session, monkeypatch):
     svc.set_topic_theory_ready(topic.id, False)
     rows = svc.list_theory_ready_candidates(STUDENT)
     assert next(r for r in rows if r["topic_id"] == topic.id)["theory_ready"] is False
+
+
+def test_prerequisites_met_gates_until_all_passed():
+    prereqs = {"C": ("A", "B")}
+    assert prerequisites_met("C", set(), prereqs) is False
+    assert prerequisites_met("C", {"A"}, prereqs) is False
+    assert prerequisites_met("C", {"A", "B"}, prereqs) is True
+    # тема без пререквизитов всегда доступна
+    assert prerequisites_met("Z", set(), prereqs) is True
+
+
+def test_describe_pick_covers_kinds():
+    assert describe_pick({"kind": "due_review"}) == "повтор по расписанию (интервальное закрепление)"
+    assert describe_pick({"kind": "back_to_work"}) == "вернулась в работу после проваленного повтора"
+    new = describe_pick(
+        {"kind": "new_topic", "prerequisites": ["A"], "phase": "june_diagnostics", "error_count": 2}
+    )
+    assert "новая тема" in new and "A" in new and "june_diagnostics" in new and "2" in new
+    # неизвестный вид не падает, а даёт нейтральную строку
+    assert describe_pick({}) == "выбрана планировщиком дня"
+
+
+def test_build_daily_queue_gates_new_topic_until_prerequisite_passed(seeded_session, monkeypatch):
+    svc = service(seeded_session, monkeypatch)
+    base = _open_topic_with_tasks(svc, seeded_session, "DQ база", ["1", "2"], order=910)
+    dependent = _open_topic_with_tasks(svc, seeded_session, "DQ зависимая", ["3", "4"], order=911)
+    monkeypatch.setattr(use_cases, "PREREQUISITES", {"DQ зависимая": ("DQ база",)})
+    # ready-mode изолирует от сеяных тем: кандидаты в новые — только эти две
+    svc.set_topic_theory_ready(base.id, True)
+    svc.set_topic_theory_ready(dependent.id, True)
+
+    res = svc.build_daily_queue(STUDENT, limit=5)
+    titles = [m["title"] for m in res["filled"]]
+    assert "Дрилл: DQ база" in titles
+    assert "Дрилл: DQ зависимая" not in titles  # пререквизит не закрыт → заблокирована
+
+    base_mission = seeded_session.scalar(
+        select(MissionORM).where(MissionORM.source_ref == f"daily:new:{base.id}")
+    )
+    task = seeded_session.get(TaskORM, base_mission.task_id)
+    assert _submit(svc, base_mission.id, task.expected_answer)["status"] == EvidenceStatus.PASSED
+
+    res2 = svc.build_daily_queue(STUDENT, limit=5)
+    assert "Дрилл: DQ зависимая" in [m["title"] for m in res2["filled"]]  # база закрыта → доступна
+
+
+def test_build_daily_queue_attaches_reason_and_why(seeded_session, monkeypatch):
+    svc = service(seeded_session, monkeypatch)
+    new_topic = _open_topic_with_tasks(svc, seeded_session, "DQ новая", ["1", "2"], order=920)
+    rev_topic = _open_topic_with_tasks(svc, seeded_session, "DQ повтор-повод", ["5", "6"], order=921)
+    _due_card(seeded_session, rev_topic.id)
+    svc.set_topic_theory_ready(new_topic.id, True)  # изоляция новых от сеяных
+
+    res = svc.build_daily_queue(STUDENT, limit=5)
+    by_title = {m["title"]: m for m in res["filled"]}
+
+    assert by_title["Дрилл: DQ новая"]["reason"]["kind"] == "new_topic"
+    assert isinstance(by_title["Дрилл: DQ новая"]["why"], str) and by_title["Дрилл: DQ новая"]["why"]
+    assert by_title["Дрилл: DQ повтор-повод"]["reason"]["kind"] == "due_review"
+    assert (
+        by_title["Дрилл: DQ повтор-повод"]["why"]
+        == "повтор по расписанию (интервальное закрепление)"
+    )
 
 
 def test_list_approved_for_topic_excludes_assigned(seeded_session):
