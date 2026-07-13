@@ -1,6 +1,6 @@
 # EGE Mentor Documentation
 
-Last updated: 2026-07-03
+Last updated: 2026-07-13
 
 EGE Mentor — семейный пилот для подготовки к ЕГЭ по профильной математике и информатике.
 Цикл обучения: `plan -> mission -> independent attempt -> evidence -> review -> next mission`.
@@ -67,6 +67,7 @@ EGE Mentor — семейный пилот для подготовки к ЕГЭ
 python scripts/docs_maintenance.py audit   # отчёт о здоровье доков
 python scripts/docs_maintenance.py archive # архивация старых сессий
 python scripts/docs_maintenance.py report  # JSON для CI
+platform-docs audit                        # canonical platform-devkit CLI
 ```
 
 Настройки: `pyproject.toml` → `[tool.docs-maintenance]`

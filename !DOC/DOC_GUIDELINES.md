@@ -1,8 +1,9 @@
 # Документация проекта: правила обслуживания
 
-Last updated: 2026-07-03
-Инструмент: `scripts/docs_maintenance.py` (канонический источник — репозиторий expert-agent,
-версия — `python scripts/docs_maintenance.py --version`).
+Last updated: 2026-07-13
+Инструмент: `platform-devkit` (`platform-docs`). `scripts/docs_maintenance.py`
+оставлен как compatibility shim для существующих команд; переносимая реализация
+живёт в `../platform`, не в этом репозитории.
 
 ## Принцип
 
@@ -126,10 +127,10 @@ Last updated: 2026-07-02
 
 ## Перенос в другой репозиторий
 
-1. Скопировать `scripts/docs_maintenance.py` как есть (не форкать — правки только
-   в каноническом источнике, потом копировать; сверка по `--version`).
+1. Установить общий devkit: `pip install -e ../platform`.
 2. Добавить `[tool.docs-maintenance]` в `pyproject.toml` под layout репозитория
    (или положиться на дефолты `SESSION_LOG.md` в корне).
-3. `python scripts/docs_maintenance.py audit` — увидеть состояние.
-4. `python scripts/docs_maintenance.py archive` — почистить журнал (от чистого git-состояния).
-5. Скопировать этот файл как `!DOC/DOC_GUIDELINES.md` и адаптировать tier-таблицу.
+3. Оставить тонкий `scripts/docs_maintenance.py` shim только если старые команды
+   или документация ещё вызывают путь `python scripts/docs_maintenance.py ...`.
+4. `platform-docs audit` — увидеть состояние.
+5. `platform-docs archive` — почистить журнал (от чистого git-состояния).

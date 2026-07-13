@@ -164,7 +164,7 @@ def _make_interval_drill(session) -> None:
     topic = TopicORM(
         id=uuid4(),
         subject=Subject.MATH_PROFILE,
-        title="Р‘РѕС‚ РёРЅС‚РµСЂРІР°Р»",
+        title="Бот интервал",
         spec_year=2026,
         task_number=None,
     )
@@ -174,7 +174,7 @@ def _make_interval_drill(session) -> None:
     task = svc.add_task(
         {
             "subject": Subject.MATH_PROFILE,
-            "statement": "Р РµС€РёС‚Рµ РЅРµСЂР°РІРµРЅСЃС‚РІРѕ: 1 < x < 9.",
+            "statement": "Решите неравенство: 1 < x < 9.",
             "expected_answer": "(1; 9)",
             "source": "official",
             "source_url": source_ref,
@@ -187,7 +187,7 @@ def _make_interval_drill(session) -> None:
         {
             "student_id": STUDENT,
             "subject": Subject.MATH_PROFILE,
-            "title": "Р”СЂРёР»Р»: Р‘РѕС‚ РёРЅС‚РµСЂРІР°Р»",
+            "title": "Дрилл: Бот интервал",
             "instructions": "",
             "status": MissionStatus.ACTIVE,
             "ai_policy": AiPolicy.ATTEMPT_FIRST,

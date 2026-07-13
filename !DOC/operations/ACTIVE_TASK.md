@@ -1,5 +1,22 @@
 # Active Task
 
+Last updated: 2026-07-13
+
+## Platform-devkit pilot (Phase C, 2026-07-13)
+
+- **Status:** completed locally; repo-level docs tooling now uses
+  `platform-devkit` through a compatibility shim.
+- **Done:** `platform-devkit` editable-installed into root `venv`;
+  `scripts/docs_maintenance.py` delegates to `platform_devkit`.
+- **Local overrides:** `.claude/rules/simplicity.md` is not force-synced because
+  egeMentor adds a project-specific Russian-dialogue rule.
+- **Verified:** shim `--version` works; `platform-docs audit` runs with only
+  pre-existing doc-size/session-log warnings; `platform-encoding-guard --check`
+  clean; backend pytest 210 passed; ruff clean on the touched test file.
+- **Next:** decide whether egeMentor should add a real `.pre-commit-config.yaml`
+  later; do not force-sync local `.claude/rules/simplicity.md` unless the shared
+  preset learns project-specific overrides.
+
 > Кросс-проектная стратегия (verifiable-AI рамка, роли Claude/Codex/Qwen, ege-трек
 > proven-delta в общей картине): канонический док — `expert-agent/!DOC/STRATEGY.md`.
 

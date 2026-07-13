@@ -5,6 +5,31 @@
 
 ---
 
+## 2026-07-13 - platform-devkit Phase C pilot
+
+Status: completed locally; not deployed.
+
+- Installed `platform-devkit` editable into the root `venv`.
+- Replaced `scripts/docs_maintenance.py` with a compatibility shim that delegates
+  to `platform_devkit.cli.docs_maintenance`.
+- Left `.claude/rules/simplicity.md` local: `platform-sync` dry-run refused it
+  as unmanaged, and the local file has an egeMentor-specific Russian-dialogue
+  rule that should not be overwritten by the shared preset.
+- No pre-commit hook was installed in this repo because there is no
+  `.pre-commit-config.yaml` yet.
+- `platform-encoding-guard` found 3 real mojibake strings in
+  `backend/tests/test_bot.py`; restored them to proper UTF-8 Russian text.
+
+Verification: shim `--version` works; `platform-docs audit` runs with 2
+pre-existing doc warnings (`ACTIVE_TASK` oversized, `SESSION_LOG` too long);
+`platform-encoding-guard --check` clean; backend pytest 210 passed; ruff clean
+on `tests/test_bot.py`.
+
+Open tail: decide whether egeMentor should adopt a small project-specific
+platform preset for repo hygiene.
+
+---
+
 ## 2026-07-10 - Deterministic learning planner MVP: prereq-gate + explanation
 
 Status: реализовано и проверено локально (тесты + живое наблюдение на реальном seed); НЕ задеплоено.
