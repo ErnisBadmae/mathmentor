@@ -317,6 +317,20 @@ def record_review_result(review_id: str, passed: bool) -> Any:
 
 
 @mcp.tool()
+def confirm_error_category(error_id: str, category: str) -> Any:
+    """Manual mentor confirmation of one actionable error category for an existing
+    answer-only error_event. The raw (original) category is never changed by this
+    call. `none` and `other` are rejected — only an actionable category may be
+    confirmed. Does not classify automatically, does not create missions or
+    feedback, and does not wire the intervention selector."""
+    with SessionLocal() as session:
+        result = _service(session).confirm_error_category(
+            UUID(error_id), ErrorCategory(category)
+        )
+        return _serialize(result)
+
+
+@mcp.tool()
 def publish_feedback(body: str, topic_id: str | None = None, student_id: str = DEFAULT_STUDENT_ID) -> Any:
     """Publish a mentor note the STUDENT reads on the dashboard feed (transparent process).
     Write it for the student in plain language; never include answer keys. Optionally tag a

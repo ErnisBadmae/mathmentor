@@ -2,6 +2,83 @@
 
 Last updated: 2026-07-13
 
+## Product direction review (2026-07-13)
+
+The bounded L2a implementation in
+`!DOC/operations/CODEX_L2_CONFIRMED_ERROR_TAG.md` is accepted locally after senior review.
+It is not deployed. Before L3: commit the verified revision, deliberately deploy/migrate,
+manually confirm real `other` slice errors, and inspect the resulting journal. Do not wire
+interventions merely because the storage path now exists.
+
+- **Positioning:** do not compete as a generic trainer, tutor CRM, or AI tutor. The
+  product bet is a vertical EGE mentor operating system: verified evidence -> explicit
+  intervention -> scheduled follow-up -> exam-like score outcome.
+- **Moat:** dashboards, task banks, LLM feedback, and score forecasts are table stakes.
+  The defensible asset is a trustworthy longitudinal intervention-to-outcome ledger plus
+  a workflow that lets a tutor supervise more students without losing review quality.
+- **External pilot gate:** do not invite unrelated students into the current runtime yet.
+  The web app resolves `/students/current` to the first profile and uses one shared API
+  token, so learner data is not isolated. Recruit tutor design partners/interviews now;
+  give access to 2-3 external students only after a minimal identity/assignment boundary.
+- **Measurement:** while the N=1 learner is ill, do not treat a timed cut as a baseline.
+  Use the pause to dry-run mentor proactivity on existing evidence. Start with transparent
+  trajectory status and confidence/insufficient-data labels; no ML score prediction before
+  several comparable timed score events exist.
+- **Visualization:** treat visuals as named interventions, not a content feature or moat.
+  Prefer JSXGraph for reusable 2D geometry. GeoGebra 3D requires a commercial agreement
+  for a paid product, so do not make it a commercial dependency without licensing review.
+- **Next product slice:** close one observable loop end to end: repeated error/risk signal
+  -> proposed action -> mentor approval -> mission delivery -> +7 review -> next timed
+  score event. Record mentor time and intervention outcome alongside learner evidence.
+
+### Agreed delta (Claude + Codex, 2026-07-13)
+
+- **Primary goal is explicit:** daughter >=85 on profile math by EGE-2027. Effort split:
+  80-90% learner outcome, 10-20% tutor interviews / commercial hypothesis logging,
+  0% payments/SaaS/multi-tenancy. Every feature passes the filter "does it add points
+  or prove the loop works".
+- **Mock date reserved: 2026-07-26** (first timed baseline, conditional on recovery).
+  If moved, it may only be moved by fixing a new concrete date, never left open.
+- **Now it is a wedge, not a moat:** the pilot proves the workflow (tutor/operator runs
+  the loop and saves time), not the intervention-outcome dataset. Data moat is a
+  multi-year story.
+- **Mentor minutes are measured explicitly** via a manual journal (student | date | task |
+  minutes | decision). DB timestamps are NOT a valid proxy for operator time.
+- **Error category is never auto-derived from task type.** Answer-only errors stay
+  `other/unclassified`; mentor gets a fast manual tag; auto-category allowed only when
+  reasoning/code is present; intervention selector consumes confirmed actionable
+  categories only. This is the prerequisite slice before wiring the proactive loop
+  (`other` currently dominates top_errors).
+- **External pilot isolation = one Docker stack per student** (own DB, token, compose
+  project, ports, TG bot). No identity/multi-tenant code. Needs only port/env
+  parametrization of docker-compose. Tutor complaints about tab-switching become the
+  evidence for building an aggregated cockpit later.
+- **Sequencing guard:** interviews (8-12, three segments: strong solo tutors, small
+  teams, parent-operators) start now — script and outreach templates:
+  `!DOC/operations/TUTOR_INTERVIEWS.md`; design-partner onboarding only AFTER the first
+  closed intervention loop and a visible N=1 delta — concierge pilot is not a 10-20%
+  effort item.
+- **Commercial gating metric is student engagement, not tutor price sensitivity:**
+  the product only creates value if students actually solve between lessons; weekly
+  active days (already a first-class KPI) measures exactly this on N=1 today.
+  Interview probe: "how many of your students do homework between lessons unprompted?"
+- **Content is a hidden COGS at scale;** flip it: tutor brings own tasks via existing
+  `add_task -> approve_task` pipeline = tutor lock-in. Interview probe: "where do your
+  tasks come from?"
+- **Fallback buyer hypothesis:** parent-operator (B2C) if tutors do not convert; product
+  already fits it. Both models gate on minors' personal-data compliance before any
+  external launch.
+- **Market frame:** TAM ~8k productive profile-math tutors (rough), 300 paying = ~4%
+  penetration (reachable), 1000 = ~12% (ambitious). Plan as a small profitable vertical
+  SaaS at the lower bound, not the 3M MRR case.
+- **Bank refill is in-scope now** (it is learner-outcome work, not commercial work):
+  July math topics (экономика/стерео/планиметрия/параметр) and interval topics
+  (Неравенства/ОДЗ) are still thin; `shortage` in `build_daily_queue` is the trigger.
+  Answers must stay code-verified (anti-poison scripts), same as the June refill.
+- **Channel split stands (decided earlier, unchanged):** TG = учебный канал ученика
+  (daily part-1 drill, повторы, срезы, /ready); сайт = part 2, теория/визуализации и
+  операторская/родительская витрина. New slices map onto this split; no re-decision needed.
+
 ## Platform-devkit pilot (Phase C, 2026-07-13)
 
 - **Status:** completed locally; repo-level docs tooling now uses

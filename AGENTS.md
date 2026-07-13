@@ -111,27 +111,58 @@ Frontend: http://127.0.0.1:5174
 
 ## Global Plan
 
-The next strategy is **proven delta, not feature breadth**. The project value is the closed evidence loop:
+The primary goal through EGE-2027 is explicit: help Ulyana score **>=85 in profile
+mathematics**. Product work is subordinate to that outcome:
+
+- 80-90% learner outcome and evidence quality;
+- 10-20% tutor/parent interviews and commercial hypothesis logging;
+- 0% payments, public SaaS, or multi-tenant product work.
+
+The product being built now is a **family-operated EGE preparation control loop**. It
+decides what evidence is needed next, keeps independent attempts and reviews honest,
+and tells the adult where intervention is required. It is not yet a commercial tutor OS.
+
+The reusable product value is the closed evidence loop:
 
 ```text
 attempt -> deterministic check -> error classification -> targeted intervention -> review -> score delta
 ```
 
-Build the mentor operating system around that loop. Do not compete on a generic task bank, generic LLM tutor, or Telegram bot surface.
+The commercial hypothesis, to test later, is a vertical operating layer for
+high-accountability profile-math tutors: the system runs between-lesson work and gives
+the tutor only cases needing judgment. The ledger is an internal trust mechanism; the
+external value proposition is student adherence, saved tutor time, and credible parent
+reporting. Parent-operator B2C remains the fallback buyer hypothesis.
 
-Three horizons:
+Four evidence-gated horizons:
 
-1. **Proven delta, July-December 2026, N=1**: move Ulyana's timed mock-exam score measurably. Anchor progress with monthly EGE-format score events, bring part 2 into the reviewed evidence loop, and turn repeated errors into explicit interventions. Exit signal: 4-5 timed mocks trending upward, with a December target around math >= 75 and informatics >= 70, while the daily loop runs without manual pushing.
-2. **Generalization, roughly January-June 2027, N=5-15**: test one friendly tutor with their students. Add only the minimal multi-student/onboarding work needed to learn whether the loop works without a parent-engineer operating it. The tutor is a buyer-persona test, not a revenue plan.
-3. **Product form, after EGE 2027**: decide B2B2C mentor/tutor operations vs another shape from pilot data. Payments, public SaaS, OSS, and broad marketplace decisions stay behind this gate.
+1. **Valid baseline and first closed loop, July-August 2026, N=1.** Reserve
+   2026-07-26 for the first timed profile-math mock, conditional on recovery; any move
+   must set a new date. Close at least one confirmed-error -> intervention -> +7 review
+   loop and explicitly log operator minutes. Exit: one valid score event, one auditable
+   intervention outcome, and weekly active-day engagement visible.
+2. **Proven delta, through December 2026, N=1.** Run comparable monthly EGE-format
+   mocks, bring part 2 into the human-reviewed evidence path, and make the daily loop run
+   without repeated parental pushing. Exit: 4-5 comparable mocks trending upward, with a
+   December profile-math target around >=75, plus measured engagement and operator cost.
+3. **Workflow generalization, only after a closed N=1 loop and visible score delta.**
+   Interviews start now, but no external student onboarding occurs before the gate. Then
+   test one design-partner tutor with 2-3 students for 4-6 weeks, using one isolated Docker
+   stack per student. Exit: students work between lessons, the tutor acts on the briefs,
+   mentor minutes remain acceptable, and the workflow runs without developer operation.
+4. **Product form, after EGE-2027 or equivalent strong evidence.** Decide tutor B2B2C
+   vs parent-operator B2C from observed adoption and willingness to pay. Only then consider
+   shared tenancy, payments, public onboarding, broader subjects, or a content marketplace.
 
 Explicit non-goals for now:
 
 - no public SaaS onboarding
 - no payments
-- no premature multi-tenant product work before a friendly tutor pilot
+- no external student pilot before the N=1 evidence gate
+- no identity/multi-tenant implementation for the concierge pilot
 - no generic AI tutor or autonomous coaching router
 - no content-volume race with public EGE banks
+- no ML score forecast from sparse N=1 data
 - no Qdrant/Neo4j/CDC
 - no voice
 - no LangGraph/autonomous routing
@@ -139,34 +170,88 @@ Explicit non-goals for now:
 
 ## Local Next Plan
 
-The first priority is to make every step measurable and reviewable. Prefer process + existing ports before code.
+The first priority is to make the N=1 loop measurable and reviewable. Prefer process and
+existing ports before code. A local development starts only when it removes a blocker
+observed in the learner loop. The operating commitments below run in parallel with the
+first code slice (L2); they are not prerequisites that freeze development.
 
-### L1: Measurement Spine
+### Parallel: Operating Commitments (Do Not Block Code)
 
-- Run a monthly timed mini-mock in EGE conditions: no AI, internet, phone, or hints.
-- Record results only through `record_score_event`; daily attempts and topic checks must not move `current_score`.
-- Show the trend from timed mocks toward the 85/85 target in the dashboard and weekly digest.
-- Treat the first July 2026 mock as the fixed baseline for the next phase.
+- Keep 2026-07-26 reserved for the first valid profile-math mock, conditional on recovery.
+- Schedule the first 3 interviews as a short calibration batch, then refine the interview
+  script and complete 8-12 across strong solo tutors, small tutor teams, and parent-operators.
+  Three interviews are not a market verdict. Ask about between-lesson homework adherence
+  and task sources.
+- Start the manual operator-time journal: student | date | task | minutes | decision.
+- Do not infer operator minutes from DB timestamps.
 
-### L2: Error -> Targeted Intervention
+### L1: Ground Truth and Student Engagement
 
-- Start without code: weekly agent/mentor review of `error_journal` and recent attempts, then publish one concrete mentor note through the existing `publish_feedback` manual gate.
-- After 2-3 weeks of observations, add a simple deterministic daily-queue rule only if the pattern is clear: repeated error category -> prerequisite drill or method example, not another same-topic task.
-- Keep this rule explicit and testable; no ML/router layer.
+- Run comparable monthly timed mocks in EGE conditions: no AI, internet, phone, or hints.
+- Record exam progress only through `record_score_event`; daily work and topic checks must
+  not move `current_score`.
+- Treat weekly active days as both the current learner-retention metric and the first
+  commercial adoption signal: the product has no value if students do not work between lessons.
+- Do not add a numerical forecast. Show actual score events, target gap, and insufficient-data
+  or risk status only when supported by explicit rules.
 
-### L3: Part 2 Evidence Loop
+### L2: Confirmed Error Classification (First Code Slice)
 
-- Bring profile math part 2 onto the site as a reviewed evidence path: solve on paper -> submit photo/text -> LLM structures the solution -> mentor approves the verdict.
-- Start with task types #13 and #15, where structure is easier to review; #16-18 wait until #13/#15 are routine.
-- Do not autograde part 2. Human approval is part of the trust surface.
+- Start this slice now while the learner is recovering; it fixes an already observed data
+  blocker and does not depend on a new mock or completed interviews.
+- Specify and implement a fast mentor tag for answer-only slice errors before wiring
+  `select_intervention_queue`.
+- Never derive the learner's error category from the task type. Answer-only misses remain
+  `other/unclassified` until a human confirms a category; automatic classification is allowed
+  only when reasoning/code supplies evidence.
+- Preserve provenance and append-only evidence semantics. Intervention selection consumes
+  confirmed actionable categories only, never `none`, `other`, or an unconfirmed guess.
+- Acceptance: regression tests prove that unclassified slice misses cannot trigger an
+  intervention and a confirmed category can.
 
-### L4: Content Under the Program
+### L3: Human-Gated Intervention Proposal
 
-- Add tasks only where the current loop needs depth: July math topics, interval/ODZ work, and informatics divisor/string gaps.
-- Each new task should carry a skill/topic tag and exact answer where possible.
-- Difficulty calibration comes later from attempts; do not invent a taxonomy before data exists.
+- Run the weekly mentor review first through existing `mentor_brief`, `error_journal`,
+  `publish_feedback`, and `create_mission` ports.
+- Once L2 is trustworthy, expose `select_intervention_queue` as a read-only proposal with
+  an explicit reason. The mentor must approve before a mission or note is created.
+- Start with the observed categories: arithmetic/sign transfer, ODZ, condition reading,
+  and probability double count. Use a prerequisite drill or method example, not merely
+  another same-topic task.
+- Link signal, approved action, mission, +7 review, and next score event with auditable
+  source references. No autonomous router or weighted model.
+- Acceptance: at least one real intervention completes the full loop and its operator time
+  is recorded.
 
-### L5: Hygiene
+### L4: Part 2 Evidence Loop
+
+- Keep profile-math part 2 on the reviewed path: solve on paper -> submit photo/text ->
+  model structures the solution -> mentor approves the verdict.
+- Make task types #13 and #15 routine before adding #16-18.
+- Never autograde part 2 or let it move score/topic truth without human approval.
+- Acceptance: 5-10 real reviewed solutions with clear evidence and sustainable mentor time.
+
+### L5: Visual and Content Interventions
+
+- Add a visual only for an observed misconception, record it as an intervention, and test
+  transfer on a later cold task without the visual. Do not build a generic visual engine.
+- Prefer JSXGraph for reusable 2D geometry; use a small task-specific 3D path only when
+  stereometry evidence justifies it. Resolve commercial licensing before depending on GeoGebra.
+- Add tasks only where the current loop reports shortage. Every task needs topic/skill,
+  provenance, and an exact answer where possible.
+- Treat content as a future tutor-supplied input through existing `add_task -> approve_task`,
+  not as an internal volume race.
+
+### Gated: External Workflow Pilot
+
+- Start only after one closed intervention loop and visible N=1 score delta.
+- Parameterize Compose project ports/env, then run one DB/token/bot stack per student.
+- Do not implement shared identity or tenancy. Multiple-tab friction is pilot evidence for
+  a future aggregated tutor cockpit, not a reason to build it upfront.
+- Measure student active days, tutor actions on briefs, explicit tutor minutes, content
+  onboarding cost, and willingness to continue/pay after 4-6 weeks.
+
+### Operations and Hygiene
 
 - Commit verified local changes promptly.
 - Deploy/reseed live data when content-bank changes should affect the student.

@@ -708,6 +708,20 @@ class LearningService:
     ) -> list[dict[str, object]]:
         return self._uow.errors.list_errors(student_id, subject, category)
 
+    def confirm_error_category(
+        self, error_id: UUID, category: ErrorCategory
+    ) -> dict[str, object]:
+        """Manual mentor confirmation of one actionable category for an existing
+        answer-only error. The raw category is never changed here."""
+        if category in (ErrorCategory.NONE, ErrorCategory.OTHER):
+            raise ValueError("Cannot confirm category as NONE or OTHER")
+        student_id = self._uow.errors.confirm_category(error_id, category, datetime.now(UTC))
+        self._uow.commit()
+        for row in self._uow.errors.list_errors(student_id):
+            if row["id"] == error_id:
+                return row
+        raise LookupError(f"Error event {error_id} not found after confirmation")
+
     def list_reviews(
         self,
         student_id: UUID,

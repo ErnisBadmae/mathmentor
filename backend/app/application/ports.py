@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -126,6 +126,13 @@ class ErrorRepository(Protocol):
         subject: Subject | None = None,
         category: ErrorCategory | None = None,
     ) -> list[dict[str, object]]: ...
+
+    def confirm_category(
+        self,
+        error_id: UUID,
+        category: ErrorCategory,
+        confirmed_at: datetime,
+    ) -> UUID: ...
 
 
 class ReviewRepository(Protocol):

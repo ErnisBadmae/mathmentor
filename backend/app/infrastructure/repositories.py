@@ -549,9 +549,34 @@ class ErrorSqlRepository:
                 "detail": event.detail,
                 "created_at": event.created_at,
                 "source_ref": event.source_ref,
+                "confirmed_category": event.confirmed_category,
+                "category_confirmed_at": event.category_confirmed_at,
+                "category_confirmation_source": event.category_confirmation_source,
             }
             for event, topic_title in rows
         ]
+
+    def confirm_category(
+        self,
+        error_id: UUID,
+        category: ErrorCategory,
+        confirmed_at: datetime,
+    ) -> UUID:
+        event = self.session.get(ErrorEventORM, error_id)
+        if event is None:
+            raise LookupError(f"Error event {error_id} not found")
+        if event.confirmed_category is not None:
+            if event.confirmed_category != category:
+                raise ValueError(
+                    f"Error event {error_id} is already confirmed as "
+                    f"{event.confirmed_category}"
+                )
+            return event.student_id
+        event.confirmed_category = category
+        event.category_confirmed_at = confirmed_at
+        event.category_confirmation_source = "manual"
+        self.session.flush()
+        return event.student_id
 
 
 class ReviewSqlRepository:

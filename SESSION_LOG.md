@@ -5,6 +5,120 @@
 
 ---
 
+## 2026-07-13 - L2a senior review accepted
+
+Status: local implementation accepted; not committed or deployed.
+
+- Reviewed the complete seven-file runtime diff against the bounded task card and graph.
+- Confirmed immutable raw category, manual provenance, idempotent same-category write,
+  rejection paths, MCP serialization, and a single Alembic head.
+- Verification repeated: backend `218 passed`; frontend build passed; `git diff --check`
+  passed; Alembic head is `f7a8b9c0d1e2`.
+- Exact broad Ruff remains red only on the four previously documented E501 lines; L2a
+  introduces no new Ruff finding.
+
+Open tail: commit the verified revision, decide the live migration explicitly, then use MCP
+to confirm real `other` slice errors and review journal quality before specifying L3.
+
+---
+
+## 2026-07-13 - Bounded L2a task card prepared for weaker Codex
+
+Status: implementation plan only; runtime code unchanged.
+
+- Added `!DOC/operations/CODEX_L2_CONFIRMED_ERROR_TAG.md` with fixed architecture,
+  seven allowed files, deterministic confirmation rules, tests, stop conditions, and
+  exact verification commands.
+- Scope is L2a annotation + MCP write tool only. Raw error category stays immutable;
+  `record_slice`, intervention selection, API/frontend, dashboard, and deploy are forbidden.
+- The weaker model must return raw test results and diff stats; a senior review gates L3.
+
+Open tail: hand the task card to the weaker Codex model and review its diff before any
+live migration or intervention wiring.
+
+---
+
+## 2026-07-13 - Plan clarification: interviews do not freeze development
+
+Status: docs clarification only; no runtime code changed.
+
+- The first 3 interviews are a calibration batch for the interview script, not a market
+  sample and not a prerequisite for development; the intended total remains 8-12.
+- Renamed the no-code section in `AGENTS.md` to a parallel operating lane.
+- Made explicit that L2 confirmed slice-error tagging starts now while the learner is
+  recovering; mock scheduling, interviews, and the manual time journal run alongside it.
+
+Open tail: deploy the already verified planner revision when operationally ready, then
+spec and implement L2 without starting auth, payments, or tutor-cockpit work.
+
+---
+
+## 2026-07-13 - Global/local plan synchronized to evidence gates
+
+Status: strategy/docs only; no runtime code changed.
+
+- Replaced the calendar-led `AGENTS.md` plan with the agreed North Star: profile math
+  >=85 for Ulyana, 80-90% learner outcome / 10-20% interviews / 0% SaaS work.
+- Global horizons now advance by evidence: valid baseline + first closed intervention,
+  proven N=1 score delta, gated external workflow pilot, then product-form decision.
+- Local development order is now explicit: ground truth/engagement -> confirmed error
+  tagging -> human-gated intervention proposal -> part 2 -> observed visual/content needs.
+- External onboarding is gated on a closed intervention loop and visible N=1 delta;
+  concierge isolation uses one Docker stack per learner, not shared-tenancy code.
+
+Verification: `git diff --check` clean apart from CRLF notices; docs audit OK with the
+two pre-existing size warnings; encoding guard clean.
+
+Open tail: execute the no-code commitments first (mock date, three interviews, manual
+operator-time journal), then spec L2 confirmed slice-error tagging before implementation.
+
+---
+
+## 2026-07-13 - Strategy delta agreed (Claude + Codex), recorded in ACTIVE_TASK
+
+Status: discussion only, no code changed; delta written to ACTIVE_TASK "Agreed delta".
+
+- Primary goal made explicit: daughter >=85 (EGE-2027); effort 80-90% learner /
+  10-20% interviews / 0% SaaS. Mock date reserved 2026-07-26 (move only with a new date).
+- Now = wedge (workflow + tutor time savings), not data moat. Mentor minutes measured
+  by manual journal, not DB timestamps.
+- Error category never auto-derived from task type; confirmed-tag slice is the
+  prerequisite before wiring the proactive loop.
+- External pilot isolation = one Docker stack per student (ports/env parametrization
+  only); design partner onboarding gated on first closed loop + visible N=1 delta.
+- Added: student between-lesson engagement is the commercial gating metric (weekly
+  active days KPI already measures it); content-as-COGS flipped to tutor-brings-tasks
+  lock-in; parent-operator kept as fallback buyer hypothesis; TAM reframed to ~8k
+  tutors (300 paying = ~4%).
+
+Open tail: schedule first 3 tutor interviews; set up the manual minutes journal;
+spec the srez-error manual-tag slice.
+
+---
+
+## 2026-07-13 - Product direction audit: mentor OS and pilot gate
+
+Status: strategy reviewed from the current graph/code and the live market surface; no
+runtime code changed.
+
+- Confirmed that the current product has the evidence primitives (score events, errors,
+  reviews, manual gates, mentor brief, deterministic daily queue), but proactivity stops
+  at read-only recommendations: `select_intervention_queue` is intentionally not wired.
+- Decided against a broad trainer launch. Current `/students/current` returns the first
+  profile and access uses one shared token, so external learner access needs a minimal
+  identity/assignment boundary first.
+- Recommended recruiting tutor design partners now, then a concierge pilot with one tutor
+  and 2-3 students who already produce comparable timed mocks.
+- Product moat hypothesis: verified intervention -> outcome history and tutor operating
+  leverage, not generic analytics, forecasts, content, or LLM feedback.
+- Visualization should be instrumented as an intervention. JSXGraph is the preferred 2D
+  path; GeoGebra commercial licensing must be resolved before paid-product dependency.
+
+Open tail: specify the smallest proactive-loop acceptance test and the minimal external
+pilot access boundary; do not implement ML forecasting or broad multi-tenant SaaS work.
+
+---
+
 ## 2026-07-13 - platform-devkit Phase C pilot
 
 Status: completed locally; not deployed.

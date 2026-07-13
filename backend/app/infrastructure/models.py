@@ -239,6 +239,15 @@ class ErrorEventORM(Base):
     source_ref: Mapped[str | None] = mapped_column(
         String(700), nullable=True, unique=True, index=True
     )
+    confirmed_category: Mapped[ErrorCategory | None] = mapped_column(
+        Enum(ErrorCategory, native_enum=False), nullable=True, index=True
+    )
+    category_confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    category_confirmation_source: Mapped[str | None] = mapped_column(
+        String(80), nullable=True
+    )
 
 
 class ReviewItemORM(Base):
