@@ -5,10 +5,13 @@ Last updated: 2026-07-13
 ## Product direction review (2026-07-13)
 
 The bounded L2a implementation in
-`!DOC/operations/CODEX_L2_CONFIRMED_ERROR_TAG.md` is accepted locally after senior review.
-It is not deployed. Before L3: commit the verified revision, deliberately deploy/migrate,
-manually confirm real `other` slice errors, and inspect the resulting journal. Do not wire
-interventions merely because the storage path now exists.
+`!DOC/operations/CODEX_L2_CONFIRMED_ERROR_TAG.md` was accepted, committed as `939bf53`,
+deployed, and live DB head is `f7a8b9c0d1e2`. Confirm only two reviewed `other` events:
+`00000000-0000-0000-0000-000000006102 -> arithmetic` and
+`9c7de792-31e0-4064-99b1-0db672ad5c74 -> unknown_method`; leave the other five
+unclassified. Event `74f3e876-25af-45e3-80f2-05ab38d4e519` is a confirmed grader false
+failure, not a learner error. Execute
+`!DOC/operations/CODEX_GRADER_DECLARED_ANSWER.md` before specifying L3.
 
 - **Positioning:** do not compete as a generic trainer, tutor CRM, or AI tutor. The
   product bet is a vertical EGE mentor operating system: verified evidence -> explicit

@@ -180,6 +180,28 @@ def test_wrong_drill_fails_with_task_error_category(seeded_session):
     assert error.category == ErrorCategory.SIGN_TRANSFER
 
 
+def test_drill_declared_answer_passes_confirmed_incident(seeded_session):
+    # live incident 74f3e876: exact-only daily drill, multiline solution with a declared
+    # final answer matching the key; used to persist FAILED + category "other".
+    svc = service(seeded_session)
+    task, topic = _approved_task(svc, seeded_session, "7776", None)
+    mission_id = _drill_mission(svc, topic, task)
+    text = "ответ 7776\nрешение: при одинаковых основаниях степени складываются ... 6^5=7.776"
+
+    result = _submit(seeded_session, mission_id, text)
+
+    assert result["status"] == EvidenceStatus.PASSED
+    assert seeded_session.get(MissionORM, mission_id).status == MissionStatus.DONE
+    reviews = seeded_session.scalars(
+        select(ReviewItemORM).where(ReviewItemORM.source_evidence_id == result["evidence_id"])
+    ).all()
+    assert len(reviews) == 2
+    error = seeded_session.scalar(
+        select(ErrorEventORM).where(ErrorEventORM.attempt_id == result["attempt_id"])
+    )
+    assert error is None
+
+
 def test_answer_normalization_accepts_decimal_comma(seeded_session):
     svc = service(seeded_session)
     task, topic = _approved_task(svc, seeded_session, "2.5", None)

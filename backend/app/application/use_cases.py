@@ -30,6 +30,7 @@ from app.domain.policies import (
     answer_is_correct,
     describe_pick,
     evidence_status,
+    extract_declared_answer,
     normalize_answer,
     numeric_mismatch,
     review_due_dates,
@@ -61,7 +62,7 @@ class AnswerJudgment:
 
     correct: bool
     feedback: str
-    grading_method: str  # exact | exact_fallback | llm_equivalent | llm_rejected
+    grading_method: str  # exact | explicit_exact | exact_fallback | llm_equivalent | llm_rejected
     model_id: str | None = None
     prompt_version: str | None = None
     rubric_version: str | None = None
@@ -631,23 +632,41 @@ class LearningService:
         верифицирован); ИИ может только вытащить эквивалентную форму на промахе exact; сбой/None ИИ
         → детерминированный exact (fail-open). Провенанс ИИ-решения сохраняется."""
         exact = answer_is_correct(student_answer, correct_answer)
+        # Один явный "Ответ ..." в многострочном решении — детерминированная альтернатива
+        # к целостроковому exact (не заменяет его; не сканирует произвольные числа в решении).
+        declared = extract_declared_answer(student_answer)
+        declared_exact = bool(declared) and not exact and answer_is_correct(declared, correct_answer)
+        declared_mismatch = (
+            bool(declared)
+            and not exact
+            and not declared_exact
+            and numeric_mismatch(declared, correct_answer)
+        )
         assessment = await self._judge.assess(statement, correct_answer, student_answer)
         if assessment is None:
+            correct = exact or declared_exact
+            method = "explicit_exact" if declared_exact else "exact"
             return AnswerJudgment(
-                correct=exact,
-                feedback="Верно." if exact else "Неверно.",
-                grading_method="exact",
+                correct=correct,
+                feedback="Верно." if correct else "Неверно.",
+                grading_method=method,
             )
         provenance = (assessment.model_id, assessment.prompt_version, assessment.rubric_version)
         # Заземление: exact на сыром ответе ИЛИ на финальном ответе, извлечённом ИИ из решения
         # («покажи ход» — сырой текст обычно не совпадёт целиком, поэтому сверяем извлечённый).
         extracted = assessment.extracted_answer
         extracted_ok = bool(extracted) and answer_is_correct(extracted, correct_answer)
-        # Приоритет: raw exact → raw числовое несовпадение (стоп) → извлечённое заземление →
-        # извлечённое числовое несовпадение (стоп) → мнение ИИ. Доказуемое число авторитетнее ИИ;
-        # сырое число важнее извлечения (иначе ИИ «извлекает» эталон из неверного 0,667 → ложно).
+        # Приоритет: raw exact → явный "Ответ" заземление → явный "Ответ" числовое несовпадение
+        # (стоп, ИИ не переопределяет) → raw числовое несовпадение (стоп) → извлечённое ИИ
+        # заземление → извлечённое числовое несовпадение (стоп) → мнение ИИ. Доказуемое число
+        # авторитетнее ИИ; сырое число важнее извлечения (иначе ИИ «извлекает» эталон из
+        # неверного 0,667 → ложно).
         if exact:
             correct = True
+        elif declared_exact:
+            correct = True
+        elif declared_mismatch:
+            correct = False
         elif numeric_mismatch(student_answer, correct_answer):
             correct = False
         elif extracted_ok:
@@ -663,9 +682,15 @@ class LearningService:
             feedback = self._mask_answer(assessment.feedback, correct_answer, correct)
         if not feedback:
             feedback = "Верно." if correct else "Неверно."
-        # "exact" только для raw exact; извлечённо-заземлённый → llm_equivalent (так record_slice
-        # доверяет верному «покажи ход»-ответу, у которого сырой текст ≠ ключу).
-        method = "exact" if exact else ("llm_equivalent" if correct else "llm_rejected")
+        # "exact" только для raw exact; явный "Ответ" заземление → explicit_exact; извлечённо-
+        # заземлённый ИИ → llm_equivalent (так record_slice доверяет верному «покажи ход»-ответу,
+        # у которого сырой текст ≠ ключу).
+        if exact:
+            method = "exact"
+        elif declared_exact:
+            method = "explicit_exact"
+        else:
+            method = "llm_equivalent" if correct else "llm_rejected"
         return AnswerJudgment(correct, feedback, method, *provenance)
 
     @staticmethod
@@ -1285,9 +1310,9 @@ class LearningService:
         self, student_id: UUID, subject: Subject, judged: list[dict[str, object]]
     ) -> dict[str, object]:
         """Единственная точка персистентности среза. Повторно грузит задачи и пересчитывает
-        детерминированный exact заново; доверяет только флагу ``llm_equivalent`` (server-produced,
-        без повторного ИИ). Пишет агрегатную диагностику + error-event на промах + JSON-детали для
-        аудита. Срез — topic_check: текущий балл/lifecycle не двигает."""
+        детерминированный exact заново; доверяет только server-produced флагам ``llm_equivalent``
+        и ``explicit_exact`` (без повторного ИИ). Пишет агрегатную диагностику + error-event на
+        промах + JSON-детали для аудита. Срез — topic_check: текущий балл/lifecycle не двигает."""
         now = datetime.now(UTC)
         results: list[dict[str, object]] = []
         details: list[dict[str, object]] = []
@@ -1304,7 +1329,7 @@ class LearningService:
                 topic_ids.add(task.topic_id)
             answer_text = item.get("answer_text")
             exact = answer_is_correct(answer_text, task.expected_answer)
-            is_correct = exact or item.get("grading_method") == "llm_equivalent"
+            is_correct = exact or item.get("grading_method") in ("llm_equivalent", "explicit_exact")
             if is_correct:
                 correct += 1
             else:

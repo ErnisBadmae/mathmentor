@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-07-13 - L2a live triage and grader false-failure found
+
+Status: two confirmations approved; grader-fix task ready; L3 remains blocked.
+
+- L2a is committed as `939bf53`, deployed, and live Alembic head is `f7a8b9c0d1e2`.
+- Approved manual tags: legacy log-difference execution miss -> `arithmetic`; reviewed
+  logarithm-method error -> `unknown_method`. Five other events remain unclassified.
+- Live inspection proved event `74f3e876...` false: key `7776`, submitted text starts
+  `ответ 7776`, but `ExactOnlyJudge` compared the entire multiline solution and persisted
+  `FAILED` with model `exact-answer`.
+- Added `!DOC/operations/CODEX_GRADER_DECLARED_ANSWER.md`: a four-file deterministic
+  declared-answer parser/grader regression task. No historical mutation is in its scope.
+
+Open tail: apply the two MCP confirmations, implement and senior-review the grader fix,
+then correct the historical evidence through the existing append-only manual path before L3.
+
+---
+
 ## 2026-07-13 - L2a senior review accepted
 
 Status: local implementation accepted; not committed or deployed.

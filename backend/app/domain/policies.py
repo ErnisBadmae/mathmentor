@@ -118,6 +118,32 @@ def numeric_mismatch(submitted: str | None, expected: str | None) -> bool:
     return a is not None and b is not None and a != b
 
 
+_DECLARED_ANSWER_RE = re.compile(r"^ответ(?=[\s:=]|$)\s*[:=]?\s*(.*)$", re.IGNORECASE)
+
+
+def extract_declared_answer(text: str | None) -> str | None:
+    """A learner sometimes writes a multiline solution with one explicit ``Ответ ...``
+    line. Extract that declared value deterministically (no LLM, no scanning for
+    arbitrary numbers). Returns None when no line is labelled or labelled lines
+    disagree, so an unlabelled/ambiguous solution never grades itself."""
+    if not text:
+        return None
+    candidates: list[str] = []
+    for line in text.splitlines():
+        match = _DECLARED_ANSWER_RE.match(line.strip())
+        if not match:
+            continue
+        candidate = match.group(1).strip()
+        if candidate:
+            candidates.append(candidate)
+    if not candidates:
+        return None
+    first = candidates[0]
+    if any(candidate != first for candidate in candidates[1:]):
+        return None
+    return first
+
+
 def select_daily_queue(
     open_count: int,
     due_reviews: list,

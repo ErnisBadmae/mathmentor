@@ -2,9 +2,9 @@
   "mcpServers": {
     "ege": {
       "type": "stdio",
-      "command": "C:\\Users\\badmaev_es\\egeMentor\\backend\\.venv312\\Scripts\\python.exe",
+      "command": "C:\\Users\\badmaev_es\\develop\\egeMentor\\backend\\.venv312\\Scripts\\python.exe",
       "args": [
-        "C:\\Users\\badmaev_es\\egeMentor\\backend\\app\\adapters\\mcp\\server.py"
+        "C:\\Users\\badmaev_es\\develop\\egeMentor\\backend\\app\\adapters\\mcp\\server.py"
       ],
       "env": {}
     }

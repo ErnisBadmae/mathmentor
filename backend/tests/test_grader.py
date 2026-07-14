@@ -8,8 +8,8 @@ from sqlalchemy import select
 from app.application.ports import AiAssessment
 from app.application.use_cases import ExactOnlyJudge, LearningService, RuleBasedReviewer
 from app.domain.enums import Subject
-from app.domain.policies import answer_is_correct, numeric_mismatch
-from app.infrastructure.models import StudyLogEntryORM, TopicORM
+from app.domain.policies import answer_is_correct, extract_declared_answer, numeric_mismatch
+from app.infrastructure.models import ErrorEventORM, StudyLogEntryORM, TopicORM
 from app.infrastructure.repositories import SqlAlchemyUnitOfWork
 from scripts import seed as seed_module
 
@@ -227,6 +227,61 @@ def test_weekly_digest_uses_existing_learning_events(seeded_session):
     assert digest["diagnostics"]["captured"] >= 1
     assert digest["errors"]["count"] >= 1
     assert digest["manual_reviews_pending"] >= 0
+
+
+# ---- declared-answer extraction (Ответ: ... line) ----
+
+
+def test_extract_declared_answer_recognizes_labelled_forms():
+    assert extract_declared_answer("Ответ: 7776\nрешение: ...") == "7776"
+    assert extract_declared_answer("  ОТВЕТ = 1/2  ") == "1/2"
+    assert extract_declared_answer("Ответ -3") == "-3"
+
+
+def test_extract_declared_answer_rejects_unlabelled_and_conflicting():
+    assert extract_declared_answer("получили 7776") is None
+    assert extract_declared_answer("не ответ 7776") is None
+    assert extract_declared_answer("Ответ: 5\nОтвет: 6") is None
+    assert extract_declared_answer(None) is None
+
+
+def test_grade_answer_explicit_exact_for_confirmed_incident(seeded_session):
+    # live incident 74f3e876: multiline solution with a declared final answer that
+    # matches the key; ExactOnlyJudge's whole-string exact alone used to miss it.
+    text = "ответ 7776\nрешение: при одинаковых основаниях степени складываются ... 6^5=7.776"
+    judgment = _grade(seeded_session, ExactOnlyJudge(), "7776", text)
+    assert judgment.correct is True
+    assert judgment.grading_method == "explicit_exact"
+
+
+def test_declared_wrong_answer_stays_incorrect_even_with_key_in_prose(seeded_session):
+    # declared value is wrong; later prose happens to contain the real key — must not pass.
+    text = "Ответ: 5\nрешение: ошиблась, а верный ответ вообще-то 7776"
+    judgment = _grade(seeded_session, ExactOnlyJudge(), "7776", text)
+    assert judgment.correct is False
+
+
+def test_llm_cannot_override_declared_numeric_mismatch(seeded_session):
+    judge = MockJudge(equivalent=True, feedback="ок", extracted="7776")
+    text = "Ответ: 5\nрешение: ..."
+    judgment = _grade(seeded_session, judge, "7776", text)
+    assert judgment.correct is False
+
+
+def test_record_slice_counts_explicit_exact_and_creates_no_error(seeded_session):
+    t1, _ = _two_tasks(seeded_session)  # expected_answer "5"
+    text = "ответ 5\nрешение: подставили и получили 5"
+    svc = _svc(seeded_session, ExactOnlyJudge())
+    judged = asyncio.run(svc.judge_task_answer(t1.id, text))
+    assert judged["correct"] is True and judged["grading_method"] == "explicit_exact"
+
+    result = svc.record_slice(STUDENT, Subject.MATH_PROFILE, [judged])
+
+    assert result["tasks_correct"] == 1
+    error = seeded_session.scalar(
+        select(ErrorEventORM).where(ErrorEventORM.detail.like(f"%{t1.id}%"))
+    )
+    assert error is None
 
 
 def test_mentor_brief_is_compact_first_read(seeded_session):
