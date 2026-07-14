@@ -50,6 +50,7 @@ BOT_COMMANDS = (
     ("progress", "Мой прогресс"),
     ("help", "Как пользоваться ботом"),
     ("cancel", "Остановить текущий режим"),
+    ("skip", "Пропустить текущую задачу"),
 )
 
 logger = logging.getLogger(__name__)
@@ -344,6 +345,7 @@ async def _on_help(message: Any) -> None:
         "новые задачи буду брать из твоего списка.\n"
         "• Прогресс — текущие баллы и повторы.\n\n"
         "Ответ присылай текстом: кратко распиши решение и в конце укажи ответ. "
+        "/skip пропустит одну задачу, если пока не готова (не считается ошибкой). "
         "/cancel остановит текущий режим.",
     )
 
@@ -600,7 +602,8 @@ async def _on_slice_topic(callback: Any) -> None:
     _srez[chat_id] = {"subject": topic["subject"], "items": items, "idx": 0, "judged": []}
     await callback.message.edit_text(f"Срез по теме: {topic['title']}")
     await callback.message.answer(
-        f"Срез: {topic['title']} — {len(items)} задач(и). /cancel — отмена."
+        f"Срез: {topic['title']} — {len(items)} задач(и). "
+        "/skip — пропустить задачу, /cancel — отмена всего среза."
     )
     await _send_srez_task(callback.message, chat_id)
 
@@ -632,6 +635,15 @@ async def _handle_srez_answer(message: Any, chat_id: int) -> None:
     head = "✅ Верно!" if judged["correct"] else "❌ Неверно."
     feedback = str(judged.get("feedback") or "")
     await message.answer(f"{head}\n{feedback}".strip())
+    await _advance_srez(message, chat_id)
+
+
+async def _advance_srez(message: Any, chat_id: int) -> None:
+    """Следующая задача среза или, если задачи кончились, финальный подсчёт.
+
+    Пропущенная задача просто не попадает в ``judged``, поэтому не входит ни в
+    ``tasks_total``, ни в ``tasks_correct`` — пропуск не засчитывается ошибкой."""
+    session = _srez[chat_id]
     session["idx"] += 1
     if session["idx"] < len(session["items"]):
         await _send_srez_task(message, chat_id)
@@ -655,6 +667,26 @@ async def _on_cancel(message: Any) -> None:
     _awaiting.pop(chat_id, None)
     _presented.pop(chat_id, None)
     await _show_home(message, "Текущий режим остановлен." if active else "Нет активного режима.")
+
+
+async def _on_skip(message: Any) -> None:
+    """Пропустить одну текущую задачу (не готова к ней), не завершая весь режим.
+
+    В срезе — пропущенная задача не попадает в подсчёт (не зачёт и не ошибка).
+    В дрилле дня — задание остаётся открытым и вернётся позже (сегодня или завтра)."""
+    if not await _ensure_authorized(message):
+        return
+    chat_id = message.chat.id
+    if chat_id in _srez:
+        await message.answer("Пропущено — не считается ни зачётом, ни ошибкой.")
+        await _advance_srez(message, chat_id)
+        return
+    if chat_id in _awaiting:
+        _awaiting.pop(chat_id, None)
+        await message.answer("Пропущено, вернёшься к этой задаче позже.")
+        await _send_next(message)
+        return
+    await message.answer("Сейчас нет активной задачи для пропуска.")
 
 
 async def _on_unknown_command(message: Any) -> None:
@@ -769,6 +801,7 @@ def main() -> None:
     dp.message.register(_on_progress, Command("progress"))
     dp.message.register(_on_help, Command("help"))
     dp.message.register(_on_cancel, Command("cancel"))
+    dp.message.register(_on_skip, Command("skip"))
     dp.message.register(_on_send, Command("send"))  # родитель: /send <текст> ученику
     dp.message.register(_on_unknown_command, F.text.startswith("/"))
     dp.message.register(_on_answer, F.text)

@@ -71,6 +71,26 @@ spec and implement L2 without starting auth, payments, or tutor-cockpit work.
 
 ---
 
+## 2026-07-14 - Bank refill spec for junior executor + child's photo tasks verified
+
+Status: spec/docs only; no runtime code changed.
+
+- Wrote `!DOC/operations/TASK_BANK_JULY_REFILL.md` — executor contract for a weaker
+  model: part A refills July/thin math topics (economy #16, part-1 stereo/planimetry,
+  inequalities/ODZ; parameter #18 excluded as non-verifiable), part B adds the
+  learner's 6 photo tasks from `data/примеры задач профмат/` as an advanced block
+  (`⭐ Усложнённая.` prefix, `source=book-photo`, idempotent source_ref).
+- All 6 photo answers were independently recomputed by the senior session: 0,04; 27,9;
+  0,4; -3; 25; 12. Photo `...064` is cropped (m value missing) and excluded. The
+  learner's handwritten answer to log_0.25(64) is `3`; correct is `-3` — review material.
+- Guardrails in the spec: every answer must be produced by executed code (anti-poison),
+  add_task DRAFT only, no approve/deploy/code changes, stop-on-mismatch.
+
+Open tail: run the spec in a separate junior session; senior review + approve_task
+afterwards; ask the learner for a full photo of the cropped task.
+
+---
+
 ## 2026-07-13 - Global/local plan synchronized to evidence gates
 
 Status: strategy/docs only; no runtime code changed.

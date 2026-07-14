@@ -13,7 +13,7 @@ from app.adapters.telegram import bot
 from app.application.use_cases import LearningService, RuleBasedReviewer
 from app.domain.enums import AiPolicy, MissionStatus, Subject
 from app.infrastructure import telegram_send
-from app.infrastructure.models import TopicORM
+from app.infrastructure.models import MissionORM, TopicORM
 from app.infrastructure.repositories import SqlAlchemyUnitOfWork
 from scripts import seed as seed_module
 
@@ -448,6 +448,7 @@ def test_registers_native_telegram_commands():
         "progress",
         "help",
         "cancel",
+        "skip",
     ]
 
 
@@ -480,6 +481,57 @@ def test_menu_today_and_cancel_share_drill_state(
     asyncio.run(bot._on_cancel(cancel))
     assert 111 not in bot._awaiting
     assert any("остановлен" in reply.lower() for reply in cancel.replies)
+
+
+def test_skip_in_slice_excludes_task_from_count(seeded_session, session_factory, monkeypatch):
+    topic = _make_slice_topic(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+
+    asyncio.run(bot._on_slice(FakeMessage(111, text="/slice")))
+    pick = FakeCallback(111, f"slice:topic:{topic.id}")
+    asyncio.run(bot._on_slice_topic(pick))
+
+    skip = FakeMessage(111, text="/skip")
+    asyncio.run(bot._on_skip(skip))
+    assert any("Пропущено" in reply for reply in skip.replies)
+    assert any("Задача 2/2" in reply for reply in skip.replies)
+
+    ans = FakeMessage(111, text="5")
+    asyncio.run(bot._on_answer(ans))
+    # 1 пропущена (не входит ни в total, ни в correct), 1 отвечена верно -> 1/1
+    assert any("Срез готов: 1/1" in reply and "зачёт" in reply for reply in ans.replies)
+    assert 111 not in bot._srez
+
+
+def test_skip_daily_drill_defers_mission_and_shows_next(
+    seeded_session, session_factory, monkeypatch
+):
+    _make_drill(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+
+    start = FakeMessage(111, text="/today")
+    asyncio.run(bot._on_today(start))
+    assert 111 in bot._awaiting
+    mission_id = bot._awaiting[111]
+
+    skip = FakeMessage(111, text="/skip")
+    asyncio.run(bot._on_skip(skip))
+
+    assert any("Пропущено" in reply for reply in skip.replies)
+    assert any("всё сделано" in reply.lower() for reply in skip.replies)  # больше дрилла нет
+    assert 111 not in bot._awaiting
+    with session_factory() as session:
+        mission = session.get(MissionORM, mission_id)
+        assert mission.status == MissionStatus.ACTIVE  # осталась открытой, не провалена
+
+
+def test_skip_without_active_task_is_a_noop(session_factory, monkeypatch):
+    _patch_bot(monkeypatch, session_factory)
+
+    skip = FakeMessage(111, text="/skip")
+    asyncio.run(bot._on_skip(skip))
+
+    assert any("нет активной задачи" in reply.lower() for reply in skip.replies)
 
 
 def test_unauthorized_menu_callback_is_rejected(session_factory, monkeypatch):

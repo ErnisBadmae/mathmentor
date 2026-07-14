@@ -36,8 +36,9 @@ class Settings(BaseSettings):
     invite_bootstrap_code: str = "family-pilot"
     local_timezone: str = "Europe/Moscow"
 
-    # Local LLM provider switch: disabled | vllm | llama_cpp. Both vllm and llama.cpp
-    # expose the same OpenAI-compatible /v1/chat/completions, so one reviewer serves both.
+    # Local LLM provider switch: disabled | vllm | llama_cpp | deepseek. All expose the
+    # same OpenAI-compatible /v1/chat/completions, so one reviewer serves all of them.
+    # deepseek is the cloud fallback for when the local LAN server is down.
     llm_provider: str = "disabled"
 
     vllm_base_url: str = "http://localhost:8000/v1"
@@ -49,6 +50,11 @@ class Settings(BaseSettings):
     llama_cpp_api_key: str = Field(default="token-abc123", repr=False)
     llama_cpp_model: str = "Qwen3.6-35B-A3B-Q5-256K"
     llama_cpp_timeout: float = 120
+
+    deepseek_base_url: str = "https://api.deepseek.com/v1"
+    deepseek_api_key: str = Field(default="", repr=False, validation_alias="DEEPSEEK_API")
+    deepseek_model: str = "deepseek-chat"
+    deepseek_timeout: float = 60
 
     telegram_bot_token: str = Field(default="", repr=False)
     # Ученик пилота: chat_id — цель утреннего пуша (пусто — пуш выключен).
@@ -89,6 +95,13 @@ class Settings(BaseSettings):
                 self.llama_cpp_api_key,
                 self.llama_cpp_model,
                 self.llama_cpp_timeout,
+            )
+        if self.llm_provider == "deepseek":
+            return LlmConnection(
+                self.deepseek_base_url,
+                self.deepseek_api_key,
+                self.deepseek_model,
+                self.deepseek_timeout,
             )
         return None
 
