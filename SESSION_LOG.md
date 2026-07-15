@@ -5,6 +5,28 @@
 
 ---
 
+## 2026-07-14 - 12 advanced (⭐) tasks added by senior model, code-verified
+
+Status: live bank updated; no runtime code changed.
+
+- Learner asked for more advanced tasks but sent no new photos; senior model authored
+  12 ⭐ tasks itself via `scratchpad/gen_advanced_claude.py` (seed-style ORM insert,
+  idempotent by `source_ref`, `source=agent-advanced`).
+- Topics: Вычисления лог/триг (3), степени и корни (3), Векторы (2), Неравенства (2),
+  Простейшие уравнения (2). Every answer computed by code (sympy/Fraction) with asserts;
+  `answer_is_correct` self-check 12/12; both interval answers parse via
+  `parse_interval_answer`.
+- Verified in live DB: 12 rows `claude-adv:*`, all APPROVED (math bank now 221 approved
+  total across subjects: 209 + 12).
+- Known quirk: the script's final print crashed on `∞` in the cp1251 console AFTER
+  commit — cosmetic only, data intact.
+
+Open tail: thin fresh-task topics remain Задача 13 (обе темы, 2-3 fresh) and Текстовые
+задачи: движение (4 fresh); next refill spec can target them. Learner should re-photo
+the cropped book task (m value).
+
+---
+
 ## 2026-07-13 - L2a live triage and grader false-failure found
 
 Status: two confirmations approved; grader-fix task ready; L3 remains blocked.
