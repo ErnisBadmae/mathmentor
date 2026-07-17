@@ -1102,6 +1102,10 @@ class LearningService:
     def list_tasks(self, status: TaskStatus | None = None) -> list[dict[str, object]]:
         return self._uow.tasks.list_tasks(status)
 
+    def task_bank_stats(self) -> list[dict[str, object]]:
+        """Approved task counts by subject/source — content provenance for the operator view."""
+        return self._uow.tasks.bank_stats()
+
     def add_task(self, values: dict[str, object]) -> object:
         """Add a task to the bank as DRAFT by default (senior model authors offline)."""
         payload = {

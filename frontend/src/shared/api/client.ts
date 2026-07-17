@@ -131,6 +131,12 @@ export type Diagnostic = {
   note: string | null;
 };
 
+export type TaskBankStat = {
+  subject: Subject;
+  source: string;
+  count: number;
+};
+
 export type Mission = {
   id: string;
   subject: Subject;
@@ -329,6 +335,10 @@ export function getTopicTheory(topicId: string): Promise<TheoryCard[]> {
 
 export function getDiagnostics(studentId: string): Promise<Diagnostic[]> {
   return request<Diagnostic[]>(`/students/${studentId}/diagnostics`);
+}
+
+export function getTaskBankStats(): Promise<TaskBankStat[]> {
+  return request<TaskBankStat[]>('/tasks/bank-stats');
 }
 
 export function getErrors(studentId: string): Promise<ErrorEvent[]> {

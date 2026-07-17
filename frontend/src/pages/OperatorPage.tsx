@@ -7,6 +7,7 @@ import {
   getCurrentStudent,
   getManualReviews,
   getReviews,
+  getTaskBankStats,
   getTodayMissions,
   markReviewResult,
   publishMentorNote,
@@ -15,6 +16,11 @@ import {
   type Mission,
   type MissionDraft,
 } from '../shared/api/client';
+
+const SUBJECT_LABEL: Record<string, string> = {
+  math_profile: 'Профматематика',
+  informatics: 'Информатика',
+};
 
 type CountDraft = { tasks_total: string; tasks_correct: string };
 
@@ -73,6 +79,20 @@ export function OperatorPage() {
     queryFn: () => getReviews(studentId ?? ''),
     enabled: Boolean(studentId),
   });
+  const bankStatsQuery = useQuery({ queryKey: ['task-bank-stats'], queryFn: getTaskBankStats });
+  const bankBySubject = useMemo(() => {
+    const groups = new Map<string, { source: string; count: number }[]>();
+    for (const row of bankStatsQuery.data ?? []) {
+      const list = groups.get(row.subject) ?? [];
+      list.push({ source: row.source, count: row.count });
+      groups.set(row.subject, list);
+    }
+    return Array.from(groups.entries()).map(([subject, sources]) => ({
+      subject,
+      sources,
+      total: sources.reduce((sum, item) => sum + item.count, 0),
+    }));
+  }, [bankStatsQuery.data]);
   const [createDraft, setCreateDraft] = useState<MissionDraft>({
     subject: 'math_profile',
     title: '',
@@ -215,6 +235,33 @@ export function OperatorPage() {
           {errorMessage(studentQuery.error || missionsQuery.error || manualQuery.error || reviewsQuery.error)}
         </div>
       ) : null}
+
+      <div className="panel">
+        <h2>Банк задач: источники</h2>
+        {bankStatsQuery.error ? (
+          <p className="stateError">{errorMessage(bankStatsQuery.error)}</p>
+        ) : bankBySubject.length ? (
+          <div className="tableList">
+            {bankBySubject.map((group) => (
+              <article className="tableRow" key={group.subject}>
+                <div>
+                  <strong>{SUBJECT_LABEL[group.subject] ?? group.subject}</strong>
+                  <span>{group.total} задач в банке (approved)</span>
+                  <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                    {group.sources.map((item) => (
+                      <li key={item.source}>
+                        {item.source} — {item.count}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">Банк пуст.</p>
+        )}
+      </div>
 
       <div className="panel">
         <h2>Новая миссия</h2>

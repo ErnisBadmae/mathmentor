@@ -179,6 +179,19 @@ class TaskSqlRepository:
             for task, topic_title in rows
         ]
 
+    def bank_stats(self) -> list[dict[str, object]]:
+        stmt = (
+            select(TaskORM.subject, TaskORM.source, func.count())
+            .where(TaskORM.status == TaskStatus.APPROVED)
+            .group_by(TaskORM.subject, TaskORM.source)
+            .order_by(TaskORM.subject, func.count().desc())
+        )
+        rows = self.session.execute(stmt).all()
+        return [
+            {"subject": subject, "source": source, "count": count}
+            for subject, source, count in rows
+        ]
+
     def list_gradable(self, subject: Subject, topic_id: UUID | None = None) -> list[TaskORM]:
         """Approved tasks with a non-empty exact answer — the pool for a knowledge slice.
         ``topic_id`` restricts the pool to one topic (срез по выбранной теме)."""

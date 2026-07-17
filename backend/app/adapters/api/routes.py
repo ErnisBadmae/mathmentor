@@ -25,6 +25,7 @@ from app.adapters.api.schemas import (
     StudentOut,
     SubmitAttemptIn,
     SubmitAttemptOut,
+    TaskBankStatOut,
     TheoryCardOut,
     TopicLifecycleOut,
 )
@@ -73,6 +74,11 @@ def topic_theory(
     service: LearningService = Depends(get_learning_service),
 ) -> list[dict[str, object]]:
     return service.list_topic_theory(topic_id)
+
+
+@protected_router.get("/tasks/bank-stats", response_model=list[TaskBankStatOut])
+def task_bank_stats(service: LearningService = Depends(get_learning_service)) -> list[dict[str, object]]:
+    return service.task_bank_stats()
 
 
 @protected_router.get("/students/{student_id}/diagnostics", response_model=list[DiagnosticOut])

@@ -141,6 +141,12 @@ class ProgramPhaseOut(BaseModel):
     topics: list[ProgramTopicOut]
 
 
+class TaskBankStatOut(BaseModel):
+    subject: Subject
+    source: str
+    count: int
+
+
 class DiagnosticOut(BaseModel):
     occurred_on: date
     subject: Subject
