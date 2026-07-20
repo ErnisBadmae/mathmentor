@@ -5,6 +5,37 @@
 
 ---
 
+## 2026-07-17 - TG: skip-кнопка + самостоятельный выбор темы (задеплоено)
+
+Status: ЗАДЕПЛОЕНО, смок GREEN (release_smoke + telegram_bot_runtime_smoke).
+
+- По запросу ребёнка: кнопка «⏭ Пропустить» на дневном задании (та же семантика,
+  что уже была у текстовой `/skip` — задание остаётся ACTIVE, откладывается в
+  сессии бота) + новая команда/кнопка `/topics` («➕ Своя тема») — самостоятельный
+  выбор темы части 1 трека, задача добавляется в «Сегодня» сразу.
+- Product-развилки закрыты перед кодом: self-pick только часть 1 (part-2/manual-
+  review темы недоступны — им нужна ручная проверка на сайте), пререквизиты
+  уважаются (это evidence-based авто-проверка по `solved_count`, не декларация —
+  риска «забыла отметить» нет).
+- Backend: `list_self_pick_candidates`/`self_add_topic_mission` в `use_cases.py`,
+  переиспользуют существующие примитивы (`list_approved_for_topic`,
+  `prerequisites_met`, `_requires_manual_review_path`). Новая миссия —
+  `source_ref=daily:self:<topic_id>`, `daily:`-префикс даёт бесплатную интеграцию
+  с остальным дрилл-конвейером. `describe_pick` — новая ветка `self_pick`.
+  Bot: skip-клавиатура + общий хелпер `_skip_daily_task`, `_on_today_skip`,
+  `_topics_keyboard`/`_on_topics`/`_on_topics_pick` по образцу `/ready`.
+- Ноль миграций, ноль MCP, ноль фронтенда — фича целиком в TG-боте.
+- Проверка: `pytest` 241 passed (было 228, +13); ruff по изменённым файлам без
+  новых замечаний. Деплой: `docker compose up -d --build api bot`; `web` пришлось
+  отдельно `restart` — nginx держал закешированный DNS на старый IP api-контейнера
+  (502 до рестарта). `telegram_bot_runtime_smoke.py` и `release_smoke.py` — GREEN.
+
+Open tail: реального тапа в живом Telegram-чате ребёнком ещё не было — проверено
+только тестами и смоками. Попросить попробовать `/today` и `/topics` при следующем
+заходе.
+
+---
+
 ## 2026-07-17 - PDF-пайплайн для реальных прототипов ФИПИ + 9 задач в тонкие темы part-2
 
 Status: live bank updated (draft->approved через MCP); no runtime code changed.

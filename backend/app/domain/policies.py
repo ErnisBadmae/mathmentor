@@ -180,6 +180,8 @@ def describe_pick(reason: dict) -> str:
         if reason.get("error_count"):
             base += f"; прошлых ошибок: {reason['error_count']}"
         return base
+    if kind == "self_pick":
+        return "выбрана самой ученицей из списка тем трека"
     return "выбрана планировщиком дня"
 
 

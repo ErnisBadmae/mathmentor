@@ -47,6 +47,7 @@ BOT_COMMANDS = (
     ("today", "Задания на сегодня"),
     ("slice", "Срез по теме"),
     ("ready", "Отметить: теорию изучила"),
+    ("topics", "Своя тема — добавить в сегодня"),
     ("progress", "Мой прогресс"),
     ("help", "Как пользоваться ботом"),
     ("cancel", "Остановить текущий режим"),
@@ -238,6 +239,7 @@ def _home_keyboard() -> Any:
             [InlineKeyboardButton(text="📚 Сегодня", callback_data="menu:today")],
             [InlineKeyboardButton(text="🧪 Срез по теме", callback_data="menu:slice")],
             [InlineKeyboardButton(text="📖 Готова к новым темам", callback_data="menu:ready")],
+            [InlineKeyboardButton(text="➕ Своя тема", callback_data="menu:topics")],
             [InlineKeyboardButton(text="📊 Прогресс", callback_data="menu:progress")],
         ]
     )
@@ -283,6 +285,16 @@ def _progress_text(data: dict[str, object], phase: dict[str, object] | None = No
     return "\n".join(lines)
 
 
+def _daily_task_keyboard(mission_id: UUID) -> Any:
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⏭ Пропустить", callback_data=f"today:skip:{mission_id}")]
+        ]
+    )
+
+
 async def _send_next(message: Any) -> None:
     chat_id = message.chat.id
     with SessionLocal() as session:
@@ -297,7 +309,18 @@ async def _send_next(message: Any) -> None:
     assert isinstance(mission_id, UUID)
     presented.add(mission_id)
     _awaiting[chat_id] = mission_id
-    await message.answer(_task_text(nxt))
+    await message.answer(_task_text(nxt), reply_markup=_daily_task_keyboard(mission_id))
+
+
+async def _skip_daily_task(message: Any, chat_id: int) -> bool:
+    """Общий кусок для текстовой /skip и кнопки: откладывает текущее дневное задание
+    в рамках сессии бота (в БД миссия остаётся ACTIVE, вернётся позже сегодня/завтра)."""
+    if chat_id not in _awaiting:
+        return False
+    _awaiting.pop(chat_id, None)
+    await message.answer("Пропущено, вернёшься к этой задаче позже.")
+    await _send_next(message)
+    return True
 
 
 async def _on_start(message: Any) -> None:
@@ -343,10 +366,11 @@ async def _on_help(message: Any) -> None:
         "• Срез по теме — 5 задач с результатом в конце.\n"
         "• Готова к новым темам (/ready) — отметь, по каким темам изучила теорию: "
         "новые задачи буду брать из твоего списка.\n"
+        "• Своя тема (/topics) — выбери тему трека сама, добавлю в «Сегодня» задачу по ней.\n"
         "• Прогресс — текущие баллы и повторы.\n\n"
         "Ответ присылай текстом: кратко распиши решение и в конце укажи ответ. "
-        "/skip пропустит одну задачу, если пока не готова (не считается ошибкой). "
-        "/cancel остановит текущий режим.",
+        "Кнопка «⏭ Пропустить» (или /skip) пропустит одну задачу, если пока не готова "
+        "(не считается ошибкой). /cancel остановит текущий режим.",
     )
 
 
@@ -421,6 +445,56 @@ async def _on_ready_done(callback: Any) -> None:
     await _show_home(callback.message)
 
 
+TOPICS_PROMPT = "Выбери тему — добавлю в «Сегодня» свежую задачу по ней прямо сейчас."
+
+
+def _topics_keyboard(rows: list[dict[str, Any]]) -> Any:
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                text=str(row["title"]), callback_data=f"topics:pick:{row['topic_id']}"
+            )
+        ]
+        for row in rows
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+async def _on_topics(message: Any) -> None:
+    if not await _ensure_authorized(message):
+        return
+    with SessionLocal() as session:
+        rows = _service(session).list_self_pick_candidates(PILOT_STUDENT_ID)
+    if not rows:
+        await _show_home(message, "Открытых тем для добавления сейчас нет.")
+        return
+    await message.answer(TOPICS_PROMPT, reply_markup=_topics_keyboard(rows))
+
+
+async def _on_topics_pick(callback: Any) -> None:
+    if not _is_authorized(callback.message.chat.id):
+        await callback.answer("Не авторизовано", show_alert=True)
+        return
+    topic_id = UUID(callback.data.split(":", 2)[2])
+    with SessionLocal() as session:
+        service = _service(session)
+        try:
+            result = service.self_add_topic_mission(PILOT_STUDENT_ID, topic_id)
+        except ValueError:
+            await callback.answer("Эта тема уже недоступна", show_alert=True)
+            return
+    if "shortage" in result:
+        await callback.answer("По этой теме сейчас нет свежих задач 😔", show_alert=True)
+        return
+    title = result["mission"]["title"]
+    await callback.answer("Добавлено ✅")
+    await callback.message.answer(
+        f"{title} — добавила в «Сегодня». Открой /today, когда будешь готова."
+    )
+
+
 async def _on_send(message: Any) -> None:
     """Родительская команда: /send <текст> — опубликовать заметку и сразу доставить ученику.
     Доступна только из чата родителя-контролёра (telegram_parent_chat_id)."""
@@ -451,6 +525,7 @@ async def _on_menu(callback: Any) -> None:
         "slice": _on_slice,
         "progress": _on_progress,
         "ready": _on_ready,
+        "topics": _on_topics,
     }
     await handlers[action](callback.message)
 
@@ -681,12 +756,22 @@ async def _on_skip(message: Any) -> None:
         await message.answer("Пропущено — не считается ни зачётом, ни ошибкой.")
         await _advance_srez(message, chat_id)
         return
-    if chat_id in _awaiting:
-        _awaiting.pop(chat_id, None)
-        await message.answer("Пропущено, вернёшься к этой задаче позже.")
-        await _send_next(message)
+    if await _skip_daily_task(message, chat_id):
         return
     await message.answer("Сейчас нет активной задачи для пропуска.")
+
+
+async def _on_today_skip(callback: Any) -> None:
+    chat_id = callback.message.chat.id
+    if not _is_authorized(chat_id):
+        await callback.answer("Не авторизовано", show_alert=True)
+        return
+    mission_id = UUID(callback.data.split(":", 2)[2])
+    if _awaiting.get(chat_id) != mission_id:
+        await callback.answer("Эта задача уже не активна", show_alert=True)
+        return
+    await callback.answer()
+    await _skip_daily_task(callback.message, chat_id)
 
 
 async def _on_unknown_command(message: Any) -> None:
@@ -798,6 +883,7 @@ def main() -> None:
     dp.message.register(_on_today, Command("today"))
     dp.message.register(_on_slice, Command("slice"))
     dp.message.register(_on_ready, Command("ready"))
+    dp.message.register(_on_topics, Command("topics"))
     dp.message.register(_on_progress, Command("progress"))
     dp.message.register(_on_help, Command("help"))
     dp.message.register(_on_cancel, Command("cancel"))
@@ -812,6 +898,8 @@ def main() -> None:
     dp.callback_query.register(_on_slice_back, F.data == "slice:back")
     dp.callback_query.register(_on_ready_toggle, F.data.startswith("ready:t:"))
     dp.callback_query.register(_on_ready_done, F.data == "ready:done")
+    dp.callback_query.register(_on_topics_pick, F.data.startswith("topics:pick:"))
+    dp.callback_query.register(_on_today_skip, F.data.startswith("today:skip:"))
     bot = Bot(token=settings.telegram_bot_token, session=session)
     asyncio.run(_run(dp, bot))
 

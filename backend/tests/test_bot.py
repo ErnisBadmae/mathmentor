@@ -9,11 +9,13 @@ import logging
 from datetime import date
 from uuid import uuid4
 
+from sqlalchemy import select
+
 from app.adapters.telegram import bot
 from app.application.use_cases import LearningService, RuleBasedReviewer
 from app.domain.enums import AiPolicy, MissionStatus, Subject
 from app.infrastructure import telegram_send
-from app.infrastructure.models import MissionORM, TopicORM
+from app.infrastructure.models import MissionORM, TaskORM, TopicORM
 from app.infrastructure.repositories import SqlAlchemyUnitOfWork
 from scripts import seed as seed_module
 
@@ -445,6 +447,7 @@ def test_registers_native_telegram_commands():
         "today",
         "slice",
         "ready",
+        "topics",
         "progress",
         "help",
         "cancel",
@@ -532,6 +535,58 @@ def test_skip_without_active_task_is_a_noop(session_factory, monkeypatch):
     asyncio.run(bot._on_skip(skip))
 
     assert any("нет активной задачи" in reply.lower() for reply in skip.replies)
+
+
+def test_today_task_message_has_skip_button(seeded_session, session_factory, monkeypatch):
+    _make_drill(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+
+    message = FakeMessage(111, text="/today")
+    asyncio.run(bot._on_today(message))
+
+    mission_id = bot._awaiting[111]
+    markup = message.reply_markups[-1]
+    assert markup is not None
+    button = markup.inline_keyboard[0][0]
+    assert button.text == "⏭ Пропустить"
+    assert button.callback_data == f"today:skip:{mission_id}"
+
+
+def test_today_skip_button_defers_and_shows_next(seeded_session, session_factory, monkeypatch):
+    _make_drill(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+
+    start = FakeMessage(111, text="/today")
+    asyncio.run(bot._on_today(start))
+    mission_id = bot._awaiting[111]
+
+    callback = FakeCallback(111, f"today:skip:{mission_id}")
+    asyncio.run(bot._on_today_skip(callback))
+
+    assert callback.answers == [""]
+    assert any("Пропущено" in reply for reply in callback.message.replies)
+    assert any("всё сделано" in reply.lower() for reply in callback.message.replies)
+    assert 111 not in bot._awaiting
+    with session_factory() as session:
+        mission = session.get(MissionORM, mission_id)
+        assert mission.status == MissionStatus.ACTIVE  # осталась открытой, не провалена
+
+
+def test_today_skip_button_stale_mission_is_noop(seeded_session, session_factory, monkeypatch):
+    _make_drill(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+
+    start = FakeMessage(111, text="/today")
+    asyncio.run(bot._on_today(start))
+    mission_id = bot._awaiting[111]
+
+    # тап по клавиатуре старого сообщения после того, как /cancel уже сбросил ожидание
+    asyncio.run(bot._on_cancel(FakeMessage(111, text="/cancel")))
+    callback = FakeCallback(111, f"today:skip:{mission_id}")
+    asyncio.run(bot._on_today_skip(callback))
+
+    assert callback.show_alerts == [True]
+    assert callback.message.replies == []
 
 
 def test_unauthorized_menu_callback_is_rejected(session_factory, monkeypatch):
@@ -690,3 +745,84 @@ def test_ready_callbacks_unauthorized_rejected(session_factory, monkeypatch):
     assert done.show_alerts == [True]
     assert toggle.message.replies == []
     assert done.message.replies == []
+
+
+def test_topics_lists_candidates_with_keyboard(seeded_session, session_factory, monkeypatch):
+    _make_ready_topic(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+
+    message = FakeMessage(111, text="/topics")
+    asyncio.run(bot._on_topics(message))
+
+    assert any("Выбери тему" in reply for reply in message.replies)
+    markup = message.reply_markups[-1]
+    assert markup is not None
+    button_texts = [btn.text for row in markup.inline_keyboard for btn in row]
+    assert any("Бот ready тема" in text for text in button_texts)
+    # part-2/manual-path темы не предлагаются
+    assert all("Стереометрия" not in text for text in button_texts)
+
+
+def test_topics_pick_adds_mission_and_confirms(seeded_session, session_factory, monkeypatch):
+    topic = _make_ready_topic(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+
+    callback = FakeCallback(111, f"topics:pick:{topic.id}")
+    asyncio.run(bot._on_topics_pick(callback))
+
+    assert callback.answers[-1] == "Добавлено ✅"
+    assert any("добавила в «Сегодня»" in reply for reply in callback.message.replies)
+    with session_factory() as session:
+        mission = session.scalar(
+            select(MissionORM).where(MissionORM.source_ref == f"daily:self:{topic.id}")
+        )
+        assert mission is not None
+        assert mission.status == MissionStatus.ACTIVE
+
+
+def test_topics_pick_shortage_shows_alert_without_creating_mission(
+    seeded_session, session_factory, monkeypatch
+):
+    topic = _make_ready_topic(seeded_session)
+    with session_factory() as session:
+        # единственная задача темы уже назначена другой миссией — свежей не осталось
+        task = session.scalar(select(TaskORM).where(TaskORM.topic_id == topic.id))
+        session.add(
+            MissionORM(
+                id=uuid4(),
+                student_id=STUDENT,
+                subject=Subject.MATH_PROFILE,
+                topic_id=topic.id,
+                task_id=task.id,
+                title="прошлая",
+                instructions="",
+                status=MissionStatus.DONE,
+                ai_policy=AiPolicy.ATTEMPT_FIRST,
+                threshold_percent=80.0,
+            )
+        )
+        session.commit()
+    _patch_bot(monkeypatch, session_factory)
+
+    callback = FakeCallback(111, f"topics:pick:{topic.id}")
+    asyncio.run(bot._on_topics_pick(callback))
+
+    assert callback.show_alerts == [True]
+    assert "нет свежих задач" in callback.answers[-1]
+    with session_factory() as session:
+        assert (
+            session.scalar(
+                select(MissionORM).where(MissionORM.source_ref == f"daily:self:{topic.id}")
+            )
+            is None
+        )
+
+
+def test_topics_callbacks_unauthorized_rejected(session_factory, monkeypatch):
+    _patch_bot(monkeypatch, session_factory)
+
+    pick = FakeCallback(999, f"topics:pick:{uuid4()}")
+    asyncio.run(bot._on_topics_pick(pick))
+
+    assert pick.show_alerts == [True]
+    assert pick.message.replies == []

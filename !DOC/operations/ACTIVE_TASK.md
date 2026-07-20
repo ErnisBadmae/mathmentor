@@ -2,6 +2,45 @@
 
 Last updated: 2026-07-17
 
+## TG: skip-кнопка + самостоятельный выбор темы (2026-07-17, ЗАДЕПЛОЕНО)
+
+- По запросу ребёнка: (1) кнопка «⏭ Пропустить» на сообщении с дневным заданием —
+  переиспользует уже протестированную семантику текстовой `/skip` (задание остаётся
+  `ACTIVE`, откладывается в рамках сессии бота), просто добавлен `reply_markup` и
+  callback `today:skip:<mission_id>`; (2) команда/кнопка `/topics` («➕ Своя тема») —
+  ученица сама выбирает тему части 1 своего трека и получает свежую задачу в
+  «Сегодня» вне бюджета `build_daily_queue` (тот учтёт её как carry-over назавтра
+  через уже существующий механизм open-count, специального кода не потребовалось).
+- Product-решения (обсуждены и зафиксированы перед реализацией): self-pick ограничен
+  темами части 1 (тот же фильтр, что `/ready` — part-2/manual-review темы недоступны,
+  им нужна ручная проверка на сайте); пререквизиты (`PREREQUISITES`,
+  `backend/app/domain/prerequisites.py`) уважаются — это не декларация, а
+  автоматическая проверка по факту решённой базовой задачи (`solved_count > 0`),
+  поэтому ничего специально отмечать не нужно и риска «забыла отметить» нет.
+- Backend: `LearningService.list_self_pick_candidates`/`self_add_topic_mission`
+  (`use_cases.py`) — переиспользуют `list_approved_for_topic`, `prerequisites_met`,
+  `_requires_manual_review_path`, `_phase_started` (те же примитивы, что
+  `build_daily_queue`/`list_theory_ready_candidates`). Новая миссия помечается
+  `source_ref=daily:self:<topic_id>` — тоже `daily:`-префикс, поэтому весь
+  остальной дрилл-конвейер видит её как обычную дневную миссию без доп. кода.
+  `describe_pick` получил ветку `kind="self_pick"`.
+  Bot: `_daily_task_keyboard`, `_skip_daily_task` (общий хелпер для текстовой
+  `/skip` и кнопки), `_on_today_skip`, `_topics_keyboard`, `_on_topics`,
+  `_on_topics_pick` — по образцу уже существующего `/ready`.
+- Никаких миграций/новых MCP-инструментов/фронтенд-изменений — фича целиком в TG
+  (канал части 1), схема БД не менялась (`missions.topic_id`/`source_ref` уже были).
+- Verification: `pytest tests/test_daily_queue.py tests/test_bot.py` — 23+34 passed
+  (было 23/28, +6/+6 новых); полный backend `pytest` 241 passed (было 228); ruff по
+  изменённым файлам — новых замечаний нет (весь список E501 — старый долг на
+  нетронутых строках). ВЫКАЧЕНО: `docker compose up -d --build api bot` + `restart web`
+  (nginx держал закешированный DNS на старый IP api-контейнера — 502 до рестарта
+  web). `telegram_bot_runtime_smoke.py` GREEN (`@egemathandinformbot`, без polling
+  errors), `release_smoke.py` GREEN (health/миграции на head `f7a8b9c0d1e2`/getMe/
+  живой judge).
+- Хвост: живая проверка тапом в реальном Telegram-чате ещё не сделана (только
+  через тесты + release smoke) — попросить ребёнка попробовать `/today` (кнопка
+  skip) и `/topics` при следующем заходе, посмотреть на реальную реакцию.
+
 ## Рабочая связка: реальные прототипы ФИПИ через PDF + PyMuPDF (2026-07-17)
 
 **Проблема:** нужен контент из открытого банка ФИПИ (учебная обратная связь: летний

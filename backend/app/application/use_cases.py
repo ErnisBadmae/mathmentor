@@ -524,6 +524,74 @@ class LearningService:
             "theory_ready": topic.theory_ready_at is not None,
         }
 
+    def list_self_pick_candidates(self, student_id: UUID) -> list[dict[str, object]]:
+        """Темы части 1 трека, которые ученица может сама добавить в «Сегодня».
+
+        Тот же набор условий, что у `/ready` (`list_theory_ready_candidates`), плюс
+        пререквизит-ворота (как у авто-пика новой темы) и минус темы, уже открытые
+        сегодня daily-миссией (auto- или self-pick — неважно каким source_ref)."""
+        today = self._today()
+        open_topic_ids = {
+            m.topic_id
+            for m in self._uow.missions.list_today(student_id)
+            if self._is_drill(m) and m.topic_id is not None
+        }
+        program_rows = sorted(
+            self._uow.topics.list_program(student_id),
+            key=lambda t: (t["program_order"] or 0, t["topic_title"]),
+        )
+        passed_titles = {t["topic_title"] for t in program_rows if t["solved_count"] > 0}
+        rows: list[dict[str, object]] = []
+        for topic in program_rows:
+            if (
+                topic["state"] == TopicState.OPEN
+                and topic["tasks_in_bank"] > 0
+                and not self._requires_manual_review_path(topic)
+                and self._phase_started(topic["phase"], today)
+                and prerequisites_met(topic["topic_title"], passed_titles, PREREQUISITES)
+                and topic["topic_id"] not in open_topic_ids
+            ):
+                rows.append(
+                    {
+                        "topic_id": topic["topic_id"],
+                        "title": topic["topic_title"],
+                        "subject": topic["subject"],
+                    }
+                )
+        return rows
+
+    def self_add_topic_mission(self, student_id: UUID, topic_id: UUID) -> dict[str, object]:
+        """Ученица сама добавляет тему в «Сегодня» — вне бюджета `build_daily_queue`
+        (тот пересчитает лимит на завтра сам, увидев эту миссию как carry-over).
+
+        Возвращает ``{"mission": {...}}`` или ``{"shortage": {...}}``, если по теме
+        сейчас нет свежей (не назначавшейся) задачи."""
+        candidates = self.list_self_pick_candidates(student_id)
+        match = next((c for c in candidates if c["topic_id"] == topic_id), None)
+        if match is None:
+            raise ValueError(f"topic {topic_id} is not a valid self-pick candidate")
+        pool = self._uow.tasks.list_approved_for_topic(topic_id, exclude_assigned_to=student_id)
+        if not pool:
+            return {"shortage": {"topic_id": topic_id, "title": match["title"]}}
+        task = pool[0]
+        mission = self.create_mission(
+            {
+                "student_id": student_id,
+                "subject": task.subject,
+                "title": f"Дрилл: {match['title']}",
+                "instructions": "Реши, кратко распиши ход решения и в конце укажи ответ.",
+                "status": MissionStatus.ACTIVE,
+                "ai_policy": AiPolicy.ATTEMPT_FIRST,
+                "threshold_percent": 80.0,
+                "topic_id": topic_id,
+                "task_id": task.id,
+                "due_date": self._today(),
+                "source_ref": f"daily:self:{topic_id}",
+            }
+        )
+        mission["why"] = describe_pick({"kind": "self_pick"})
+        return {"mission": mission}
+
     def operator_close_daily_missions(
         self, student_id: UUID, reason: str | None = None
     ) -> dict[str, object]:

@@ -467,3 +467,116 @@ def test_list_approved_for_topic_excludes_assigned(seeded_session):
     remaining = uow.tasks.list_approved_for_topic(topic.id, exclude_assigned_to=STUDENT)
     assert {t.id for t in remaining} == {pool[1].id}
     assert TaskStatus.APPROVED == pool[0].status  # sanity: tasks were approved
+
+
+def test_list_self_pick_candidates_excludes_manual_review_topics(seeded_session, monkeypatch):
+    svc = service(seeded_session)
+    monkeypatch.setattr(svc, "_today", lambda: date(2026, 7, 7))
+
+    rows = svc.list_self_pick_candidates(STUDENT)
+
+    titles = [str(r["title"]) for r in rows]
+    assert all("№14" not in title for title in titles)
+    assert all("№16" not in title for title in titles)
+    assert all("№17" not in title for title in titles)
+    assert all("№18" not in title for title in titles)
+    assert all("Задача 13" not in title for title in titles)
+
+
+def test_list_self_pick_candidates_excludes_topic_already_open_today(seeded_session, monkeypatch):
+    svc = service(seeded_session, monkeypatch)
+    topic = _open_topic_with_tasks(svc, seeded_session, "DQ self уже открыта", ["1", "2"])
+
+    before = {r["topic_id"] for r in svc.list_self_pick_candidates(STUDENT)}
+    assert topic.id in before
+
+    svc.set_topic_theory_ready(topic.id, True)  # изоляция от сеяных тем при авто-пике
+    svc.build_daily_queue(STUDENT, limit=5)
+
+    after = {r["topic_id"] for r in svc.list_self_pick_candidates(STUDENT)}
+    assert topic.id not in after  # уже открыта daily:new: сегодня — второй раз не предложим
+
+
+def test_list_self_pick_candidates_respects_prerequisites(seeded_session, monkeypatch):
+    svc = service(seeded_session, monkeypatch)
+    base = _open_topic_with_tasks(svc, seeded_session, "DQ self база", ["1"], order=930)
+    dependent = _open_topic_with_tasks(svc, seeded_session, "DQ self зависимая", ["2"], order=931)
+    monkeypatch.setattr(use_cases, "PREREQUISITES", {"DQ self зависимая": ("DQ self база",)})
+
+    rows = svc.list_self_pick_candidates(STUDENT)
+    ids = {r["topic_id"] for r in rows}
+    assert base.id in ids
+    assert dependent.id not in ids  # база ещё не решена
+
+    base_task = seeded_session.scalar(select(TaskORM).where(TaskORM.topic_id == base.id))
+    mission = svc.create_mission(
+        {
+            "student_id": STUDENT,
+            "subject": Subject.MATH_PROFILE,
+            "title": "разогрев базы",
+            "instructions": "",
+            "status": MissionStatus.ACTIVE,
+            "ai_policy": AiPolicy.ATTEMPT_FIRST,
+            "threshold_percent": 80.0,
+            "topic_id": base.id,
+            "task_id": base_task.id,
+            "due_date": FIXED_TODAY,
+            "source_ref": "daily:manual:warmup",
+        }
+    )
+    _submit(svc, mission["id"], base_task.expected_answer)
+
+    rows2 = svc.list_self_pick_candidates(STUDENT)
+    assert dependent.id in {r["topic_id"] for r in rows2}  # база решена → доступна
+
+
+def test_self_add_topic_mission_creates_daily_self_mission(seeded_session, monkeypatch):
+    svc = service(seeded_session, monkeypatch)
+    topic = _open_topic_with_tasks(svc, seeded_session, "DQ self добавление", ["1", "2"])
+
+    result = svc.self_add_topic_mission(STUDENT, topic.id)
+
+    mission = result["mission"]
+    assert mission["source_ref"] == f"daily:self:{topic.id}"
+    assert mission["why"] == "выбрана самой ученицей из списка тем трека"
+    assert mission["title"] in [d["title"] for d in svc.list_daily_drill(STUDENT)]
+
+
+def test_self_add_topic_mission_reports_shortage_without_creating_mission(
+    seeded_session, monkeypatch
+):
+    svc = service(seeded_session, monkeypatch)
+    topic = _open_topic_with_tasks(svc, seeded_session, "DQ self shortage", ["9"])
+    task = seeded_session.scalar(select(TaskORM).where(TaskORM.topic_id == topic.id))
+    seeded_session.add(
+        MissionORM(
+            id=uuid4(),
+            student_id=STUDENT,
+            subject=Subject.MATH_PROFILE,
+            topic_id=topic.id,
+            task_id=task.id,
+            title="прошлая",
+            instructions="",
+            status=MissionStatus.DONE,
+            ai_policy=AiPolicy.ATTEMPT_FIRST,
+            threshold_percent=80.0,
+        )
+    )
+    seeded_session.commit()
+
+    result = svc.self_add_topic_mission(STUDENT, topic.id)
+
+    assert result["shortage"]["topic_id"] == topic.id
+    assert seeded_session.scalar(
+        select(MissionORM).where(MissionORM.source_ref == f"daily:self:{topic.id}")
+    ) is None
+
+
+def test_self_add_topic_mission_rejects_topic_outside_candidates(seeded_session, monkeypatch):
+    svc = service(seeded_session, monkeypatch)
+
+    try:
+        svc.self_add_topic_mission(STUDENT, uuid4())
+        raise AssertionError("expected ValueError for an unknown topic")
+    except ValueError:
+        pass
