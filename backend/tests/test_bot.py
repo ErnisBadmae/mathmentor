@@ -6,7 +6,7 @@ in-memory фабрику, так что бот работает на тех же
 
 import asyncio
 import logging
-from datetime import date
+from datetime import date, timedelta
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -15,7 +15,7 @@ from app.adapters.telegram import bot
 from app.application.use_cases import LearningService, RuleBasedReviewer
 from app.domain.enums import AiPolicy, MissionStatus, Subject
 from app.infrastructure import telegram_send
-from app.infrastructure.models import MissionORM, TaskORM, TopicORM
+from app.infrastructure.models import MissionORM, StudyLogEntryORM, TaskORM, TopicORM
 from app.infrastructure.repositories import SqlAlchemyUnitOfWork
 from scripts import seed as seed_module
 
@@ -85,6 +85,12 @@ class FakeSettings:
     public_frontend_base_url = "https://mentor.example.test"
     local_timezone = "Europe/Moscow"
     authorized_chat_ids = ["111"]
+    daily_drill_size = 5
+    telegram_push_time = "16:00"
+    telegram_reminder_repeat_hours = 2.0
+    telegram_reminder_cutoff_time = "21:00"
+    telegram_slice_reminder_days = 4
+    telegram_parent_summary_time = "21:00"
 
     def llm_connection(self) -> None:
         return None
@@ -826,3 +832,84 @@ def test_topics_callbacks_unauthorized_rejected(session_factory, monkeypatch):
 
     assert pick.show_alerts == [True]
     assert pick.message.replies == []
+
+
+def test_run_daily_push_sends_encouraging_text_and_slice_reminder(
+    seeded_session, session_factory, monkeypatch
+):
+    topic = _make_ready_topic(seeded_session, "Бот push тема")
+    svc = LearningService(SqlAlchemyUnitOfWork(seeded_session), RuleBasedReviewer())
+    svc.set_topic_theory_ready(topic.id, True)
+    seeded_session.add(
+        StudyLogEntryORM(
+            id=uuid4(),
+            student_id=STUDENT,
+            subject=Subject.MATH_PROFILE,
+            occurred_on=date.today() - timedelta(days=10),
+            topic_title="старый срез",
+            tasks_total=5,
+            tasks_correct=5,
+            percent_correct=100.0,
+        )
+    )
+    seeded_session.commit()
+    _patch_bot(monkeypatch, session_factory)
+    # deliver_pending_notes уходит в отдельный поток (asyncio.to_thread) — там sqlite
+    # ":memory:" уже другая, пустая БД; доставку заметок здесь не проверяем, глушим.
+    monkeypatch.setattr(bot, "deliver_pending_notes", lambda *a, **k: 0)
+    fake_bot = FakeBot()
+
+    asyncio.run(bot._run_daily_push(fake_bot, 111))
+
+    assert any("вперёд" in text.lower() for text in fake_bot.sent)
+    assert any("срез" in text.lower() and "/slice" in text for text in fake_bot.sent)
+
+
+def test_run_daily_push_skips_slice_reminder_when_recent(
+    seeded_session, session_factory, monkeypatch
+):
+    topic = _make_ready_topic(seeded_session, "Бот push свежая тема")
+    svc = LearningService(SqlAlchemyUnitOfWork(seeded_session), RuleBasedReviewer())
+    svc.set_topic_theory_ready(topic.id, True)
+    seeded_session.add(
+        StudyLogEntryORM(
+            id=uuid4(),
+            student_id=STUDENT,
+            subject=Subject.MATH_PROFILE,
+            occurred_on=date.today(),
+            topic_title="свежий срез",
+            tasks_total=5,
+            tasks_correct=5,
+            percent_correct=100.0,
+        )
+    )
+    seeded_session.commit()
+    _patch_bot(monkeypatch, session_factory)
+    # deliver_pending_notes уходит в отдельный поток (asyncio.to_thread) — там sqlite
+    # ":memory:" уже другая, пустая БД; доставку заметок здесь не проверяем, глушим.
+    monkeypatch.setattr(bot, "deliver_pending_notes", lambda *a, **k: 0)
+    fake_bot = FakeBot()
+
+    asyncio.run(bot._run_daily_push(fake_bot, 111))
+
+    assert any("вперёд" in text.lower() for text in fake_bot.sent)
+    assert not any("/slice" in text for text in fake_bot.sent)
+
+
+def test_parent_summary_text_covers_states(monkeypatch):
+    monkeypatch.setattr(bot, "get_settings", lambda: FakeSettings())
+    started = bot._parent_summary_text(
+        "Ульяна", {"attempted_today": True, "drill_open": 1, "days_since_slice": 1}
+    )
+    assert "занималась" in started
+
+    not_started = bot._parent_summary_text(
+        "Ульяна", {"attempted_today": False, "drill_open": 2, "days_since_slice": None}
+    )
+    assert "ещё не приступала" in not_started
+    assert "Срезов пока не было" in not_started
+
+    nothing_today = bot._parent_summary_text(
+        "Ульяна", {"attempted_today": False, "drill_open": 0, "days_since_slice": 1}
+    )
+    assert "заданий" in nothing_today and "не было" in nothing_today

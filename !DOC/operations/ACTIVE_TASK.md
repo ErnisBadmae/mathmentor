@@ -1,6 +1,48 @@
 # Active Task
 
-Last updated: 2026-07-17
+Last updated: 2026-07-23
+
+## Надёжность стека + уведомления (2026-07-23, ЗАДЕПЛОЕНО)
+
+- **Инцидент:** ребёнок пожаловался, что бот не работает. Причина — весь стек
+  (`postgres`/`web`/`bot`), кроме `api`, простоял 2 дня после сна/перезагрузки хоста:
+  `restart: unless-stopped` в `docker-compose.yml` стоял только у `bot`, у остальных
+  трёх сервисов не было вообще никакой restart-политики. **Исправлено**: добавлен
+  `restart: unless-stopped` всем четырём сервисам. Это системная дыра, которая тихо
+  ломала бы и новые уведомления ниже — стоит иметь в виду при любом будущем
+  разборе «бот молчит».
+- **Уведомления (по запросу родителя+ребёнка):** согласились, что напоминаний в TG
+  достаточно (замену на блокировку экрана/OS-level parental control сознательно не
+  делаем — не в этом стеке, отдельная инженерная поверхность, обсуждали и отложили).
+  1. Дневной пуш (`telegram_push_time`, default 16:00) переформулирован на
+     побуждающий текст + теперь дополнительно напоминает про срез, если
+     `days_since_last_diagnostic >= telegram_slice_reminder_days` (default 4 дня).
+  2. Новый цикл `_followup_reminders`: если после пуша ученица не начинала (нет
+     попытки сегодня) и дневная очередь не пуста — повторяет напоминание каждые
+     `telegram_reminder_repeat_hours` (default 2ч) вплоть до
+     `telegram_reminder_cutoff_time` (default 21:00), останавливается сама, как
+     только появляется первая попытка за день.
+  3. Новый цикл `_parent_evening_summary` в `telegram_parent_summary_time` (default
+     21:00, тот же час, что cutoff): пуш в `telegram_parent_chat_id` — занималась ли
+     сегодня, сколько дневных миссий ещё открыто, давно ли был срез.
+     `TELEGRAM_PARENT_CHAT_ID` уже был задан в `.env` — фича включилась сразу после
+     деплоя, ничего дополнительно настраивать не нужно.
+- Backend: `LearningService.days_since_last_diagnostic`/`daily_activity_summary`
+  (`use_cases.py`) — маленькие read-only агрегаты поверх уже существующих
+  `list_diagnostics`/`list_attempt_history`/`list_daily_drill`, ничего нового в БД.
+  5 новых полей в `config.py` (`telegram_reminder_repeat_hours`,
+  `telegram_reminder_cutoff_time`, `telegram_slice_reminder_days`,
+  `telegram_parent_summary_time`), все с дефолтами — без `.env` работает из коробки.
+- Verification: `pytest` 247 passed (было 241, +6); ruff по изменённым файлам без
+  новых замечаний. ВЫКАЧЕНО: `docker compose up -d --build api bot` + `restart web`
+  (тот же кэш DNS на старый IP api, что и в прошлый раз — теперь это известный
+  ритуал после пересборки `api`). `telegram_bot_runtime_smoke.py` GREEN.
+- Хвост: живого тапа/реального цикла напоминаний в проде ещё не видели (сработает
+  сегодня в 16:00/21:00 по МСК первый раз) — проверить эффект в следующие пару дней.
+  Циклы `_followup_reminders`/`_parent_evening_summary` не покрыты loop-таймингом в
+  тестах (только их однократная логика — `daily_activity_summary`,
+  `_parent_summary_text`, `_run_daily_push`) — та же осознанная граница, что уже
+  была у исходного `_morning_push` до этой сессии.
 
 ## TG: skip-кнопка + самостоятельный выбор темы (2026-07-17, ЗАДЕПЛОЕНО)
 

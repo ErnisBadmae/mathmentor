@@ -886,6 +886,40 @@ class LearningService:
     ) -> list[dict[str, object]]:
         return self._uow.evidence.list_attempt_history(student_id, topic_id, limit)
 
+    def days_since_last_diagnostic(self, student_id: UUID) -> int | None:
+        """Дней с последнего среза (любая тема); None — среза ещё не было."""
+        occurred = [
+            row["occurred_on"]
+            for row in self.list_diagnostics(student_id)
+            if isinstance(row.get("occurred_on"), date)
+        ]
+        if not occurred:
+            return None
+        return (self._today() - max(occurred)).days
+
+    def daily_activity_summary(self, student_id: UUID) -> dict[str, object]:
+        """Компактный статус дня для родительского пуша и повторных напоминаний ученику:
+        начинала ли сегодня, сколько дневных миссий закрыто, давно ли был срез."""
+        today = self._today()
+        local_tz = ZoneInfo(self._local_timezone)
+
+        def _local_day(value: object) -> date | None:
+            if not isinstance(value, datetime):
+                return None
+            aware = value.replace(tzinfo=UTC) if value.tzinfo is None else value
+            return aware.astimezone(local_tz).date()
+
+        attempted_today = any(
+            _local_day(row.get("created_at")) == today
+            for row in self.list_attempt_history(student_id, limit=200)
+        )
+        drill = self.list_daily_drill(student_id)
+        return {
+            "attempted_today": attempted_today,
+            "drill_open": len(drill),
+            "days_since_slice": self.days_since_last_diagnostic(student_id),
+        }
+
     def weekly_digest(self, student_id: UUID, days: int = 7) -> dict[str, object]:
         """Read-only pilot analytics from existing attempts, slices, errors, and reviews."""
         days = max(1, min(int(days), 90))

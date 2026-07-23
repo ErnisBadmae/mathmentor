@@ -2,6 +2,10 @@
 
 Compact bootstrap memory for Codex and other terminal agents working inside `egeMentor`.
 
+Portfolio bootstrap: for strategic or cross-repository context, read
+`../PERSONAL_STRATEGY.md`, `../AGENT_OPERATING_MODEL.md`, and `../PORTFOLIO_CONTEXT.md`. Do not copy the full
+portfolio process here; this repository's local docs remain canonical for learner work.
+
 ## Start Here
 
 Before reading anything else in this file, read `ACTIVE_TASK.md` (current goal/status/next steps) and the top entry of `SESSION_LOG.md` (most recent session). Both Codex and Claude Code share this single working cycle — do not keep a separate task log. At the end of a session, update `ACTIVE_TASK.md` and append a short entry to `SESSION_LOG.md`.

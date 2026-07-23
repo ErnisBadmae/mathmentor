@@ -9,6 +9,7 @@ services:
       - "127.0.0.1:5434:5432"
     volumes:
       - ege_mentor_pg:/var/lib/postgresql/data
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ege -d ege_mentor"]
       interval: 5s
@@ -27,6 +28,7 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:8001:8001"
+    restart: unless-stopped
 
   web:
     build:
@@ -39,6 +41,7 @@ services:
       - api
     ports:
       - "8088:80"
+    restart: unless-stopped
 
   # Ученический тренажёр в Telegram (дрилл + срез + ИИ-оценка). Long-poll, без портов.
   # Требует в .env: TELEGRAM_BOT_TOKEN, TELEGRAM_STUDENT_CHAT_ID и (если Telegram закрыт

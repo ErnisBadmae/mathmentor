@@ -1,7 +1,7 @@
 """Авто-сборщик дня (Phase 2): приоритет повторов, свежие задачи, shortage, lifecycle повторов."""
 
 import asyncio
-from datetime import date
+from datetime import date, timedelta
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -27,6 +27,7 @@ from app.infrastructure.models import (
     EvidenceORM,
     MissionORM,
     ReviewItemORM,
+    StudyLogEntryORM,
     TaskORM,
     TopicORM,
 )
@@ -580,3 +581,74 @@ def test_self_add_topic_mission_rejects_topic_outside_candidates(seeded_session,
         raise AssertionError("expected ValueError for an unknown topic")
     except ValueError:
         pass
+
+
+def test_days_since_last_diagnostic_none_when_no_slice(session_factory):
+    with session_factory() as raw_session:
+        svc = service(raw_session)
+        assert svc.days_since_last_diagnostic(uuid4()) is None
+
+
+def test_days_since_last_diagnostic_counts_from_most_recent(session_factory, monkeypatch):
+    student = uuid4()
+    with session_factory() as raw_session:
+        svc = service(raw_session, monkeypatch)
+        raw_session.add_all(
+            [
+                StudyLogEntryORM(
+                    id=uuid4(),
+                    student_id=student,
+                    subject=Subject.MATH_PROFILE,
+                    occurred_on=FIXED_TODAY - timedelta(days=6),
+                    topic_title="старый срез",
+                    tasks_total=5,
+                    tasks_correct=4,
+                    percent_correct=80.0,
+                ),
+                StudyLogEntryORM(
+                    id=uuid4(),
+                    student_id=student,
+                    subject=Subject.MATH_PROFILE,
+                    occurred_on=FIXED_TODAY - timedelta(days=2),
+                    topic_title="свежий срез",
+                    tasks_total=5,
+                    tasks_correct=5,
+                    percent_correct=100.0,
+                ),
+            ]
+        )
+        raw_session.commit()
+
+        assert svc.days_since_last_diagnostic(student) == 2
+
+
+def test_daily_activity_summary_reflects_attempts_and_open_drill(seeded_session):
+    # без monkeypatch _today — created_at попытки пишется реальным временем, должно совпасть
+    svc = service(seeded_session)
+    topic = _open_topic_with_tasks(svc, seeded_session, "DQ activity", ["1", "2"])
+    task = seeded_session.scalar(select(TaskORM).where(TaskORM.topic_id == topic.id))
+    mission = svc.create_mission(
+        {
+            "student_id": STUDENT,
+            "subject": Subject.MATH_PROFILE,
+            "title": "Дрилл: DQ activity",
+            "instructions": "",
+            "status": MissionStatus.ACTIVE,
+            "ai_policy": AiPolicy.ATTEMPT_FIRST,
+            "threshold_percent": 80.0,
+            "topic_id": topic.id,
+            "task_id": task.id,
+            "due_date": date.today(),
+            "source_ref": "daily:manual:activity",
+        }
+    )
+
+    before = svc.daily_activity_summary(STUDENT)
+    assert before["attempted_today"] is False
+    assert before["drill_open"] == 1
+
+    _submit(svc, mission["id"], task.expected_answer)
+
+    after = svc.daily_activity_summary(STUDENT)
+    assert after["attempted_today"] is True
+    assert after["drill_open"] == 0  # миссия закрыта (DONE)

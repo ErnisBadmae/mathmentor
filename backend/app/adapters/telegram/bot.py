@@ -789,49 +789,63 @@ async def _on_unsupported(message: Any) -> None:
     await _show_home(message, "Выбери действие, затем пришли решение текстом:")
 
 
-def _seconds_until(hhmm: str, tz_name: str) -> float:
-    """Секунд до ближайшего HH:MM в локальной таймзоне (следующий день, если уже прошло)."""
-    tz = ZoneInfo(tz_name)
-    now = datetime.now(tz)
+def _hhmm_today(hhmm: str, tz: ZoneInfo) -> datetime:
+    """Сегодняшняя дата с временем HH:MM в данной таймзоне (невалидный формат → 16:00)."""
     try:
         hour, minute = (int(part) for part in hhmm.split(":"))
     except ValueError:
         hour, minute = 16, 0
-    target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return datetime.now(tz).replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+
+def _seconds_until(hhmm: str, tz_name: str) -> float:
+    """Секунд до ближайшего HH:MM в локальной таймзоне (следующий день, если уже прошло)."""
+    tz = ZoneInfo(tz_name)
+    now = datetime.now(tz)
+    target = _hhmm_today(hhmm, tz)
     if target <= now:
         target += timedelta(days=1)
     return (target - now).total_seconds()
 
 
-async def _morning_push(bot: Any) -> None:
-    """Ежедневный супервайзер пуша: будит в telegram_push_time. Сбой одной итерации логируем и
-    продолжаем — иначе одна ошибка Telegram/DB остановила бы все будущие пуши до рестарта."""
+async def _daily_reminder_cycle(bot: Any) -> None:
+    """Ежедневный супервайзер: пуш в telegram_push_time, затем повторные напоминания
+    (см. `_followup_reminders`), пока не начнёт сегодня или не наступит cutoff. Сбой одной
+    итерации логируем и продолжаем — иначе одна ошибка Telegram/DB остановила бы все
+    будущие пуши до рестарта."""
     settings = get_settings()
     chat_id = int(settings.telegram_student_chat_id)
     while True:
         await asyncio.sleep(_seconds_until(settings.telegram_push_time, settings.local_timezone))
         try:
             await _run_daily_push(bot, chat_id)
+            await _followup_reminders(bot, chat_id)
         except Exception:
-            logger.exception("Morning push iteration failed; will retry next cycle")
+            logger.exception("Daily reminder cycle iteration failed; will retry next cycle")
 
 
 async def _run_daily_push(bot: Any, chat_id: int) -> None:
-    """Одна итерация: собрать день, позвать решать, сообщить о дефиците, доставить заметки."""
+    """Одна итерация: собрать день, позвать решать, напомнить про срез, сообщить о
+    дефиците, доставить заметки."""
+    settings = get_settings()
     with SessionLocal() as session:
-        result = _service(session).build_daily_queue(
-            PILOT_STUDENT_ID, get_settings().daily_drill_size
-        )
+        service = _service(session)
+        result = service.build_daily_queue(PILOT_STUDENT_ID, settings.daily_drill_size)
+        days_since_slice = service.days_since_last_diagnostic(PILOT_STUDENT_ID)
     _presented.pop(chat_id, None)
     _awaiting.pop(chat_id, None)
     filled = result.get("filled") or []
     if filled:
         await bot.send_message(
-            chat_id, f"Задачи на сегодня готовы ({len(filled)}).", reply_markup=_home_keyboard()
+            chat_id, f"Сегодня {len(filled)} задач(и) — вперёд! 💪", reply_markup=_home_keyboard()
         )
     else:
         await bot.send_message(
             chat_id, "Новых задач на сегодня нет.", reply_markup=_home_keyboard()
+        )
+    if days_since_slice is not None and days_since_slice >= settings.telegram_slice_reminder_days:
+        await bot.send_message(
+            chat_id, f"Срез не проходила уже {days_since_slice} дн. — самое время: /slice"
         )
     shortage = result.get("shortage") or []
     if shortage:
@@ -839,7 +853,64 @@ async def _run_daily_push(bot: Any, chat_id: int) -> None:
         logger.warning("Telegram daily queue shortage: %s", titles)
     # Доставка заметок — общая синхронная функция (см. telegram_send). В async-контексте
     # выносим её в поток, чтобы не блокировать поллинг на время сетевых отправок.
-    await asyncio.to_thread(deliver_pending_notes, get_settings(), PILOT_STUDENT_ID)
+    await asyncio.to_thread(deliver_pending_notes, settings, PILOT_STUDENT_ID)
+
+
+async def _followup_reminders(bot: Any, chat_id: int) -> None:
+    """Повторные напоминания после первого пуша: каждые `telegram_reminder_repeat_hours`,
+    пока не наступит `telegram_reminder_cutoff_time`. Останавливается раньше, если ученица
+    уже начинала сегодня (есть попытка) или на сегодня заданий нет."""
+    settings = get_settings()
+    tz = ZoneInfo(settings.local_timezone)
+    cutoff = _hhmm_today(settings.telegram_reminder_cutoff_time, tz)
+    interval = timedelta(hours=settings.telegram_reminder_repeat_hours)
+    if interval.total_seconds() <= 0:
+        return
+    while datetime.now(tz) + interval < cutoff:
+        await asyncio.sleep(interval.total_seconds())
+        with SessionLocal() as session:
+            summary = _service(session).daily_activity_summary(PILOT_STUDENT_ID)
+        if summary["attempted_today"] or summary["drill_open"] == 0:
+            return
+        await bot.send_message(
+            chat_id, "Не забудь про сегодняшний дрилл 🙂", reply_markup=_home_keyboard()
+        )
+
+
+def _parent_summary_text(display_name: str, summary: dict[str, object]) -> str:
+    if summary["attempted_today"]:
+        head = f"✅ Сегодня {display_name} занималась."
+    elif summary["drill_open"] == 0:
+        head = f"На сегодня заданий для {display_name} не было."
+    else:
+        head = f"⚠️ Сегодня {display_name} ещё не приступала к дриллу."
+    lines = [head]
+    days_since = summary.get("days_since_slice")
+    threshold = get_settings().telegram_slice_reminder_days
+    if days_since is None:
+        lines.append("Срезов пока не было.")
+    elif days_since >= threshold:
+        lines.append(f"Срез по теме не проходила {days_since} дн.")
+    return "\n".join(lines)
+
+
+async def _parent_evening_summary(bot: Any) -> None:
+    """Ежедневный статус родителю в telegram_parent_summary_time: занималась ли ученица
+    сегодня и давно ли был срез. Пинг выключен, если telegram_parent_chat_id пуст."""
+    settings = get_settings()
+    parent_chat = int(settings.telegram_parent_chat_id.strip())
+    while True:
+        await asyncio.sleep(
+            _seconds_until(settings.telegram_parent_summary_time, settings.local_timezone)
+        )
+        try:
+            with SessionLocal() as session:
+                service = _service(session)
+                summary = service.daily_activity_summary(PILOT_STUDENT_ID)
+                display_name = service.get_current_student().display_name
+            await bot.send_message(parent_chat, _parent_summary_text(display_name, summary))
+        except Exception:
+            logger.exception("Parent evening summary iteration failed; will retry next cycle")
 
 
 async def _register_commands(bot: Any) -> None:
@@ -856,8 +927,11 @@ async def _run(dp: Any, bot: Any) -> None:
     await _register_commands(bot)
     monitor = _install_polling_failure_monitor()
     asyncio.create_task(_polling_failure_watchdog(monitor))
-    if get_settings().telegram_student_chat_id:
-        asyncio.create_task(_morning_push(bot))  # пуш только когда известен chat_id
+    settings = get_settings()
+    if settings.telegram_student_chat_id:
+        asyncio.create_task(_daily_reminder_cycle(bot))  # пуш только когда известен chat_id
+    if settings.telegram_parent_chat_id.strip():
+        asyncio.create_task(_parent_evening_summary(bot))
     await dp.start_polling(bot)
 
 

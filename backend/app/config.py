@@ -68,6 +68,14 @@ class Settings(BaseSettings):
     # Сколько задач в день собирает авто-очередь и во сколько (local time) утренний пуш.
     daily_drill_size: int = 5
     telegram_push_time: str = "16:00"
+    # Повторные напоминания ученику, если она ещё не начинала сегодня: каждые N часов
+    # после telegram_push_time, но не позже telegram_reminder_cutoff_time.
+    telegram_reminder_repeat_hours: float = 2.0
+    telegram_reminder_cutoff_time: str = "21:00"
+    # Раз в сколько дней без среза напоминаем его пройти (в дневном пуше).
+    telegram_slice_reminder_days: int = 4
+    # Вечерний статус родителю (сделала/не сделала сегодня); пусто в telegram_parent_chat_id — выключен.
+    telegram_parent_summary_time: str = "21:00"
     public_api_base_url: str = "http://localhost:8001"
     public_frontend_base_url: str = "http://127.0.0.1:5174"
 
