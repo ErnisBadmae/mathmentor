@@ -1,8 +1,8 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import Session, aliased
 
 from app.config import get_settings
@@ -37,6 +37,7 @@ from app.infrastructure.models import (
     TaskORM,
     TheoryCardORM,
     TopicORM,
+    TopicRequestORM,
 )
 
 
@@ -67,6 +68,7 @@ class SqlAlchemyUnitOfWork:
         self.tasks = TaskSqlRepository(session)
         self.theory_cards = TheoryCardSqlRepository(session)
         self.mentor_notes = MentorNoteSqlRepository(session)
+        self.topic_requests = TopicRequestSqlRepository(session)
 
     def commit(self) -> None:
         self.session.commit()
@@ -754,6 +756,48 @@ class MentorNoteSqlRepository:
             .where(MentorNoteORM.id.in_(note_ids))
             .values(delivered_at=datetime.now(UTC))
         )
+
+
+class TopicRequestSqlRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, student_id: UUID, topic_id: UUID | None, outcome: str) -> TopicRequestORM:
+        request = TopicRequestORM(
+            id=uuid4(),
+            student_id=student_id,
+            topic_id=topic_id,
+            outcome=outcome,
+            created_at=datetime.now(UTC),
+        )
+        self.session.add(request)
+        self.session.flush()
+        return request
+
+    def demand_by_topic(self, days: int = 30) -> list[dict[str, object]]:
+        """Сколько раз по каждой теме просили «ещё» за последние ``days`` дней, с разбивкой
+        served/shortage. Приоритет пополнения — по shortage. Джойн к темам за названием."""
+        since = datetime.now(UTC) - timedelta(days=max(1, days))
+        served = func.sum(case((TopicRequestORM.outcome == "served", 1), else_=0)).label("served")
+        shortage = func.sum(
+            case((TopicRequestORM.outcome == "shortage", 1), else_=0)
+        ).label("shortage")
+        rows = self.session.execute(
+            select(TopicRequestORM.topic_id, TopicORM.title, served, shortage)
+            .join(TopicORM, TopicORM.id == TopicRequestORM.topic_id)
+            .where(TopicRequestORM.created_at >= since)
+            .group_by(TopicRequestORM.topic_id, TopicORM.title)
+            .order_by(shortage.desc(), served.desc())
+        ).all()
+        return [
+            {
+                "topic_id": topic_id,
+                "title": title,
+                "served": int(served_count or 0),
+                "shortage": int(shortage_count or 0),
+            }
+            for topic_id, title, served_count, shortage_count in rows
+        ]
 
 
 class TopicSqlRepository:

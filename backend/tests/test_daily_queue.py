@@ -583,6 +583,77 @@ def test_self_add_topic_mission_rejects_topic_outside_candidates(seeded_session,
         pass
 
 
+def test_serve_more_from_topic_serves_fresh_and_logs_signal(seeded_session, monkeypatch):
+    svc = service(seeded_session, monkeypatch)
+    topic = _open_topic_with_tasks(svc, seeded_session, "DQ ещё", ["1", "2"])
+
+    result = svc.serve_more_from_topic(STUDENT, topic.id)
+
+    assert result["mission"]["source_ref"] == f"daily:self:{topic.id}"
+    assert result["mission"]["title"] in [d["title"] for d in svc.list_daily_drill(STUDENT)]
+    demand = svc.demand_by_topic(30)
+    row = next(r for r in demand if r["topic_id"] == topic.id)
+    assert row["served"] == 1 and row["shortage"] == 0
+
+
+def test_serve_more_from_topic_works_even_when_topic_already_open_today(
+    seeded_session, monkeypatch
+):
+    # ключевое отличие от self-pick: тема активно дриллится (уже открыта сегодня) —
+    # serve_more не должен отсекать её гейтом open-today
+    svc = service(seeded_session, monkeypatch)
+    topic = _open_topic_with_tasks(svc, seeded_session, "DQ ещё открыта", ["1", "2", "3"])
+    svc.set_topic_theory_ready(topic.id, True)
+    svc.build_daily_queue(STUDENT, limit=5)  # открывает daily:new: по теме
+    assert topic.id not in {c["topic_id"] for c in svc.list_self_pick_candidates(STUDENT)}
+
+    result = svc.serve_more_from_topic(STUDENT, topic.id)  # но «ещё» всё равно работает
+    assert "mission" in result
+
+
+def test_serve_more_from_topic_reports_shortage_and_logs_signal(seeded_session, monkeypatch):
+    svc = service(seeded_session, monkeypatch)
+    topic = _open_topic_with_tasks(svc, seeded_session, "DQ ещё пусто", ["9"])
+    task = seeded_session.scalar(select(TaskORM).where(TaskORM.topic_id == topic.id))
+    seeded_session.add(
+        MissionORM(
+            id=uuid4(),
+            student_id=STUDENT,
+            subject=Subject.MATH_PROFILE,
+            topic_id=topic.id,
+            task_id=task.id,
+            title="прошлая",
+            instructions="",
+            status=MissionStatus.DONE,
+            ai_policy=AiPolicy.ATTEMPT_FIRST,
+            threshold_percent=80.0,
+        )
+    )
+    seeded_session.commit()
+
+    result = svc.serve_more_from_topic(STUDENT, topic.id)
+
+    assert result["shortage"]["topic_id"] == topic.id
+    row = next(r for r in svc.demand_by_topic(30) if r["topic_id"] == topic.id)
+    assert row["shortage"] == 1 and row["served"] == 0
+
+
+def test_serve_more_from_topic_rejects_manual_review_topic(seeded_session, monkeypatch):
+    svc = service(seeded_session)
+    monkeypatch.setattr(svc, "_today", lambda: date(2026, 7, 7))
+    # part-2/manual тема из july_aug_foundation (Стереометрия №14) — serve_more не должен её пускать
+    manual = seeded_session.scalar(
+        select(TopicORM).where(TopicORM.title == "Стереометрия (№14): объёмы и углы")
+    )
+    assert manual is not None
+
+    try:
+        svc.serve_more_from_topic(STUDENT, manual.id)
+        raise AssertionError("expected ValueError for a manual-review topic")
+    except ValueError:
+        pass
+
+
 def test_days_since_last_diagnostic_none_when_no_slice(session_factory):
     with session_factory() as raw_session:
         svc = service(raw_session)

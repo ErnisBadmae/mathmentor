@@ -363,3 +363,20 @@ class AuditSetORM(Base):
     prompt: Mapped[str] = mapped_column(Text)
     answer_key: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class TopicRequestORM(Base):
+    """Сигнал спроса: ученица нажала «ещё по этой теме». ``outcome`` = ``served`` (отдали
+    свежую задачу из банка) или ``shortage`` (свежих не осталось). Питает генератор
+    (что пополнять) и операторскую сводку. Клики не идемпотентны — без source_ref."""
+
+    __tablename__ = "topic_requests"
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    student_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("student_profiles.id"), index=True
+    )
+    topic_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("topics.id"), nullable=True, index=True
+    )
+    outcome: Mapped[str] = mapped_column(String(20), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

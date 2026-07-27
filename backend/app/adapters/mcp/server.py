@@ -118,6 +118,13 @@ def error_journal(student_id: str = DEFAULT_STUDENT_ID) -> Any:
 
 
 @mcp.tool()
+def topic_demand(days: int = 30) -> Any:
+    """Demand signal: how often the student asked for more per topic (served vs shortage).
+    Shortage-heavy topics are what the templated generator should refill first."""
+    return _read(lambda s: s.demand_by_topic(days))
+
+
+@mcp.tool()
 def attempt_history(
     student_id: str = DEFAULT_STUDENT_ID, topic_id: str | None = None, limit: int = 50
 ) -> Any:

@@ -295,6 +295,20 @@ def _daily_task_keyboard(mission_id: UUID) -> Any:
     )
 
 
+def _more_keyboard(topic_id: object) -> Any:
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🔁 Ещё по этой теме", callback_data=f"topics:more:{topic_id}"
+                )
+            ]
+        ]
+    )
+
+
 async def _send_next(message: Any) -> None:
     chat_id = message.chat.id
     with SessionLocal() as session:
@@ -495,6 +509,33 @@ async def _on_topics_pick(callback: Any) -> None:
     )
 
 
+async def _on_topics_more(callback: Any) -> None:
+    """Кнопка «🔁 Ещё по этой теме» на сообщении-вердикте: сразу подаёт следующую свежую
+    задачу той же темы. Каждый тап логируется как сигнал спроса (в serve_more_from_topic)."""
+    chat_id = callback.message.chat.id
+    if not _is_authorized(chat_id):
+        await callback.answer("Не авторизовано", show_alert=True)
+        return
+    topic_id = UUID(callback.data.split(":", 2)[2])
+    with SessionLocal() as session:
+        try:
+            result = _service(session).serve_more_from_topic(PILOT_STUDENT_ID, topic_id)
+        except ValueError:
+            await callback.answer("По этой теме сейчас нельзя добавить", show_alert=True)
+            return
+    if "shortage" in result:
+        await callback.answer("Свежие по этой теме пока кончились — подкоплю 🙂", show_alert=True)
+        return
+    await callback.answer("Лови ещё ✅")
+    mission = result["mission"]
+    mission_id = mission["id"]
+    _presented.setdefault(chat_id, set()).add(mission_id)
+    _awaiting[chat_id] = mission_id
+    await callback.message.answer(
+        _task_text(mission), reply_markup=_daily_task_keyboard(mission_id)
+    )
+
+
 async def _on_send(message: Any) -> None:
     """Родительская команда: /send <текст> — опубликовать заметку и сразу доставить ученику.
     Доступна только из чата родителя-контролёра (telegram_parent_chat_id)."""
@@ -555,7 +596,9 @@ async def _on_answer(message: Any) -> None:
         # числовую прямую (правильное решение + ответ ученика).
         visual = service.drill_solution_visual(mission_id, message.text or None)
     _awaiting.pop(chat_id, None)
-    await message.answer(_verdict_text(result))
+    topic_id = result.get("topic_id")
+    verdict_markup = _more_keyboard(topic_id) if topic_id is not None else None
+    await message.answer(_verdict_text(result), reply_markup=verdict_markup)
     if visual is not None:
         from aiogram.types import BufferedInputFile
 
@@ -973,6 +1016,7 @@ def main() -> None:
     dp.callback_query.register(_on_ready_toggle, F.data.startswith("ready:t:"))
     dp.callback_query.register(_on_ready_done, F.data == "ready:done")
     dp.callback_query.register(_on_topics_pick, F.data.startswith("topics:pick:"))
+    dp.callback_query.register(_on_topics_more, F.data.startswith("topics:more:"))
     dp.callback_query.register(_on_today_skip, F.data.startswith("today:skip:"))
     bot = Bot(token=settings.telegram_bot_token, session=session)
     asyncio.run(_run(dp, bot))

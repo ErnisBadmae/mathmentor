@@ -560,25 +560,20 @@ class LearningService:
                 )
         return rows
 
-    def self_add_topic_mission(self, student_id: UUID, topic_id: UUID) -> dict[str, object]:
-        """Ученица сама добавляет тему в «Сегодня» — вне бюджета `build_daily_queue`
-        (тот пересчитает лимит на завтра сам, увидев эту миссию как carry-over).
-
-        Возвращает ``{"mission": {...}}`` или ``{"shortage": {...}}``, если по теме
-        сейчас нет свежей (не назначавшейся) задачи."""
-        candidates = self.list_self_pick_candidates(student_id)
-        match = next((c for c in candidates if c["topic_id"] == topic_id), None)
-        if match is None:
-            raise ValueError(f"topic {topic_id} is not a valid self-pick candidate")
+    def _topic_drill_from_pool(
+        self, student_id: UUID, topic_id: UUID, title: str
+    ) -> dict[str, object]:
+        """Общее ядро self-pick и «ещё по теме»: взять свежую (не назначавшуюся) задачу и
+        создать ACTIVE daily-миссию. Свежих нет → ``{"shortage": {...}}``."""
         pool = self._uow.tasks.list_approved_for_topic(topic_id, exclude_assigned_to=student_id)
         if not pool:
-            return {"shortage": {"topic_id": topic_id, "title": match["title"]}}
+            return {"shortage": {"topic_id": topic_id, "title": title}}
         task = pool[0]
         mission = self.create_mission(
             {
                 "student_id": student_id,
                 "subject": task.subject,
-                "title": f"Дрилл: {match['title']}",
+                "title": f"Дрилл: {title}",
                 "instructions": "Реши, кратко распиши ход решения и в конце укажи ответ.",
                 "status": MissionStatus.ACTIVE,
                 "ai_policy": AiPolicy.ATTEMPT_FIRST,
@@ -591,6 +586,44 @@ class LearningService:
         )
         mission["why"] = describe_pick({"kind": "self_pick"})
         return {"mission": mission}
+
+    def self_add_topic_mission(self, student_id: UUID, topic_id: UUID) -> dict[str, object]:
+        """Ученица сама добавляет тему в «Сегодня» — вне бюджета `build_daily_queue`
+        (тот пересчитает лимит на завтра сам, увидев эту миссию как carry-over).
+
+        Возвращает ``{"mission": {...}}`` или ``{"shortage": {...}}``, если по теме
+        сейчас нет свежей (не назначавшейся) задачи."""
+        candidates = self.list_self_pick_candidates(student_id)
+        match = next((c for c in candidates if c["topic_id"] == topic_id), None)
+        if match is None:
+            raise ValueError(f"topic {topic_id} is not a valid self-pick candidate")
+        return self._topic_drill_from_pool(student_id, topic_id, str(match["title"]))
+
+    def serve_more_from_topic(self, student_id: UUID, topic_id: UUID) -> dict[str, object]:
+        """«Ещё по этой теме» после дрилла: следующая свежая задача той же темы, вне гейта
+        open-today (тема сейчас активно дриллится, отсекать её как «уже открытую» нельзя) и
+        без требования state==OPEN. Каждый вызов логируется как сигнал спроса (served/
+        shortage) — питает генератор. Возвращает ``{"mission": ...}`` | ``{"shortage": ...}``."""
+        row = next(
+            (t for t in self._uow.topics.list_program(student_id) if t["topic_id"] == topic_id),
+            None,
+        )
+        if (
+            row is None
+            or self._requires_manual_review_path(row)
+            or not self._phase_started(row["phase"], self._today())
+        ):
+            raise ValueError(f"topic {topic_id} is not a valid drill topic")
+        result = self._topic_drill_from_pool(student_id, topic_id, str(row["topic_title"]))
+        self._uow.topic_requests.add(
+            student_id, topic_id, "shortage" if "shortage" in result else "served"
+        )
+        self._uow.commit()
+        return result
+
+    def demand_by_topic(self, days: int = 30) -> list[dict[str, object]]:
+        """Сигнал спроса по темам (served/shortage) за N дней — для генератора и оператора."""
+        return self._uow.topic_requests.demand_by_topic(days)
 
     def operator_close_daily_missions(
         self, student_id: UUID, reason: str | None = None
@@ -1628,6 +1661,7 @@ class LearningService:
         return {
             "attempt_id": attempt.id,
             "evidence_id": evidence.id,
+            "topic_id": mission.topic_id,
             "status": status,
             "score_percent": score_percent,
             "tasks_total": evidence.tasks_total,

@@ -833,6 +833,109 @@ def test_topics_callbacks_unauthorized_rejected(session_factory, monkeypatch):
     assert pick.show_alerts == [True]
     assert pick.message.replies == []
 
+    more = FakeCallback(999, f"topics:more:{uuid4()}")
+    asyncio.run(bot._on_topics_more(more))
+    assert more.show_alerts == [True]
+    assert more.message.replies == []
+
+
+def _make_two_task_ready_topic(session) -> TopicORM:
+    """Тема части 1 с ДВУМЯ approved-задачами — чтобы после ответа осталась свежая для «ещё»."""
+    svc = LearningService(SqlAlchemyUnitOfWork(session), RuleBasedReviewer())
+    topic = TopicORM(
+        id=uuid4(),
+        subject=Subject.MATH_PROFILE,
+        title="Бот ещё тема",
+        spec_year=2026,
+        task_number=None,
+        phase="june_diagnostics",
+        program_order=951,
+    )
+    session.add(topic)
+    session.commit()
+    for i in range(2):
+        url = f"https://example.org/bot/more/{topic.id}/{i}"
+        task = svc.add_task(
+            {
+                "subject": Subject.MATH_PROFILE,
+                "statement": f"Сколько будет {i}+{i}?",
+                "expected_answer": str(i + i),
+                "source": "official",
+                "source_url": url,
+                "source_ref": url,
+                "topic_id": topic.id,
+            }
+        )
+        svc.approve_task(task.id)
+    return topic
+
+
+def test_answer_verdict_has_more_button(seeded_session, session_factory, monkeypatch):
+    topic = _make_two_task_ready_topic(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+    # открыть задачу по теме и ответить
+    svc = LearningService(SqlAlchemyUnitOfWork(seeded_session), RuleBasedReviewer())
+    result = svc.self_add_topic_mission(STUDENT, topic.id)
+    mission_id = result["mission"]["id"]
+    bot._awaiting[111] = mission_id
+
+    ans = FakeMessage(111, text="0")
+    asyncio.run(bot._on_answer(ans))
+
+    # к сообщению-вердикту прикреплена кнопка «Ещё по этой теме» с topic_id
+    verdict_markup = ans.reply_markups[0]
+    assert verdict_markup is not None
+    btn = verdict_markup.inline_keyboard[0][0]
+    assert btn.text == "🔁 Ещё по этой теме"
+    assert btn.callback_data == f"topics:more:{topic.id}"
+
+
+def test_topics_more_serves_fresh_same_topic_task(seeded_session, session_factory, monkeypatch):
+    topic = _make_two_task_ready_topic(seeded_session)
+    _patch_bot(monkeypatch, session_factory)
+
+    callback = FakeCallback(111, f"topics:more:{topic.id}")
+    asyncio.run(bot._on_topics_more(callback))
+
+    assert callback.answers[-1] == "Лови ещё ✅"
+    assert callback.message.replies  # прислана новая задача
+    assert 111 in bot._awaiting  # ожидание ответа выставлено
+    with session_factory() as session:
+        mission = session.scalar(
+            select(MissionORM)
+            .where(MissionORM.source_ref == f"daily:self:{topic.id}")
+            .where(MissionORM.status == MissionStatus.ACTIVE)
+        )
+        assert mission is not None
+
+
+def test_topics_more_shortage_shows_alert(seeded_session, session_factory, monkeypatch):
+    topic = _make_ready_topic(seeded_session, "Бот ещё пусто")  # одна задача
+    with session_factory() as session:
+        task = session.scalar(select(TaskORM).where(TaskORM.topic_id == topic.id))
+        session.add(
+            MissionORM(
+                id=uuid4(),
+                student_id=STUDENT,
+                subject=Subject.MATH_PROFILE,
+                topic_id=topic.id,
+                task_id=task.id,
+                title="прошлая",
+                instructions="",
+                status=MissionStatus.DONE,
+                ai_policy=AiPolicy.ATTEMPT_FIRST,
+                threshold_percent=80.0,
+            )
+        )
+        session.commit()
+    _patch_bot(monkeypatch, session_factory)
+
+    callback = FakeCallback(111, f"topics:more:{topic.id}")
+    asyncio.run(bot._on_topics_more(callback))
+
+    assert callback.show_alerts == [True]
+    assert "кончились" in callback.answers[-1]
+
 
 def test_run_daily_push_sends_encouraging_text_and_slice_reminder(
     seeded_session, session_factory, monkeypatch
