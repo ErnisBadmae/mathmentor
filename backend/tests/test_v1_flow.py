@@ -154,7 +154,7 @@ def test_seed_expands_probability_bank_variety(seeded_session):
         "corpus:probability:union-disjoint-a",
     }
     assert expected_refs <= set(by_ref)
-    assert by_ref["corpus:probability:without-replacement-a"].expected_answer == "5/33"
+    assert by_ref["corpus:probability:without-replacement-a"].expected_answer == "0,375"
     assert by_ref["corpus:probability:bernoulli-a"].expected_answer == "3/8"
 
 

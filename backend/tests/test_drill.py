@@ -359,14 +359,14 @@ def test_drill_solution_visual_probability_task(seeded_session):
     """Known probability source_ref -> post-attempt probability visual."""
     svc = service(seeded_session)
     statement = (
-        "В коробке 30 шаров: 12 красных, 8 синих и 10 зелёных. "
+        "В коробке 30 шаров: 12 красных, 6 синих и 12 зелёных. "
         "Найдите вероятность достать красный или синий шар."
     )
     task, topic = _approved_task_with_source_ref(
         svc,
         seeded_session,
         statement=statement,
-        answer="2/3",
+        answer="0,6",
         source_ref="corpus:probability:task-a",
         category=ErrorCategory.PROBABILITY_DOUBLE_COUNT,
     )

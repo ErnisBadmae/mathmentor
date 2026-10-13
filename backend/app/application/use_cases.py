@@ -4,6 +4,8 @@ from datetime import UTC, date, datetime, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
+from judge_gate.totals import TotalsContract, check_run
+
 from app.application.ports import (
     AiAssessment,
     AttemptForReview,
@@ -27,7 +29,9 @@ from app.domain.enums import (
 )
 from app.domain.figures import parse_interval_answer, parse_interval_answer_from_text
 from app.domain.policies import (
+    answer_fits_exam_blank,
     answer_is_correct,
+    daily_budget,
     describe_pick,
     evidence_status,
     extract_declared_answer,
@@ -40,6 +44,18 @@ from app.domain.policies import (
 from app.domain.prerequisites import PREREQUISITES, prerequisites_met
 from app.domain.probability_visual import parse_probability_visual_spec
 from app.domain.program import PHASES, PHASES_BY_KEY, current_phase_key
+
+NO_FRESH_TASK = "no_fresh_task"
+
+# Словарь исходов одного слота дневной очереди. Потолок 0 на `no_fresh_task` — осознанно
+# написанная строка: слот, который ребёнок не получил, приемлемым не считается. Нарушение
+# докладывается, а не бросается: уронить сборку дня значит оставить ребёнка вообще без
+# задач, что хуже короткого дня.
+DAILY_COVERAGE = TotalsContract(
+    routes=("drill", "unfilled"),
+    reasons=(NO_FRESH_TASK,),
+    reason_max={NO_FRESH_TASK: 0},
+)
 
 
 @dataclass
@@ -454,10 +470,15 @@ class LearningService:
                     }
                 )
 
-        picks = select_daily_queue(len(open_daily), due_refs, back_to_work_refs, new_refs, limit)
+        budget = daily_budget(len(open_daily), limit)
+        candidates = select_daily_queue(
+            len(open_daily), due_refs, back_to_work_refs, new_refs, limit
+        )
         filled: list[dict[str, object]] = []
         shortage: list[dict[str, object]] = []
-        for ref in picks:
+        for ref in candidates:
+            if len(filled) >= budget:
+                break
             pool = self._uow.tasks.list_approved_for_topic(
                 ref["topic_id"], exclude_assigned_to=student_id
             )
@@ -485,7 +506,30 @@ class LearningService:
             mission["reason"] = ref["reason"]
             mission["why"] = describe_pick(ref["reason"])
             filled.append(mission)
-        return {"filled": filled, "shortage": shortage}
+        return {
+            "filled": filled,
+            "shortage": shortage,
+            "coverage": self._daily_coverage_violations(budget, len(filled)),
+        }
+
+    @staticmethod
+    def _daily_coverage_violations(budget: int, filled_count: int) -> list[str]:
+        """Проверка покрытия дня: каждый слот бюджета обязан получить явный исход.
+
+        До 2026-08-10 слот, под который не нашлось свежей задачи, молча пропадал: `shortage`
+        писался в результат и в лог, но ни на одно решение не влиял, и день из двух задач
+        вместо пяти выглядел как нормальный. Заметил это ребёнок, а не проверка.
+
+        Считает `judge_gate.totals` — тот же доменно-независимый модуль, что и в конвейере,
+        для которого он писался. Здесь он ловит ровно тот класс регресса, который уже
+        случился: слот, ушедший в `continue` без учёта, ломает сохранение и становится
+        видимым, а не растворяется. Опечатка в имени маршрута/причины — жёсткая ошибка
+        (`TotalsContractError`), иначе целая ветка тихо перестала бы считаться."""
+        if budget <= 0:
+            return []  # окно измерения: дню без бюджета нечего покрывать
+        unfilled = budget - filled_count
+        observations = [("drill", None)] * filled_count + [("unfilled", NO_FRESH_TASK)] * unfilled
+        return check_run(observations, DAILY_COVERAGE, expected_count=budget)
 
     def list_theory_ready_candidates(self, student_id: UUID) -> list[dict[str, object]]:
         """Темы для отметки /ready: открытые, с задачами в банке, из уже начавшихся фаз.
@@ -1265,6 +1309,18 @@ class LearningService:
         return task
 
     def approve_task(self, task_id: UUID) -> object:
+        """Одобрение — единственный шов, через который контент попадает к ученику, каким бы
+        ни был источник (seed, корпус, генератор, ФИПИ, MCP). Поэтому формат-гейт стоит
+        здесь: у дрилл-задачи должен быть ответ, который вообще можно записать в бланк."""
+        task = self._uow.tasks.get(task_id)
+        topic_title = getattr(getattr(task, "topic", None), "title", None)
+        if not self._requires_manual_review_path({"topic_title": topic_title}):
+            expected = getattr(task, "expected_answer", None)
+            if not answer_fits_exam_blank(expected):
+                raise ValueError(
+                    f"Task {task_id} cannot be approved: expected answer {expected!r} is not "
+                    "writable in the EGE answer blank (needs an integer or a finite decimal)."
+                )
         task = self._uow.tasks.approve(task_id)
         self._uow.commit()
         return task

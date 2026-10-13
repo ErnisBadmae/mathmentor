@@ -894,6 +894,10 @@ async def _run_daily_push(bot: Any, chat_id: int) -> None:
     if shortage:
         titles = ", ".join(str(item["title"]) for item in shortage)
         logger.warning("Telegram daily queue shortage: %s", titles)
+    # Дефицит тем — рабочая ситуация; НЕДОБРАННЫЙ день — отказ покрытия. Раньше он был
+    # неотличим от нормального дня: бот бодро писал «Сегодня 2 задач(и) — вперёд!».
+    for violation in result.get("coverage") or []:
+        logger.error("Telegram daily queue coverage: %s", violation)
     # Доставка заметок — общая синхронная функция (см. telegram_send). В async-контексте
     # выносим её в поток, чтобы не блокировать поллинг на время сетевых отправок.
     await asyncio.to_thread(deliver_pending_notes, settings, PILOT_STUDENT_ID)

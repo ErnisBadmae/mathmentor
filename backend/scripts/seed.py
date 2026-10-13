@@ -497,11 +497,11 @@ TASKS = [
         "topic_index": 4,
         "task_number": "probability-a",
         "statement": (
-            "В коробке 30 шаров: 12 красных, 8 синих и 10 зелёных. "
+            "В коробке 30 шаров: 12 красных, 6 синих и 12 зелёных. "
             "Найдите вероятность достать красный или синий шар."
         ),
-        "expected_answer": "2/3",
-        "solution": "События взаимоисключающие: 12/30 + 8/30 = 20/30 = 2/3.",
+        "expected_answer": "0,6",
+        "solution": "События взаимоисключающие: 12/30 + 6/30 = 18/30 = 0,6.",
         "error_category": ErrorCategory.PROBABILITY_DOUBLE_COUNT,
         "source_ref": "corpus:probability:task-a",
     },
@@ -595,11 +595,11 @@ TASKS = [
         "topic_index": 4,
         "task_number": "prob-without-repl-a",
         "statement": (
-            "В коробке 5 белых и 7 чёрных шаров. Из коробки подряд без возвращения достают два шара. "
+            "В коробке 10 белых и 6 чёрных шаров. Из коробки подряд без возвращения достают два шара. "
             "Найдите вероятность того, что оба шара белые."
         ),
-        "expected_answer": "5/33",
-        "solution": "Первый белый: 5/12. После этого осталось 4 белых из 11 шаров. Вероятность 5/12 · 4/11 = 20/132 = 5/33.",
+        "expected_answer": "0,375",
+        "solution": "Первый белый: 10/16. После этого осталось 9 белых из 15 шаров. Вероятность 10/16 · 9/15 = 90/240 = 0,375.",
         "error_category": ErrorCategory.CONDITION_READING,
         "source_ref": "corpus:probability:without-replacement-a",
     },

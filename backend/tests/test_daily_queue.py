@@ -4,6 +4,7 @@ import asyncio
 from datetime import date, timedelta
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import select
 
 from app.application import use_cases
@@ -20,7 +21,7 @@ from app.domain.enums import (
     Subject,
     TaskStatus,
 )
-from app.domain.policies import describe_pick, select_daily_queue
+from app.domain.policies import daily_budget, describe_pick, select_daily_queue
 from app.domain.prerequisites import prerequisites_met
 from app.infrastructure.models import (
     AttemptORM,
@@ -79,12 +80,12 @@ def _open_topic_with_tasks(svc, session, title, answers, order=900) -> TopicORM:
     return topic
 
 
-def _due_card(session, topic_id) -> ReviewItemORM:
+def _due_card(session, topic_id, due_date=date(2020, 1, 1)) -> ReviewItemORM:
     card = ReviewItemORM(
         id=uuid4(),
         student_id=STUDENT,
         topic_id=topic_id,
-        due_date=date(2020, 1, 1),
+        due_date=due_date,
         status=ReviewStatus.DUE,
     )
     session.add(card)
@@ -109,12 +110,26 @@ def test_select_daily_queue_priority_and_open_count():
     due = [{"x": "d1"}, {"x": "d2"}]
     btw = [{"x": "b1"}]
     new = [{"x": "n1"}, {"x": "n2"}]
-    # open_count=1, limit=4 → budget 3 → due(2) + btw(1), new не влезает
-    assert select_daily_queue(1, due, btw, new, 4) == [due[0], due[1], btw[0]]
+    # open_count=1, limit=4 → бюджет 3: два повтора + зарезервированный слот новой темы
+    picks = select_daily_queue(1, due, btw, new, 4)
+    assert picks[:3] == [due[0], due[1], new[0]]
+    # хвост возвращается целиком — из него вызывающий добирает, если свежей задачи нет
+    assert picks == [due[0], due[1], new[0], btw[0], new[1]]
     # бюджет исчерпан открытыми миссиями
-    assert select_daily_queue(5, due, btw, new, 4) == []
+    assert daily_budget(5, 4) == 0
     # порядок: повторы due → back_to_work → новые
     assert select_daily_queue(0, due, btw, new, 10) == [*due, *btw, *new]
+
+
+def test_select_daily_queue_lets_new_topic_through_long_review_tail():
+    """Хвост просроченных повторов длиннее бюджета не должен запирать новые темы."""
+    due = [{"x": f"d{i}"} for i in range(18)]
+    new = [{"x": "n1"}]
+
+    picks = select_daily_queue(0, due, [], new, 5)
+
+    assert new[0] in picks[:5]
+    assert picks[:5] == [due[0], due[1], due[2], due[3], new[0]]
 
 
 def test_build_daily_queue_picks_new_topic_and_is_idempotent(seeded_session, monkeypatch):
@@ -245,6 +260,73 @@ def test_build_daily_queue_reports_shortage(seeded_session, monkeypatch):
 
     assert topic.id in {s["topic_id"] for s in res["shortage"]}
     assert all(m["title"] != "Дрилл: DQ один" for m in res["filled"])
+
+
+def test_build_daily_queue_backfills_slot_left_by_shortage(seeded_session, monkeypatch):
+    """Кандидат без свежей задачи не должен съедать слот: место занимает следующий.
+
+    Регресс из живого прогона: самый старый повтор висел на теме с пустым банком и
+    каждый день гарантированно сжигал слот, а день приходил полупустым при полном банке."""
+    svc = service(seeded_session, monkeypatch)
+    dry = _open_topic_with_tasks(svc, seeded_session, "DQ сухая", ["9"], order=910)
+    task = seeded_session.scalar(select(TaskORM).where(TaskORM.topic_id == dry.id))
+    seeded_session.add(  # единственная задача уже назначена → свежей нет
+        MissionORM(
+            id=uuid4(),
+            student_id=STUDENT,
+            subject=Subject.MATH_PROFILE,
+            topic_id=dry.id,
+            task_id=task.id,
+            title="прошлая",
+            instructions="",
+            status=MissionStatus.DONE,
+            ai_policy=AiPolicy.ATTEMPT_FIRST,
+            threshold_percent=80.0,
+        )
+    )
+    full_a = _open_topic_with_tasks(svc, seeded_session, "DQ полная A", ["5", "6"], order=911)
+    full_b = _open_topic_with_tasks(svc, seeded_session, "DQ полная B", ["7", "8"], order=912)
+    _due_card(seeded_session, dry.id, date(2019, 1, 1))  # старше → первый в очереди
+    _due_card(seeded_session, full_a.id, date(2020, 1, 1))
+    _due_card(seeded_session, full_b.id, date(2020, 1, 2))
+
+    res = svc.build_daily_queue(STUDENT, limit=2)
+
+    assert dry.id in {s["topic_id"] for s in res["shortage"]}
+    # слот сухой темы добран следующим кандидатом, а не потерян
+    assert len(res["filled"]) == 2
+    assert dry.id not in {m["topic_id"] for m in res["filled"]}
+
+
+def test_daily_coverage_reports_a_short_day_and_stays_silent_on_a_full_one(
+    seeded_session, monkeypatch
+):
+    """Недобранный день — отказ покрытия, а не «просто меньше задач».
+
+    Считает `judge_gate.totals` (тот же модуль, что в конвейере вакансий): каждый слот
+    бюджета обязан получить явный исход, иначе день из двух задач вместо пяти неотличим
+    от нормального — ровно тот дефект, который поймал ребёнок, а не мониторинг."""
+    svc = service(seeded_session, monkeypatch)
+    topic = _open_topic_with_tasks(svc, seeded_session, "DQ покрытие", ["5", "6"], order=930)
+    _due_card(seeded_session, topic.id)
+
+    short = svc.build_daily_queue(STUDENT, limit=5)
+
+    assert len(short["filled"]) < 5
+    assert any("no_fresh_task" in v for v in short["coverage"])
+
+    full = svc.build_daily_queue(STUDENT, limit=len(short["filled"]))
+    assert full["coverage"] == []  # бюджет исчерпан переносом — покрывать нечего
+
+
+def test_daily_coverage_rejects_a_route_outside_the_declared_vocabulary():
+    """Опечатка в имени маршрута обязана падать, а не тихо перестать считаться."""
+    from judge_gate.totals import TotalsContractError, check_run
+
+    from app.application.use_cases import DAILY_COVERAGE
+
+    with pytest.raises(TotalsContractError):
+        check_run([("driil", None)], DAILY_COVERAGE, expected_count=1)
 
 
 def test_review_drill_pass_closes_card_without_new_reviews(seeded_session, monkeypatch):

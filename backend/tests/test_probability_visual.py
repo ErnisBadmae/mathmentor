@@ -19,10 +19,10 @@ from app.infrastructure.figures_render import render_probability_visual
 
 
 _TASK_A_STATEMENT = (
-    "В коробке 30 шаров: 12 красных, 8 синих и 10 зелёных. "
+    "В коробке 30 шаров: 12 красных, 6 синих и 12 зелёных. "
     "Найдите вероятность достать красный или синий шар."
 )
-_TASK_A_ANSWER = "2/3"
+_TASK_A_ANSWER = "0,6"
 _TASK_A_REF = "corpus:probability:task-a"
 
 _TASK_B_STATEMENT = (
@@ -78,11 +78,11 @@ def test_parse_task_a_bar_chart_spec():
     assert spec.chart_type == "bar_chart"
     assert spec.task_id == 4013
     assert spec.group_a_count == 12
-    assert spec.group_b_count == 8
-    assert spec.group_c_count == 10
+    assert spec.group_b_count == 6
+    assert spec.group_c_count == 12
     assert spec.total_count == 30
     assert spec.p_a == 12 / 30
-    assert spec.p_b == 8 / 30
+    assert spec.p_b == 6 / 30
     assert spec.p_both is None
     assert spec.label_a == "красные"
     assert spec.label_b == "синие"

@@ -110,6 +110,27 @@ def answer_is_correct(submitted: str | None, expected: str | None) -> bool:
     return normalize_answer(submitted) == normalize_answer(expected)
 
 
+def answer_fits_exam_blank(answer: str | None) -> bool:
+    """Записывается ли эталонный ответ в бланк ЕГЭ: целое или КОНЕЧНАЯ десятичная дробь.
+
+    Инцидент 2026-08-11: задача части 1 с эталоном ``2/3``. Ученица ответила ``0,667`` —
+    верно по сути, но точное сравнение честно сказало «не равно», и в журнал ошибок ушёл
+    ложный провал. Виноват контент, а не грейдер: 2/3 в бланк не записать в принципе,
+    поэтому у задачи не было ни одного правильного ответа. Ослаблять ``answer_is_correct``
+    нельзя — это открыло бы дорогу ложным зачётам; отсекать надо негодную задачу.
+
+    Нечисловые ответы (интервалы, единицы вроде «768 Кбайт», текст) не трогаем — у них
+    свой формат, и эта проверка про них ничего не знает."""
+    fraction = _as_fraction(answer)
+    if fraction is None:
+        return True
+    denominator = fraction.denominator
+    for prime in (2, 5):  # конечная десятичная ⇔ знаменатель вида 2^a·5^b
+        while denominator % prime == 0:
+            denominator //= prime
+    return denominator == 1
+
+
 def numeric_mismatch(submitted: str | None, expected: str | None) -> bool:
     """Both values are numeric and not equivalent under exact-answer policy."""
     if answer_is_correct(submitted, expected):
@@ -144,6 +165,16 @@ def extract_declared_answer(text: str | None) -> str | None:
     return first
 
 
+DAILY_NEW_TOPIC_QUOTA = 1
+
+
+def daily_budget(open_count: int, limit: int) -> int:
+    """Сколько миссий можно создать сегодня: лимит минус уже открытые carry-over.
+
+    Долги не копим и новое не наваливаем сверх лимита."""
+    return max(0, limit - open_count)
+
+
 def select_daily_queue(
     open_count: int,
     due_reviews: list,
@@ -151,13 +182,21 @@ def select_daily_queue(
     new_topics: list,
     limit: int,
 ) -> list:
-    """Состав дневной очереди дрилла (приоритет: due-повторы → back_to_work → новые темы).
+    """Порядок кандидатов дня: повторы вперёд (due → back_to_work), но ``DAILY_NEW_TOPIC_QUOTA``
+    слот бюджета резервируется под новую тему.
 
-    Уже открытые daily-миссии (``open_count``, carry-over) считаются в лимит ПЕРВЫМИ —
-    долги не копим и новое не наваливаем сверх лимита. Возвращает упорядоченные ссылки на
-    то, что нужно до-создать (длиной не больше остатка бюджета). Чистая функция, без БД."""
-    budget = max(0, limit - open_count)
-    return ([*due_reviews, *back_to_work, *new_topics])[:budget]
+    Возвращает ВЕСЬ упорядоченный список кандидатов, а не обрезанный по бюджету: под
+    кандидата может не найтись свежей задачи, и вызывающий добирает следующего из хвоста —
+    иначе день оказывается полупустым при полном банке. Резерв под новую тему нужен потому,
+    что хвост просроченных повторов бывает длиннее бюджета, и без резерва новые темы не
+    попадают в очередь никогда. Чистая функция, без БД."""
+    budget = daily_budget(open_count, limit)
+    reviews = [*due_reviews, *back_to_work]
+    reserved = min(DAILY_NEW_TOPIC_QUOTA, budget, len(new_topics))
+    if reserved == 0:
+        return [*reviews, *new_topics]
+    head = reviews[: budget - reserved]
+    return [*head, *new_topics[:reserved], *reviews[len(head) :], *new_topics[reserved:]]
 
 
 def describe_pick(reason: dict) -> str:

@@ -2,6 +2,7 @@
 
 import asyncio
 
+import pytest
 from sqlalchemy import select
 
 from app.application.ports import AttemptForReview, EvidenceDraft
@@ -15,7 +16,7 @@ from app.domain.enums import (
     Subject,
     TaskStatus,
 )
-from app.infrastructure.models import MissionORM, TopicORM
+from app.infrastructure.models import MissionORM, TaskORM, TopicORM
 from app.infrastructure.repositories import SqlAlchemyUnitOfWork
 from scripts import seed as seed_module
 
@@ -89,6 +90,31 @@ def test_draft_not_counted_until_approved(seeded_session):
     assert vectors_bank() == 0  # draft excluded
     svc.approve_task(task.id)
     assert vectors_bank() == 1  # approved counts toward progress denominator
+
+
+def test_approve_rejects_answer_not_writable_in_exam_blank(seeded_session):
+    """Регресс 2026-08-11: задача с эталоном `2/3` дошла до ученицы. Она ответила 0,667 —
+    верно по сути, точное сравнение сказало «не равно», в журнал ушёл ложный провал.
+    У такой задачи нет ни одного правильного ответа, и одобрять её нельзя."""
+    svc = service(seeded_session)
+    values = _task_values(seeded_session, "https://example.org/task/blank-1")
+    values["expected_answer"] = "2/3"
+    task = svc.add_task(values)
+
+    with pytest.raises(ValueError, match="EGE answer blank"):
+        svc.approve_task(task.id)
+
+    assert seeded_session.get(TaskORM, task.id).status == TaskStatus.DRAFT
+
+
+def test_approve_accepts_fraction_equal_to_a_finite_decimal(seeded_session):
+    """`3/8` записывается как 0,375 — запись дробью не мешает, важна представимость."""
+    svc = service(seeded_session)
+    values = _task_values(seeded_session, "https://example.org/task/blank-2")
+    values["expected_answer"] = "3/8"
+    task = svc.add_task(values)
+
+    assert svc.approve_task(task.id).status == TaskStatus.APPROVED
 
 
 def test_attempt_history_records_solution_and_interpretation(seeded_session):
