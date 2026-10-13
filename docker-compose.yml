@@ -44,16 +44,17 @@ services:
     restart: unless-stopped
 
   # Ученический тренажёр в Telegram (дрилл + срез + ИИ-оценка). Long-poll, без портов.
-  # Требует в .env: TELEGRAM_BOT_TOKEN, TELEGRAM_STUDENT_CHAT_ID и (если Telegram закрыт
-  # напрямую) TELEGRAM_PROXY_URL или HTTPS_PROXY.
+  # Секреты продукта остаются в .env. Общий Telegram proxy берётся из root-level
+  # !LOCAL/telegram-proxy.env; локальный .env остаётся fallback вне portfolio checkout.
   bot:
     build:
       context: ./backend
     env_file:
-      - .env
+      - path: .env
+      - path: ../!LOCAL/telegram-proxy.env
+        required: false
     environment:
       DATABASE_URL: postgresql+psycopg://ege:ege@postgres:5432/ege_mentor
-      TELEGRAM_PROXY_URL: ${TELEGRAM_PROXY_URL:-${HTTPS_PROXY:-}}
     command: ["python", "-m", "app.adapters.telegram.bot"]
     depends_on:
       postgres:
