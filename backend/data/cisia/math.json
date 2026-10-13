@@ -1,0 +1,165 @@
+{
+  "source_sha256": "2df04c70a8a3546cc14e3132faee684c4a7f150c75eb28ec73faf96450f2b3ef",
+  "questions": [
+    {
+      "number": 1,
+      "pdf_page": 3,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q1",
+      "expected_answer": "E",
+      "asset": "q01.png",
+      "asset_sha256": "c0abbe8c3c385a3ac2395edfb33e547749b041850477ca6588f0bb42f3369a6b"
+    },
+    {
+      "number": 2,
+      "pdf_page": 4,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q2",
+      "expected_answer": "E",
+      "asset": "q02.png",
+      "asset_sha256": "648ad9501aef700d49f34754022587bdb828ec7a9a8e0cb84b8f9ca258b770cf"
+    },
+    {
+      "number": 3,
+      "pdf_page": 4,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q3",
+      "expected_answer": "B",
+      "asset": "q03.png",
+      "asset_sha256": "0fd8bb782e07ece7fac2ac5d105d72e773337b10b1818e2e8ac6bf489de3ccf9"
+    },
+    {
+      "number": 4,
+      "pdf_page": 5,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q4",
+      "expected_answer": "C",
+      "asset": "q04.png",
+      "asset_sha256": "62c69679fc07910af7c3c3f3da14a49168eb3c52352a8492d1cf38a7b825a056"
+    },
+    {
+      "number": 5,
+      "pdf_page": 5,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q5",
+      "expected_answer": "E",
+      "asset": "q05.png",
+      "asset_sha256": "3dcd366c3f87a08ec96ceb204fb747c4e4f1cb8f86f7c2f92a658a2db4f3d48f"
+    },
+    {
+      "number": 6,
+      "pdf_page": 6,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q6",
+      "expected_answer": "A",
+      "asset": "q06.png",
+      "asset_sha256": "1557f1d0abc7f1fd4344f8c7618550c4100e5235dadcae78df51516eafbc1f23"
+    },
+    {
+      "number": 7,
+      "pdf_page": 6,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q7",
+      "expected_answer": "E",
+      "asset": "q07.png",
+      "asset_sha256": "8613768279ac8cb381c421303110a9fb44ebe9b15ecdda1e3a756dfe8c2235a0"
+    },
+    {
+      "number": 8,
+      "pdf_page": 7,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q8",
+      "expected_answer": "B",
+      "asset": "q08.png",
+      "asset_sha256": "8eced62861e85b6953fe31157653e08eafe64be61317a3083e1506c2c93d53ab"
+    },
+    {
+      "number": 9,
+      "pdf_page": 8,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q9",
+      "expected_answer": "B",
+      "asset": "q09.png",
+      "asset_sha256": "23c054043c51e540ebd613e0bdbba87ae83e354a0e9fdafcab0f745831c64077"
+    },
+    {
+      "number": 10,
+      "pdf_page": 9,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q10",
+      "expected_answer": "E",
+      "asset": "q10.png",
+      "asset_sha256": "e0d03d71918e80aaf1e94c0a83b7768e34986e3703414d5774f9e99bfac2e61b"
+    },
+    {
+      "number": 11,
+      "pdf_page": 9,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q11",
+      "expected_answer": "A",
+      "asset": "q11.png",
+      "asset_sha256": "c0397e02d682bf614b117e4bc38b7dc70d047d3824c1aaff3dfe7537e7bdacf2"
+    },
+    {
+      "number": 12,
+      "pdf_page": 10,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q12",
+      "expected_answer": "C",
+      "asset": "q12.png",
+      "asset_sha256": "a3a6b30f3f7bfa2a11e7ce92a71e63eda2c659813df02f319a324c8449af80e2"
+    },
+    {
+      "number": 13,
+      "pdf_page": 11,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q13",
+      "expected_answer": "B",
+      "asset": "q13.png",
+      "asset_sha256": "fd9b5bf08937d928792a637eff2987f7fd69e54a64f4e67591197970a2686fd8"
+    },
+    {
+      "number": 14,
+      "pdf_page": 12,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q14",
+      "expected_answer": "B",
+      "asset": "q14.png",
+      "asset_sha256": "3aa970cc6b3cf26376def0f7535d4ac98478f7408c74380adc6de0c14de9ac1e"
+    },
+    {
+      "number": 15,
+      "pdf_page": 12,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q15",
+      "expected_answer": "D",
+      "asset": "q15.png",
+      "asset_sha256": "97cfe90ccd08fb297b67e8a72b45af9d5585fc0c8a7dae3dc489aadb94c67f15"
+    },
+    {
+      "number": 16,
+      "pdf_page": 13,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q16",
+      "expected_answer": "C",
+      "asset": "q16.png",
+      "asset_sha256": "7c194b4af81a6b27bbe9bbdaa3bb8926bffdf6380f5319453dcff3a1bb029e75"
+    },
+    {
+      "number": 17,
+      "pdf_page": 14,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q17",
+      "expected_answer": "C",
+      "asset": "q17.png",
+      "asset_sha256": "1f5a0fb64a2ce081badfb0aa278a5401f555af8a55c7b7335ad6fe8254ac1f01"
+    },
+    {
+      "number": 18,
+      "pdf_page": 15,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q18",
+      "expected_answer": "B",
+      "asset": "q18.png",
+      "asset_sha256": "554fe37d3d4bbc65b00fb314e390d31ed059831d5abffe01a7b6f398ace28aca"
+    },
+    {
+      "number": 19,
+      "pdf_page": 16,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q19",
+      "expected_answer": "A",
+      "asset": "q19.png",
+      "asset_sha256": "3e95bf3e13ebd902fb74f984920ac46448b46769e93f3e937922619911af4175"
+    },
+    {
+      "number": 20,
+      "pdf_page": 16,
+      "source_ref": "cisia:english-tolc-i:sample-2021:q20",
+      "expected_answer": "B",
+      "asset": "q20.png",
+      "asset_sha256": "28155127068a3af75c292f7d30eb0a27177f7829f62f340afb6f85e0f9c5e14b"
+    }
+  ]
+}

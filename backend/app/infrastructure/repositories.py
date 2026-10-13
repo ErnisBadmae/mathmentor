@@ -200,6 +200,7 @@ class TaskSqlRepository:
         stmt = (
             select(TaskORM)
             .where(TaskORM.subject == subject)
+            .where(TaskORM.source != "cisia_sample")
             .where(TaskORM.status == TaskStatus.APPROVED)
             .where(TaskORM.expected_answer.is_not(None))
             .where(TaskORM.expected_answer != "")

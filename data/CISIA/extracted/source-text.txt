@@ -1,0 +1,1991 @@
+=== PDF PAGE 1 ===
+   SAMPLE TEST
+
+English
+TOLC–I
+
+  www.cisiaonline.it
+
+
+
+
+
+                 Edizioni CISIA
+
+=== PDF PAGE 2 ===
+                 Contents
+
+
+
+                                            Page
+
+1 Mathematics                                   3
+
+2 Logic                                        17
+
+3 Science                                      27
+
+4 Reading Comprehension                        35
+
+=== PDF PAGE 3 ===
+1 - Mathematics                        CISIA – TOLC-I Sample Test
+
+
+            MATHEMATICS
+
+
+
+
+   1.  Lewis has two sons who are 15 and 11 years old respectively.
+
+        In 18 years, Lewis’ age will be equal to the sum of his sons’
+
+       age. How old is Lewis now?
+
+
+       A.  30
+
+       B.  There is insufﬁcient data to answer.
+
+       C. 52
+
+       D. 26
+
+        E.  44
+
+
+
+
+
+                               3
+
+=== PDF PAGE 4 ===
+1 - Mathematics                        CISIA – TOLC-I Sample Test
+
+
+   2.  Find such that cos() + sin() = 0.
+
+            π
+       A. =
+            4
+
+       B. = 0
+
+
+       C. = π
+
+            π
+       D. =
+            2
+
+            3π
+        E. =
+            4
+
+
+
+
+
+   3.  Consider the equation sin() = 2 −k, with 0 ≤≤π. This
+      equation has at least one solution if and only if:
+
+
+       A.  k ≥1
+
+       B.  1 ≤k ≤2
+
+       C.  k ≤2
+
+       D. −1 ≤k ≤1
+
+        E.  1 ≤k ≤3
+
+
+
+
+
+                               4
+
+=== PDF PAGE 5 ===
+1 - Mathematics                        CISIA – TOLC-I Sample Test
+
+
+   4.    If is a real number, the inequality 4 + 5 < 0 is satisﬁed for:
+
+
+       A.   all 
+
+       B. = −5
+
+       C.  no values of 
+
+       D. > −5
+                    4p
+        E. < −  5
+
+
+
+
+
+   5.    If is a real number, what is the solution set of the following
+
+       inequality?
+                     + 3
+                       ≥2
+                     + 1
+
+       A. −1 < ≤2
+
+       B. ≤1
+
+       C. ≥1
+
+       D. < −1
+
+        E. −1 < ≤1
+
+
+
+
+
+                               5
+
+=== PDF PAGE 6 ===
+1 - Mathematics                        CISIA – TOLC-I Sample Test
+
+
+   6.    If we divide 5 −34 + 3 by + 1 the remainder is:
+
+
+       A. −1
+
+       B.  1
+
+       C.  3
+
+       D. 0
+
+        E. −1
+
+
+
+
+
+   7.  Consider an isosceles right triangle T. The sum of the cosines
+       of the internal angles of T is:
+
+
+       A.  2
+
+       B.  1
+
+       p
+       C.   3
+
+         p
+       D. 1 +  2
+       p
+        E.   2
+
+
+
+
+
+                               6
+
+=== PDF PAGE 7 ===
+1 - Mathematics                        CISIA – TOLC-I Sample Test
+
+
+   8.  Which of the following equalities is satisﬁed for all real num-
+
+       bers and y?
+
+       A.  3+y3−y = 32−y2
+
+       B.  3+y3−y = (3)2
+
+       C.  3+y3−y = 32 −3y2
+
+       D.  3+y3−y = 32
+
+        E.  3+y3−y = 3(3y3−y)
+
+
+
+
+
+                               7
+
+=== PDF PAGE 8 ===
+1 - Mathematics                        CISIA – TOLC-I Sample Test
+
+
+   9.  Consider a circle with centre O and a 1 cm-long radius. Let P
+
+      be a point outside this circle.
+
+      The tangent lines from P to the circle meet the circumference
+        in two points A and B.
+                              p
+     We know that the area of PAOB is equal to  3 cm2. What is
+       the distance between P and O?
+
+
+       A.  3 cm
+
+
+       B.  2 cm
+
+
+       C.  4 cm
+
+       p
+          3
+       D.    cm
+          2
+
+         3
+        E.   cm
+         2
+
+
+
+
+
+                               8
+
+=== PDF PAGE 9 ===
+1 - Mathematics                        CISIA – TOLC-I Sample Test
+
+
+                                             1
+  10.  Let be a non–zero real number. The equation +  = k has
+                                              
+      one and only one solution if:
+
+
+       A.  k = 1
+
+       B.  k = 3
+
+       C.  k = −3
+
+       D.  k = −1
+
+        E.  k = 2
+
+
+
+
+
+  11.  The Cartesian equation
+
+                           2 + y2 + 4= γ
+
+       with γ a positive real number, represents:
+
+
+       A.  a circumference centred in (−2,0) with radius p γ + 4
+
+       B.  a circumference centred in (0, −4) with radius p γ + 2
+
+       C.  a circumference centred in (0,0) with radius pγ
+
+       D. a circumference centred in (−4,0) with radius p γ + 2
+
+        E.  a circumference centred in (0, −2) with radius p γ + 4
+
+
+
+
+
+                               9
+
+=== PDF PAGE 10 ===
+1 - Mathematics                        CISIA – TOLC-I Sample Test
+
+
+  12.  Let be a positive real number and ƒ() = log10 . Then
+      ƒ(10 · −2) is equal to:
+
+          1
+       A.
+           ƒ()
+
+       B.  2 −2ƒ()
+
+
+       C.  1 −2ƒ()
+
+          1
+       D.
+           2ƒ()
+
+        E.  −2ƒ()
+
+
+
+
+
+                               10
+
+=== PDF PAGE 11 ===
+1 - Mathematics                        CISIA – TOLC-I Sample Test
+
+
+  13.  Consider a semicircle with diameter AB = 2 cm and centre
+      O. If we take away the semicircle of diameter AO, then we
+       rotate the resulting ﬁgure along AB by 360◦, we obtain a
+
+        solid whose volume is:
+
+         25
+       A.    π cm3
+         3
+
+         7
+       B.   π cm3
+         6
+
+         5
+       C.   π cm3
+         6
+
+       D. 4π cm3
+
+         28
+        E.    π cm3
+         3
+
+
+
+
+
+                               11
+
+=== PDF PAGE 12 ===
+1 - Mathematics                        CISIA – TOLC-I Sample Test
+
+
+  14.  How many points P(,y) on a Cartesian plane satisfy the
+
+       following conditions?
+
+              (+ y)2 = 1,  2 + y2 = 1, + y ≤0
+
+
+       A.  One.
+
+       B.  Two.
+
+       C.  Inﬁnite.
+
+       D.  Zero.
+
+        E.  Four.
+
+
+
+
+
+  15.  Consider two points A(0,0) and B(1, 1) on a Cartesian plane.
+      The equation of the axis of the segment AB is:
+
+            1
+       A.  y =  −
+            2
+
+       B.  y = 2 −
+
+               
+       C.  y = 1 −
+               2
+
+       D.  y = 1 −
+
+            1 −
+        E.  y =
+             2
+
+
+
+
+
+                               12
+
+=== PDF PAGE 13 ===
+1 - Mathematics                        CISIA – TOLC-I Sample Test
+
+
+                                  1/4                 81
+  16.  The number p         is equivalent to:
+                  64
+
+          3
+       A. p
+          2
+
+          3
+       B.  p
+         2  2
+
+         24
+       C.
+            85/4
+
+         24
+       D.
+         64
+
+         3
+        E.
+         2
+
+
+
+
+
+                               13
+
+=== PDF PAGE 14 ===
+1 - Mathematics                        CISIA – TOLC-I Sample Test
+
+
+  17.  The following expression
+
+                              320 + 320 + 3201/3
+
+                                   (33)2
+
+         is equal to:
+
+
+       A.  32
+
+
+       B.  1
+
+
+       C.  3
+
+         1
+       D.
+         3
+
+         1
+        E.
+         9
+
+
+
+
+
+                               14
+
+=== PDF PAGE 15 ===
+1 - Mathematics                        CISIA – TOLC-I Sample Test
+
+
+  18.  Let Q be a square of side ℓ, C1 a circle circumscribed around
+      Q, and C2 a circle inscribed in Q.
+      The ratio between the area of C1 and the area of C2 is:
+
+
+       A.  4
+
+       B.  2
+
+       p
+       C.   2
+
+       D. depends on the value of ℓ
+        p
+        E.  2  2
+
+
+
+
+
+                               15
+
+=== PDF PAGE 16 ===
+1 - Mathematics                        CISIA – TOLC-I Sample Test
+
+
+  19.  Consider an equilateral triangle ABC whose side is 2 cm long.
+       Let D, E, and F be the midpoints of AB, BC, and AC respec-
+         tively. Find the area of the rhombus DECF.
+
+       p
+          3
+       A.    cm2
+          2
+
+       B.  2 cm2
+
+       p
+       C.   3 cm2
+
+       p
+       D.   2 cm2
+
+          1
+        E. p cm2
+          3
+
+
+  20.  30% of the students enrolled in a university course passed
+
+       the ﬁnal exam during the ﬁrst session. 10% of the remaining
+
+       students passed the exam during the second session.
+
+     How many students still have to pass the exam after the ﬁrst
+
+      two sessions? Express the result as a percentage of the total
+
+     number of students enrolled in the course.
+
+
+       A. 37%
+
+       B. 63%
+
+       C. 70%
+
+       D. 60%
+
+        E. 40%
+
+
+
+
+
+                               16
+
+=== PDF PAGE 17 ===
+2 - Logic                               CISIA – TOLC-I Sample Test
+
+
+                LOGIC
+
+
+
+
+ 21.  Consider the following numbers:
+
+                         28, 29, 36, 43, 55
+
+
+     We want to order them so that each odd number is in an odd
+
+       position, and each even number is in an even position. How
+
+     many ways are there to order them given this condition?
+
+
+       A.  3
+
+       B.  24
+
+       C. 12
+
+      D. 5
+
+       E.  6
+
+
+
+
+
+                               17
+
+=== PDF PAGE 18 ===
+2 - Logic                               CISIA – TOLC-I Sample Test
+
+
+ 22.   In a building hall there is the following warning:
+
+
+             It is allowed to play football in the courtyard, except on
+
+              Sundays and between 1 p.m. and 4 p.m.
+
+
+       Therefore in this building:
+
+
+       A.   it is not forbidden to play football in the courtyard at 12
+
+           (noon), provided that it’s not Sunday
+
+       B.   it is not forbidden to play football in the courtyard on
+
+         Sundays after 4 p.m.
+
+       C.  any day other than Sunday it is forbidden not to play
+
+            football in the courtyard before 1 p.m. and after 4 p.m.
+
+      D.   it is not forbidden to play football in the courtyard at 2
+
+           p.m., provided that it’s not Sunday
+
+       E.   it is not forbidden to play football in the courtyard at 2
+
+           p.m., provided that it’s Sunday
+
+
+
+
+
+                               18
+
+=== PDF PAGE 19 ===
+2 - Logic                               CISIA – TOLC-I Sample Test
+
+
+ 23.  Uncle Scrooge forgot the combination that opens his elec-
+
+       tronic vault. He only remembers that:
+
+            the combination is made by 4 different digits (from 0 to
+
+            9)
+
+            it does not contain 4
+
+            the third digit is half of the fourth
+
+            the digits are in ascending order from the ﬁrst one the
+
+             last one
+
+
+     What is the minimum number of attempts Uncle Scrooge has
+
+       to make to be sure to open his vault?
+
+
+       A.  3
+
+       B.  4
+
+       C. 5
+
+      D. 6
+
+       E.  2
+
+
+
+
+
+                               19
+
+=== PDF PAGE 20 ===
+2 - Logic                               CISIA – TOLC-I Sample Test
+
+
+ 24.  Martha, a bookkeeper, has 195 euros and no coins. A client
+
+       of the bookshop asks if she can break a 10, a 20, a 50, or a
+
+      100 euros banknote, but unfortunately her answer is always
+
+       no.
+
+     How many 20 euros banknotes does Martha have (consider-
+
+       ing that the lowest–value banknote is 5 euros)?
+
+
+       A.  1
+
+       B.  4
+
+       C. 3
+
+      D. 2
+
+       E.  0
+
+
+
+
+
+                               20
+
+=== PDF PAGE 21 ===
+2 - Logic                               CISIA – TOLC-I Sample Test
+
+
+ 25.  Chef John noticed that, if he does not use a gas oven, roasted
+
+      meat remains raw inside or becomes burnt outside (or both).
+
+       Therefore we can infer that:
+
+
+       A.   if the meat is well cooked inside,  it must have been
+
+         cooked in a gas oven
+
+       B.   if the meat is well cooked inside or is not burnt outside,
+
+                it must have been cooked in a gas oven
+
+       C.   if the meat is well cooked inside and is not burnt outside,
+
+                it must have been cooked in a gas oven
+
+      D.   if the meat is raw inside, it has not been cooked in a gas
+
+         oven
+
+       E.   if the meat has been cooked in an electric oven, the meat
+
+              is raw inside and burnt outside
+
+
+
+
+
+                               21
+
+=== PDF PAGE 22 ===
+2 - Logic                               CISIA – TOLC-I Sample Test
+
+
+ 26.  The great mathematician Countalot discovered the Incredible
+
+      numbers; he does not know yet if they are ﬁnite or inﬁnite,
+
+      but he made the following conjecture:
+
+
+            If they are inﬁnite, then at least one of them has 8 distinct
+
+                          prime factors.
+
+
+     One of his students, Countagain, showed that Countalot’s
+
+       conjecture is false. Therefore he proved that:
+
+
+       A.   if Incredible numbers are ﬁnite, then none of them has 8
+
+            distinct prime factors
+
+       B.   if Incredible numbers are ﬁnite, then all of them have 8
+
+            distinct prime factors
+
+       C.  Incredible numbers are inﬁnite
+
+      D.  Incredible numbers are inﬁnite and none of them has 8
+
+            distinct prime factors
+
+       E.  Incredible numbers are inﬁnite and all of them have 8
+
+            distinct prime factors
+
+
+
+
+
+                               22
+
+=== PDF PAGE 23 ===
+2 - Logic                               CISIA – TOLC-I Sample Test
+
+
+ 27.  Archaebacteria are single–celled organisms that live in ponds
+
+      and reproduce by ﬁssion (i.e. each bacterium splits in two
+
+       identical organisms).  If you put one archaebacterium in a
+
+       certain pond, it will reproduce by ﬁssion once a day; in 30
+
+      days, the whole pond surface will be completely covered
+
+      by bacteria. How many days will it take to cover the whole
+
+       surface, if we initially put two bacteria in the pond?
+
+
+       A.  30 days.
+
+       B.  28 days.
+
+       C. 29 days.
+
+      D.   It depends on the pond surface area.
+
+       E.  15 days.
+
+
+
+
+
+                               23
+
+=== PDF PAGE 24 ===
+2 - Logic                               CISIA – TOLC-I Sample Test
+
+
+ 28.  A survey is conducted among all 1000 inhabitants of the
+
+      town of Sparagna who are older than 55. The results show
+
+       that 40% of them own a fridge, 25% of them own a TV, and
+
+     15% of them own both. Therefore, in the town of Sparagna:
+
+
+       A. among those who are younger than 55, less than 40%
+
+         owns a fridge
+
+       B. among those who are older than 55, less than 45% owns
+
+         a TV or a fridge
+
+       C. among those who are older than 55, 50% does not own
+
+         a TV nor a fridge
+
+      D. among those who are younger than 55, more than 25%
+
+         owns a TV
+
+       E. among those who are older than 55, more than 50%
+
+         owns a TV or a fridge
+
+
+
+
+
+                               24
+
+=== PDF PAGE 25 ===
+2 - Logic                               CISIA – TOLC-I Sample Test
+
+
+ 29.  Which pair of numbers , y  should be inserted into the
+
+       following table?
+
+
+           1 3 6 10     21  28                    
+
+           1 2 6 24 120    5040                         y
+
+
+
+       A. = 14 and y = 720
+
+       B. = 14 and y = 240
+
+       C. = 15 and y = 720
+
+      D. = 12 and y = 240
+
+       E. = 15 and y = 240
+
+
+
+
+
+                               25
+
+=== PDF PAGE 26 ===
+2 - Logic                               CISIA – TOLC-I Sample Test
+
+
+ 30.   In a conversation with her friends, Julia states that:
+
+
+       We all like coffee, except Paula, who does not like it.
+
+
+       Caroline points out that Julia is wrong. Therefore:
+
+
+       A.   all of Julia’s friends like coffee
+
+       B.  Paula likes coffee
+
+       C.  one of Julia’s friends, who is not Paula, does not like
+
+           coffee
+
+      D.  Paula likes coffee or there is someone among Julia’s
+
+            friends, other than Paula, who does not like coffee
+
+       E.   it is not possible that only one of Julia’s friends does not
+
+             like coffee
+
+
+
+
+
+                               26
+
+=== PDF PAGE 27 ===
+3 - Science                             CISIA – TOLC-I Sample Test
+
+
+               SCIENCE
+
+
+
+ 31.  Two bodies A and B have the same volume and masses
+     mB = 3mA. Both bodies are completely immersed in a liquid,
+      and are initially held still. When they are let go, the buoyant
+
+       force exerted by the liquid on B is:
+
+
+       A.  equal to the buoyant force exerted on A
+
+       B.  9 times the force exerted on A
+
+       C. 3 times the force exerted on A
+
+      D. one ninth of the force exerted on A
+
+       E.  one third of the force exerted on A
+
+
+
+
+
+                               27
+
+=== PDF PAGE 28 ===
+3 - Science                             CISIA – TOLC-I Sample Test
+
+
+ 32.  A body of weight P, placed close to the Earth’s surface, is
+        let fall from rest. Let g be the gravitational acceleration and
+
+        let the air resistance be negligible. Then the kinetic energy
+
+      possessed by the body after t seconds is:
+
+
+       A.  (1/2)Pgt
+
+       B.  (1/2)Pgt2
+
+       C.  2Pgt
+
+      D.  2Pgt2
+
+       E.  (1/2)Pg2t2
+
+
+
+
+
+                               28
+
+=== PDF PAGE 29 ===
+3 - Science                             CISIA – TOLC-I Sample Test
+
+
+ 33.  A pipe with constant cross–sectional area S is bent into a
+
+      U–shape. One side of the pipe is open whereas the other
+
+      one is closed by a cap T (as in the ﬁgure). The pipe is ﬁlled
+       with water (density ρ) that reaches heights H ed h in the two
+      arms. The force that the water exerts on T is equal to:
+
+
+
+
+
+       A.  ρg(H −h), downwards
+
+       B.  ρgh, upwards
+
+       C.  ρgHS, upwards
+
+      D. ρg(H + h), downwards
+
+       E.  ρg(H −h)S, upwards
+
+
+
+
+
+                               29
+
+=== PDF PAGE 30 ===
+3 - Science                             CISIA – TOLC-I Sample Test
+
+
+ 34.  A heat engine has a 75% efﬁciency. How much heat is
+
+      absorbed during a full cycle if the total work produced by the
+
+      engine is equal to 3,6 kJ?
+
+
+       A.  2,7 kJ
+
+       B.  4,8 kJ
+
+       C.  14,4 kJ
+
+      D.  0,9 kJ
+
+       E.  3,6 kJ
+
+
+
+
+
+ 35.   In the periodic table, chemical elements are ordered by:
+
+
+       A.  number of protons
+
+       B.  alphabetical order
+
+       C.  abundance in the universe
+
+      D.  size
+
+       E.  year of discovery
+
+
+
+
+
+                               30
+
+=== PDF PAGE 31 ===
+3 - Science                             CISIA – TOLC-I Sample Test
+
+
+ 36.  Sound is:
+
+
+       A.  a wave that propagates in an elastic medium with a
+
+         speed that depends on the medium itself
+
+       B.  an elastic wave that propagates in vacuum at a speed of
+
+        340 m/s
+
+       C.  a wave that propagates in an elastic medium at a speed
+
+           of 300 000 km/s
+
+      D. an elastic wave that propagates in vacuum at a speed of
+
+        300 000 km/s
+
+       E.  a wave that propagates in vacuum and all material medi-
+
+        ums at a speed of 340 m/s
+
+
+
+
+
+                               31
+
+=== PDF PAGE 32 ===
+3 - Science                             CISIA – TOLC-I Sample Test
+
+
+ 37.  You mix 60 liters of water at 20 ◦C with 20 liters of water
+
+       at 60 ◦C. Neglecting heat dispersion, the ﬁnal temperature
+
+      reached is:
+
+
+       A.  25 ◦C
+
+       B.  28 ◦C
+
+       C. 40 ◦C
+
+      D. 30 ◦C
+
+       E.  35 ◦C
+
+
+
+
+
+                               32
+
+=== PDF PAGE 33 ===
+3 - Science                             CISIA – TOLC-I Sample Test
+
+
+ 38.  Two metallic spheres A and B are suspended from the ceiling
+
+      by insulating wires. A positively charged glass rod is ﬁrst
+
+      brought near A, then near B, without touching them. We
+      observe that A is attracted to the rod, whereas B is repelled
+
+      by it. Therefore we can infer that:
+
+
+       A.  both A and B could be electrically neutral
+
+       B. B is positively charged
+
+       C.  both A and B are negatively charged
+
+      D. A is negatively charged, whereas B could be either posi-
+
+            tively charged or neutral
+
+       E.  A is negatively charged and B is positively charged
+
+
+
+
+
+                               33
+
+=== PDF PAGE 34 ===
+3 - Science                             CISIA – TOLC-I Sample Test
+
+
+ 39.  Let “·” represent the scalar product and “×” the vector prod-
+
+       uct. Which of the following operations gives the magnitude
+
+       of the projection of vector⃗on vector⃗b ?
+
+
+            b
+           A.⃗  ×⃗
+                        |⃗b|
+
+           B.⃗  ×⃗b
+
+
+          C.⃗  ·⃗b
+
+
+          D.⃗ +⃗b
+
+           b
+           E.⃗   ·⃗
+                      |⃗b|
+
+
+
+ 40.  A train travels at a speed of 144 km/h.   Its wheels per-
+
+       fectly adhere to the rails (no sliding) and have a diame-
+
+       ter d = 80 cm. How many turns do they do in one second,
+
+       roughly?
+
+
+       A.  8
+
+       B.  57
+
+       C. 32
+
+      D. 115
+
+       E.  16
+
+
+
+
+
+                               34
+
+=== PDF PAGE 35 ===
+4 - Reading Comprehension             CISIA – TOLC-I Sample Test
+
+
+       READING COMPREHENSION
+
+
+
+
+
+                     INSTRUCTIONS
+
+
+
+This section of the Test consists of one or more excerpts taken from
+
+works published in English. The text has not been modiﬁed in any
+
+way and reﬂects the writing styles typical of the time and context in
+
+which the authors lived.
+
+   Each text is followed by ﬁve questions with ﬁve closed answers
+
+labelled with capital letters from A to E.
+
+    For each question choose the answer you consider correct based
+
+on what is explicitly or implicitly stated; in other words base your
+
+answer only on what is written in the text, and not on what you
+
+might already know about the subject.
+
+
+
+
+
+                               35
+
+=== PDF PAGE 36 ===
+4 - Reading Comprehension             CISIA – TOLC-I Sample Test
+
+
+                        TEXT I
+
+
+The development of electronic publishing in small
+
+                  markets
+
+
+
+  From: Ivona Despot and Tomislav Jakopec, The strategy for the
+development of electronic publishing in small markets, Libellarium:
+
+  journal for the research of writing, books, and cultural heritage
+
+        institutions, [S.l.], v. 6, n. 1-2, p. 81 – 90, mar. 2014.
+
+
+   Throughout history, publishing has adjusted to market require-[1]
+
+ments, aiming for cheaper production and book prices in order
+
+to attract a larger number of readers. Today, in the majority of
+
+developed publishing markets, e-books have become part of the
+
+publishing business. However, every new technology can represent
+
+a factor of "creative destruction": transistors put an end to the cath-
+
+ode tube industry, and photocopying to the indigo paper industry.
+
+So, can the digitized book be considered a milestone in the history of
+
+publishing and what are the consequences? This study presents new
+
+trends and attempts to predict their potential impact on publishing,
+
+with a special focus on small linguistic distribution markets such as
+
+the Croatian book market.
+
+    While on the one hand, some experts predict the collapse of[2]
+
+major publishers and booksellers due to their failure to focus on the
+
+future needs of readers in the digital environment, on the other, poor
+
+sales of e-publications and high prices of e-readers have led pub-
+
+lishers to question the future success of the e-publishing business.
+
+
+
+
+                               36
+
+=== PDF PAGE 37 ===
+4 - Reading Comprehension             CISIA – TOLC-I Sample Test
+
+
+Claims that e-publishing needs to be promoted through conferences
+
+in order to become lucrative support this skepticism. However, the
+
+most likely outcome is a balance between continuity and discon-
+
+tinuity. While it is true that people do not reject their old habits
+
+and activities whenever a new technology emerges, it is commonly
+
+believed that the advancement of technology and the emergence of
+
+a simpler and cheaper process of digitization, will probably lead to
+
+an increased market for content published in digital form.
+
+   Seen from the perspective of aspiring authors, expert Miha Kovac[3]
+
+afﬁrms that digital technology has turned book publishing into one
+
+of the most democratic media industries. Today, online bookstores
+
+offer titles published by the authors themselves, without ofﬁcial
+
+publishers. Apple has launched the iBooks Author programme which
+
+allows the author to shape his work graphically and forward it di-
+
+rectly to the bookstore. Technology has cheapened and simpliﬁed
+
+the book publishing process, and opened the door to new players.
+
+Enriched e-books with added video and audio content offer new
+
+dimensions to the reading experience. As for the traditional role of
+
+the publisher, the rapid development of self-publishing inevitably
+
+leads to content overproduction of varying quality. Consequently, a
+
+publisher is needed to help the readers select the best content avail-
+
+able. The book chain is changing, the publisher’s role is adjusting to
+
+the new system, but it is still considered very necessary.
+
+   So what does the future hold? On the one hand, information[4]
+
+and communication technology is developing at such a rapid rate
+
+that future products and services cannot be easily predicted. Lead-
+
+ing companies in this ﬁeld keep their future products and services
+
+secret until market placement in order to protect themselves from
+
+
+
+                               37
+
+=== PDF PAGE 38 ===
+4 - Reading Comprehension             CISIA – TOLC-I Sample Test
+
+
+competition. However, meeting the individual needs of each user is
+
+essential. With this in mind, the publishing industry has announced
+
+the emergence of the "pay as you read" business model allowing
+
+partial payment of content, unlike the previous practice of paying for
+
+the whole unit. This is particularly useful in the ﬁeld of academic and
+
+scientiﬁc publications allowing, for example, each user to purchase a
+
+single article rather than an entire journal or one chapter instead of
+
+the whole book. Users can create the book they need by combining
+
+different articles or chapters.
+
+   There can be no doubt, therefore, that e-publishing is here to[5]
+
+stay. However, when it comes to small markets, like Croatia, the
+
+two factors affecting the development of e-publishing are market
+
+size and language coverage. According to Digital Agenda for Europe
+
+indicators, Croatian society does not yet possess the necessary pre-
+
+requisites for successful e-publishing, but it is slowly moving towards
+
+that goal. Consequently, e-book publishing development strategies
+
+should be aimed towards ensuring a long-term cultural development
+
+in terms of digital infrastructure and internet use, whereas the con-
+
+crete implementation of this new development should be left to the
+
+market in question.
+
+
+
+
+
+                               38
+
+=== PDF PAGE 39 ===
+4 - Reading Comprehension             CISIA – TOLC-I Sample Test
+
+
+                   TEXT I QUESTIONS
+
+
+  41.  The primary purpose of the passage is to:
+
+
+       A.  present the results of statistical analyses and propose
+
+           further studies
+
+       B.  explain a recent development and predict its eventual
+
+         consequences
+
+       C.  identify the reasons for a negative trend and recommend
+
+         measures to address it
+
+       D.  outline several theories about major technological
+
+         changes from the past
+
+        E.  reconcile conﬂicting research ﬁndings
+
+
+
+
+
+                               39
+
+=== PDF PAGE 40 ===
+4 - Reading Comprehension             CISIA – TOLC-I Sample Test
+
+
+  42.   In paragraph [2], the author states that:
+
+
+       A.  there is general agreement that e-publishing will soon
+
+          replace paper books
+
+       B.  experts believe that e-publications will dominate the
+
+           scientiﬁc sphere
+
+       C.  technological advances enabling cheaper digitalization
+
+             will make e-publications more popular
+
+       D. many important publishers are in serious ﬁnancial difﬁ-
+
+           culty due to the rise in e-publications
+
+        E.  conferences promoting e-books have been very success-
+
+             ful
+
+
+
+
+
+                               40
+
+=== PDF PAGE 41 ===
+4 - Reading Comprehension             CISIA – TOLC-I Sample Test
+
+
+  43.  According to paragraph [3], due to an increase in self-
+
+       publishing:
+
+
+       A.  the publisher’s role is changing
+
+       B.  the quality of publishing has improved
+
+       C.  publishers are no longer necessary
+
+       D.  there is more need for digital experts
+
+        E.  publishing has become more exclusive
+
+
+
+
+
+  44.  The author states in paragraph     that, today, publishers:                                    [4]
+
+
+       A.  require payment only if the reader likes the book
+
+       B.  share new products and services with rival publishing
+
+         houses
+
+       C.  are particularly interested in developing the scientiﬁc
+
+         market
+
+       D. no longer protect works by copyright
+
+        E.  must aim to satisfy the needs of individual users
+
+
+
+
+
+                               41
+
+=== PDF PAGE 42 ===
+4 - Reading Comprehension             CISIA – TOLC-I Sample Test
+
+
+  45.   In the ﬁnal paragraph ([5]), the author states that Croatia:
+
+
+       A.  has the necessary foundations on which to develop an
+
+           e-publishing market
+
+       B.  has a prosperous e-publishing market
+
+       C.  will not be able to develop an e-publishing market due
+
+           to its limited language coverage
+
+       D. needs to develop its broadband network and reduce the
+
+            digital divide
+
+        E.  will not be able to develop an e-publishing market due
+
+           to its small market size
+
+
+
+
+
+                               42
+
+=== PDF PAGE 43 ===
+4 - Reading Comprehension             CISIA – TOLC-I Sample Test
+
+
+                        TEXT II
+
+
+                 Coconut oil
+
+
+
+From: Renato da Silva Lima and Jane Mara Block, Coconut oil: what
+do we really know about it so far?, Food Quality and Safety, Volume
+
+                 3, Issue 2, May 2019, pages 61-72.
+
+
+   Coconut is one of the most important foods in various tropical[1]
+
+and subtropical countries where the coconut tree is referred to as
+
+the "tree of life". The coconut is a very useful plant with a wide
+
+range of products being sourced from it. Coconut products are used
+
+to make everything from clothing to animal feed to beauty creams.
+
+Its kernel is harvested for its edible ﬂesh and delicious water, while
+
+its husk is used for its strong ﬁbres. Most important, however, are
+
+its oils, which are extracted, processed, and marketed for culinary,
+
+medicinal and cosmetic uses alike. The plant is cultivated in more
+
+than 90 countries with a total yield of 59 million tonnes in 2016.
+
+The production of coconut is extremely important in Asia, which is
+
+responsible for over 80 per cent of the world’s coconut production.
+
+    In tropical countries, coconut oil has always been used as a[2]
+
+cooking oil and in the late 19th century, the demand for edible oils
+
+also began to increase in Europe and in the USA. Once Europeans
+
+became aware of the possibilities offered by the fruit and recognised
+
+its versatility, they started establishing coconut plantations in the
+
+Caribbean, Southeast Asia, and the South Paciﬁc and from the 1890s
+
+onwards, coconut oil became very popular in European countries
+
+and in the USA as an edible oil. This ﬁrst coconut oil boom lasted
+
+
+
+                               43
+
+=== PDF PAGE 44 ===
+4 - Reading Comprehension             CISIA – TOLC-I Sample Test
+
+
+until the onset of World War II, around 1940, when the supply of the
+
+product was cut off to Western countries leading to a coconut oil
+
+shortage. As a result of this scarcity, the price of the commodity
+
+surged, thus                    for the rival soybean oil industry to           paving the way
+
+expand and develop. The shift to soybean oil was further aided
+
+by the use of more modern technology which was employed in the
+
+processing facilities of the product.
+
+   Once the war was over, countries with high coconut production[3]
+
+tried to reintroduce the fruit into Western countries but with little suc-
+
+cess. Coconut oil was rejected at this point due to its high-saturated
+
+fat content. This rejection was associated with the ﬁndings of epi-
+
+demiological studies conducted by the American physiologist, Ancel
+
+Keys, who formulated a hypothesis of the association between the
+
+consumption of high-saturated fat with a high blood cholesterol level
+
+and therefore the increased likelihood of cardiovascular disease. In
+
+1956, in parallel to Keys’ research, the American Heart Association
+
+started informing the population that consuming large quantities of
+
+high-saturated fat foods could increase the risk of cardiovascular
+
+disease. This, in turn, led to a decline in the popularity of coconut
+
+oil which was known to be high in saturated fat.
+
+    In recent years, however, coconut oil has once again attracted[4]
+
+the attention of the population worldwide, especially in Europe and
+
+North America. Celebrities, digital inﬂuencers, and even doctors
+
+have endorsed the use of this oil as a cooking medium in substi-
+
+tution of other vegetable oils and as a supplementary ingredient
+
+to be consumed with coffee and vitamin shakes. Blogs, internet
+
+videos, and articles are now promoting the consumption of coconut
+
+oil as a potential "miracle" food. Some media vehicles and health
+
+
+
+                               44
+
+=== PDF PAGE 45 ===
+4 - Reading Comprehension             CISIA – TOLC-I Sample Test
+
+
+specialists claim that this oil is capable of promoting health beneﬁts,
+
+such as weight loss and the lowering of cholesterol levels as well
+
+as having anti-inﬂammatory effects and it is now afﬁrmed that the
+
+consumption of coconut oil may actually help in the prevention of
+
+cardiovascular diseases. Clearly, these claims are now being used
+
+by coconut oil companies to market the product and boost sales.
+
+Nevertheless, governmental regulatory agencies in many countries
+
+remain sceptical about the beneﬁts obtained by the consumption
+
+of coconut oil due to its high-saturated fatty acid content. In gen-
+
+eral, studies in this ﬁeld present conﬂicting results and there is a
+
+serious lack of long term human-based clinical trials. Therefore, as
+
+a saturated fat, coconut oil should be consumed with moderation
+
+and the health allegations should not be used to market the product
+
+considering that they have not been scientiﬁcally proven so far.
+
+
+
+
+
+                               45
+
+=== PDF PAGE 46 ===
+4 - Reading Comprehension             CISIA – TOLC-I Sample Test
+
+
+                   TEXT II QUESTIONS
+
+
+  46.  The author of the passage is primarily concerned with:
+
+
+       A.  exploring research underlying the uses of coconuts
+
+       B.  discussing the appeal of coconut oil and some concerns
+
+          about its use
+
+       C.  arguing for the adoption of coconut oil in promoting
+
+          health beneﬁts
+
+       D. comparing the advantages of coconut oil over other edi-
+
+           ble oils
+
+        E.  clarifying the future of coconut oil companies
+
+
+
+
+
+  47.   In paragraph [2], the expression paving the way means:
+
+
+       A.  blocking the future
+
+       B.  indicating the method
+
+       C.  making it easier
+
+       D.  contrasting the desire
+
+        E.  giving an example
+
+
+
+
+
+                               46
+
+=== PDF PAGE 47 ===
+4 - Reading Comprehension             CISIA – TOLC-I Sample Test
+
+
+  48.  According to paragraph [2], which of the following state-
+
+      ments is true?
+
+
+       A.  Coconut plantations were destroyed during World War II.
+
+       B.  Europeans preferred soybean oil as it was produced in
+
+         Western countries.
+
+       C.  Consumers stopped using coconut oil because soybean
+
+              oil was a more modern equivalent.
+
+       D. Soybean oil had never been used as an edible oil until
+
+            after World War II.
+
+        E.  Soybean oil replaced the use of coconut oil due to the
+
+            difﬁculties incurred in acquiring the latter.
+
+
+
+
+
+                               47
+
+=== PDF PAGE 48 ===
+4 - Reading Comprehension             CISIA – TOLC-I Sample Test
+
+
+  49.  Paragraph    states that:                 [3]
+
+
+       A.  eating coconut oil leads to heart problems in Western
+
+           countries
+
+       B.  the use of coconut oil in food was banned by the Ameri-
+
+         can Heart Association
+
+       C.  consumers began to eat less coconut oil as it was thought
+
+           to be a health risk
+
+       D.  the American Heart Association advised consumers not
+
+           to consume coconut oil
+
+        E.  Western countries were unable to produce coconut oil
+
+
+
+
+  50.   In conclusion, the author indicates that:
+
+
+       A.  previous studies into the dangers of coconut oil were
+
+         unfounded
+
+       B.  research now shows that coconut oil should be used
+
+           instead of other vegetable oils
+
+       C.  further studies will prove the dangers of eating coconut
+
+              oil
+
+       D.  research into the consumption of coconut oil must be
+
+         widened
+
+        E.  coconut oil companies are funding further research
+
+
+
+
+
+                               48
+
+=== PDF PAGE 49 ===
+Question  Correct Answer
+   1           E
+
+   2           E
+
+   3          B
+
+   4          C
+
+   5           E
+
+   6          A
+
+   7           E
+
+   8          B
+
+   9          B
+
+   10           E
+
+   11          A
+
+   12          C
+
+   13          B
+
+   14          B
+
+   15         D
+
+   16          C
+
+   17          C
+
+   18          B
+
+   19          A
+
+   20          B
+
+   21          C
+
+   22          A
+
+   23          A
+
+   24         D
+
+   25          C
+
+   26         D
+
+   27          C
+
+   28          C
+
+=== PDF PAGE 50 ===
+                  29          C
+
+                  30         D
+
+                  31          A
+
+                  32          B
+
+                  33           E
+
+                  34          B
+
+                  35          A
+
+                  36          A
+
+                  37         D
+
+                  38          B
+
+                  39           E
+
+                  40           E
+
+                  41          B
+
+                  42          C
+
+                  43          A
+
+                  44           E
+
+                  45         D
+
+                  46          B
+
+                  47          C
+
+                  48           E
+
+                  49          C
+
+                  50         D
+
+
+
+
+
+Copyright 2021 CISIA - Consorzio interuniversitario Sistemi integrati per l’accesso
+
+
+All rights reserved

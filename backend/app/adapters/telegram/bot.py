@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from pathlib import Path
 import time
 from collections import deque
 from collections.abc import Callable
@@ -45,6 +46,7 @@ SLICE_SIZE = 5  # сколько задач в срезе по теме (фак�
 BOT_COMMANDS = (
     ("start", "Главное меню"),
     ("today", "Задания на сегодня"),
+    ("cisia", "CISIA — математика из методички"),
     ("slice", "Срез по теме"),
     ("ready", "Отметить: теорию изучила"),
     ("topics", "Своя тема — добавить в сегодня"),
@@ -133,6 +135,7 @@ async def _polling_failure_watchdog(
 # restarts — on restart we simply re-present whatever is still open.
 _presented: dict[int, set[UUID]] = {}
 _awaiting: dict[int, UUID] = {}
+_cisia_active: set[int] = set()
 # Активная сессия среза на чат: {subject, items, idx, judged}. Срез приоритетнее дрилла.
 _srez: dict[int, dict[str, Any]] = {}
 
@@ -237,6 +240,7 @@ def _home_keyboard() -> Any:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="📚 Сегодня", callback_data="menu:today")],
+            [InlineKeyboardButton(text="📘 CISIA · методичка", callback_data="menu:cisia")],
             [InlineKeyboardButton(text="🧪 Срез по теме", callback_data="menu:slice")],
             [InlineKeyboardButton(text="📖 Готова к новым темам", callback_data="menu:ready")],
             [InlineKeyboardButton(text="➕ Своя тема", callback_data="menu:topics")],
@@ -295,6 +299,16 @@ def _daily_task_keyboard(mission_id: UUID) -> Any:
     )
 
 
+def _cisia_keyboard(mission_id: UUID) -> Any:
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=letter, callback_data=f"cisia:choice:{mission_id}:{letter}")
+         for letter in "ABCDE"],
+        [InlineKeyboardButton(text="⏭ Отложить", callback_data=f"today:skip:{mission_id}")],
+    ])
+
+
 def _more_keyboard(topic_id: object) -> Any:
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -312,18 +326,44 @@ def _more_keyboard(topic_id: object) -> Any:
 async def _send_next(message: Any) -> None:
     chat_id = message.chat.id
     with SessionLocal() as session:
-        drills = _service(session).list_daily_drill(PILOT_STUDENT_ID)
+        service = _service(session)
+        drills = service.list_cisia_drill(PILOT_STUDENT_ID) if chat_id in _cisia_active else service.list_daily_drill(PILOT_STUDENT_ID)
     presented = _presented.setdefault(chat_id, set())
     nxt = next((d for d in drills if d["id"] not in presented), None)
     if nxt is None:
         _awaiting.pop(chat_id, None)
+        if chat_id in _cisia_active:
+            _cisia_active.discard(chat_id)
+            await _show_home(message, "Блок CISIA завершён. Пропущенные вопросы доступны через /cisia. Результаты сохранены в истории попыток.")
+            return
         await _show_home(message, "На сегодня всё сделано ✅ Новая порция — завтра утром.")
         return
     mission_id = nxt["id"]
     assert isinstance(mission_id, UUID)
+    if nxt.get("cisia_number"):
+        from aiogram.types import FSInputFile
+
+        asset = Path(__file__).resolve().parents[3] / "data" / "cisia" / f"q{nxt['cisia_number']:02d}.png"
+        await message.answer_photo(
+            FSInputFile(asset), caption=_task_text(nxt),
+            reply_markup=_cisia_keyboard(mission_id),
+        )
+    else:
+        await message.answer(_task_text(nxt), reply_markup=_daily_task_keyboard(mission_id))
     presented.add(mission_id)
     _awaiting[chat_id] = mission_id
-    await message.answer(_task_text(nxt), reply_markup=_daily_task_keyboard(mission_id))
+
+
+async def _on_cisia(message: Any) -> None:
+    if not await _ensure_authorized(message):
+        return
+    chat_id = message.chat.id
+    if chat_id in _srez or chat_id in _awaiting:
+        await message.answer("Заверши текущую задачу или используй /cancel, затем /cisia.")
+        return
+    _cisia_active.add(chat_id)
+    _presented.pop(chat_id, None)
+    await _send_next(message)
 
 
 async def _skip_daily_task(message: Any, chat_id: int) -> bool:
@@ -356,6 +396,7 @@ async def _on_today(message: Any) -> None:
         return
     _presented.pop(chat_id, None)
     _awaiting.pop(chat_id, None)
+    _cisia_active.discard(chat_id)
     await _send_next(message)
 
 
@@ -563,6 +604,7 @@ async def _on_menu(callback: Any) -> None:
     action = callback.data.split(":", 1)[1]
     handlers = {
         "today": _on_today,
+        "cisia": _on_cisia,
         "slice": _on_slice,
         "progress": _on_progress,
         "ready": _on_ready,
@@ -578,23 +620,45 @@ async def _on_answer(message: Any) -> None:
     if chat_id in _srez:  # срез приоритетнее дрилла, пока активен
         await _handle_srez_answer(message, chat_id)
         return
+    await _submit_active_answer(message, message.text or "")
+
+
+async def _on_cisia_choice(callback: Any) -> None:
+    chat_id = callback.message.chat.id
+    parts = callback.data.split(":")
+    if (not _is_authorized(chat_id) or chat_id not in _cisia_active
+            or str(_awaiting.get(chat_id)) != parts[2]):
+        await callback.answer("Этот вопрос сейчас не активен. Открой /cisia.", show_alert=True)
+        return
+    await callback.answer()
+    await _submit_active_answer(callback.message, parts[3])
+
+
+async def _submit_active_answer(message: Any, answer_text: str) -> None:
+    chat_id = message.chat.id
     mission_id = _awaiting.get(chat_id)
     if mission_id is None:
         await _show_home(message, "Сейчас нет активного задания. Выбери действие:")
         return
     with SessionLocal() as session:
         service = _service(session)
-        result = await service.submit_attempt(
-            {
-                "mission_id": mission_id,
-                "kind": AttemptKind.TEXT,
-                "mode": AttemptMode.UNKNOWN,
-                "answer_text": message.text or "",
-            }
-        )
+        try:
+            result = await service.submit_attempt(
+                {
+                    "mission_id": mission_id,
+                    "kind": AttemptKind.TEXT,
+                    "mode": AttemptMode.UNKNOWN,
+                    "answer_text": answer_text,
+                }
+            )
+        except ValueError as exc:
+            if chat_id not in _cisia_active:
+                raise
+            await message.answer(str(exc))
+            return
         # Post-attempt разбор: если ответ задачи — интервал, показываем
         # числовую прямую (правильное решение + ответ ученика).
-        visual = service.drill_solution_visual(mission_id, message.text or None)
+        visual = service.drill_solution_visual(mission_id, answer_text)
     _awaiting.pop(chat_id, None)
     topic_id = result.get("topic_id")
     verdict_markup = _more_keyboard(topic_id) if topic_id is not None else None
@@ -784,6 +848,7 @@ async def _on_cancel(message: Any) -> None:
     active = _srez.pop(chat_id, None) is not None or chat_id in _awaiting
     _awaiting.pop(chat_id, None)
     _presented.pop(chat_id, None)
+    _cisia_active.discard(chat_id)
     await _show_home(message, "Текущий режим остановлен." if active else "Нет активного режима.")
 
 
@@ -1002,6 +1067,7 @@ def main() -> None:
     dp = Dispatcher()
     dp.message.register(_on_start, CommandStart())
     dp.message.register(_on_today, Command("today"))
+    dp.message.register(_on_cisia, Command("cisia"))
     dp.message.register(_on_slice, Command("slice"))
     dp.message.register(_on_ready, Command("ready"))
     dp.message.register(_on_topics, Command("topics"))
@@ -1014,6 +1080,7 @@ def main() -> None:
     dp.message.register(_on_answer, F.text)
     dp.message.register(_on_unsupported)
     dp.callback_query.register(_on_menu, F.data.startswith("menu:"))
+    dp.callback_query.register(_on_cisia_choice, F.data.startswith("cisia:choice:"))
     dp.callback_query.register(_on_slice_subject, F.data.startswith("slice:subj:"))
     dp.callback_query.register(_on_slice_topic, F.data.startswith("slice:topic:"))
     dp.callback_query.register(_on_slice_back, F.data == "slice:back")

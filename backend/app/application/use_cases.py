@@ -42,6 +42,7 @@ from app.domain.policies import (
     select_daily_queue,
 )
 from app.domain.prerequisites import PREREQUISITES, prerequisites_met
+from app.domain.multiple_choice import CISIA_SOURCE, choice_answer, cisia_number
 from app.domain.probability_visual import parse_probability_visual_spec
 from app.domain.program import PHASES, PHASES_BY_KEY, current_phase_key
 
@@ -199,6 +200,11 @@ class LearningService:
     def _apply_progression(
         self, mission: object, evidence: object, category: ErrorCategory, feedback: str
     ) -> None:
+        if cisia_number(getattr(mission, "source_ref", None)) is not None:
+            # A completed sample question is recorded once, including a wrong choice.
+            # It does not create EGE topic reviews or inferred error categories.
+            self._uow.missions.mark_done(mission.id)
+            return
         review_id = self._review_card_id(mission)
         if review_id is not None:
             self._apply_review_drill_progression(mission, evidence, category, feedback, review_id)
@@ -370,6 +376,7 @@ class LearningService:
             "due_date": mission.due_date,
             "timebox_minutes": mission.timebox_minutes,
             "source_ref": mission.source_ref,
+            "cisia_number": cisia_number(mission.source_ref),
             "visual_ready": bool(
                 topic_id is not None and self._uow.theory_cards.has_concept_for_topic(topic_id)
             ),
@@ -386,6 +393,15 @@ class LearningService:
             for mission in self._uow.missions.list_today(student_id)
             if self._is_drill(mission) and getattr(mission, "task", None) is not None
         ]
+
+    def list_cisia_drill(self, student_id: UUID) -> list[dict[str, object]]:
+        missions = [
+            self._mission_payload(mission)
+            for mission in self._uow.missions.list_today(student_id)
+            if cisia_number(mission.source_ref) is not None
+            and getattr(mission, "task", None) is not None
+        ]
+        return sorted(missions, key=lambda item: item["cisia_number"])
 
     def build_daily_queue(self, student_id: UUID, limit: int = 5) -> dict[str, object]:
         """Авто-сборщик дня: до ``limit`` дрилл-миссий, повторы вперёд, новые темы в остаток.
@@ -1639,6 +1655,15 @@ class LearningService:
 
         mission = self._uow.missions.get_for_attempt(mission_id)
         task = self._uow.tasks.get(mission.task_id) if mission.task_id is not None else None
+        is_cisia = cisia_number(mission.source_ref) is not None
+        if is_cisia:
+            if task is None or task.source != CISIA_SOURCE or mission.topic_id is not None:
+                raise ValueError("CISIA practice requires an official sample task without EGE topic.")
+            if mission.status == MissionStatus.DONE:
+                raise ValueError("Этот вопрос уже завершён. Выбери следующий через /cisia.")
+            selected = choice_answer(values.get("answer_text"))
+            expected = choice_answer(task.expected_answer)
+            values = {**values, "tasks_total": 1, "tasks_correct": int(selected == expected)}
         submitted_at = datetime.now(UTC)
         attempt = self._uow.attempts.add(
             {
@@ -1654,7 +1679,20 @@ class LearningService:
             }
         )
 
-        if self._is_drill(mission) and task is not None and (task.expected_answer or "").strip():
+        if is_cisia:
+            passed = selected == expected
+            draft = EvidenceDraft(
+                score_percent=100.0 if passed else 0.0,
+                error_category=ErrorCategory.NONE if passed else ErrorCategory.OTHER,
+                feedback="Вариант совпадает с официальным ключом CISIA." if passed
+                else f"По официальному ключу CISIA верный вариант: {expected}.",
+                next_action="Вопрос завершён. Для разбора ошибки сохрани ход решения.",
+                model_id="official-answer-key",
+                prompt_version="none",
+                rubric_version="cisia-sample-2021-mcq-v1",
+                status=EvidenceStatus.PASSED if passed else EvidenceStatus.FAILED,
+            )
+        elif self._is_drill(mission) and task is not None and (task.expected_answer or "").strip():
             # Часть-1 дрилл: общий грейдер (exact-авторитет + ИИ-эквивалентность по политике).
             judgment = await self._grade_answer(
                 task.statement, task.expected_answer, attempt.answer_text

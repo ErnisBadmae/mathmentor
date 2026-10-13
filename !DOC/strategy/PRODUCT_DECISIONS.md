@@ -1,6 +1,6 @@
 # Product Decisions
 
-Last updated: 2026-07-17
+Last updated: 2026-10-09
 
 ## v1 scope
 
@@ -11,6 +11,17 @@ Last updated: 2026-07-17
 - AI policy: independent attempt first; AI feedback only after the attempt.
 - First production target: local LAN, protected by a shared API token.
 - Russian is documented in source planning materials, but remains out of v1 product scope.
+
+## CISIA sample practice (2026-10-09)
+
+По прямому запросу ребёнка/владельца разрешена дополнительная математическая практика
+по предоставленному English TOLC-I Sample Test (2021): первые 20 вопросов в `/cisia`.
+Условие сохраняется изображением оригинала; явно показываются источник, номер и страница.
+Оценка только по официальному A–E ключу, без LLM и без назначения причины ошибки
+по выбранной букве. Валидная попытка завершает вопрос и сохраняет evidence 1/1 или 0/1.
+Миссии без topic_id не закрывают темы ЕГЭ и не назначают их повторы; sample-задачи
+исключены из обычных срезов. Score events ЕГЭ не создаются. Это учебный режим,
+без экзаменационных штрафов; полноценный TOLC/CEnT-S трек не объявляется.
 
 ## Initial observed state
 

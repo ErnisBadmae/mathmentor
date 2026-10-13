@@ -1,0 +1,506 @@
+{
+  "source_file": "tolc-i-sinavi-ornek-sorulari.pdf",
+  "source_sha256": "2df04c70a8a3546cc14e3132faee684c4a7f150c75eb28ec73faf96450f2b3ef",
+  "source_language": "en",
+  "source_copyright_year": 2021,
+  "page_count": 50,
+  "text_warning": "Extracted text can corrupt math glyphs/layout; use original PDF pages.",
+  "exam_warning": "Historical English TOLC-I sample; check current university requirements (CEnT-S).",
+  "questions": [
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q1",
+      "number": 1,
+      "section": "mathematics",
+      "pdf_page": 3,
+      "source_page_asset": "page-03.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q2",
+      "number": 2,
+      "section": "mathematics",
+      "pdf_page": 4,
+      "source_page_asset": "page-04.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q3",
+      "number": 3,
+      "section": "mathematics",
+      "pdf_page": 4,
+      "source_page_asset": "page-04.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q4",
+      "number": 4,
+      "section": "mathematics",
+      "pdf_page": 5,
+      "source_page_asset": "page-05.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q5",
+      "number": 5,
+      "section": "mathematics",
+      "pdf_page": 5,
+      "source_page_asset": "page-05.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q6",
+      "number": 6,
+      "section": "mathematics",
+      "pdf_page": 6,
+      "source_page_asset": "page-06.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q7",
+      "number": 7,
+      "section": "mathematics",
+      "pdf_page": 6,
+      "source_page_asset": "page-06.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q8",
+      "number": 8,
+      "section": "mathematics",
+      "pdf_page": 7,
+      "source_page_asset": "page-07.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q9",
+      "number": 9,
+      "section": "mathematics",
+      "pdf_page": 8,
+      "source_page_asset": "page-08.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q10",
+      "number": 10,
+      "section": "mathematics",
+      "pdf_page": 9,
+      "source_page_asset": "page-09.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q11",
+      "number": 11,
+      "section": "mathematics",
+      "pdf_page": 9,
+      "source_page_asset": "page-09.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q12",
+      "number": 12,
+      "section": "mathematics",
+      "pdf_page": 10,
+      "source_page_asset": "page-10.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q13",
+      "number": 13,
+      "section": "mathematics",
+      "pdf_page": 11,
+      "source_page_asset": "page-11.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q14",
+      "number": 14,
+      "section": "mathematics",
+      "pdf_page": 12,
+      "source_page_asset": "page-12.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q15",
+      "number": 15,
+      "section": "mathematics",
+      "pdf_page": 12,
+      "source_page_asset": "page-12.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q16",
+      "number": 16,
+      "section": "mathematics",
+      "pdf_page": 13,
+      "source_page_asset": "page-13.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q17",
+      "number": 17,
+      "section": "mathematics",
+      "pdf_page": 14,
+      "source_page_asset": "page-14.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q18",
+      "number": 18,
+      "section": "mathematics",
+      "pdf_page": 15,
+      "source_page_asset": "page-15.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q19",
+      "number": 19,
+      "section": "mathematics",
+      "pdf_page": 16,
+      "source_page_asset": "page-16.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q20",
+      "number": 20,
+      "section": "mathematics",
+      "pdf_page": 16,
+      "source_page_asset": "page-16.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q21",
+      "number": 21,
+      "section": "logic",
+      "pdf_page": 17,
+      "source_page_asset": "page-17.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q22",
+      "number": 22,
+      "section": "logic",
+      "pdf_page": 18,
+      "source_page_asset": "page-18.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q23",
+      "number": 23,
+      "section": "logic",
+      "pdf_page": 19,
+      "source_page_asset": "page-19.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q24",
+      "number": 24,
+      "section": "logic",
+      "pdf_page": 20,
+      "source_page_asset": "page-20.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q25",
+      "number": 25,
+      "section": "logic",
+      "pdf_page": 21,
+      "source_page_asset": "page-21.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q26",
+      "number": 26,
+      "section": "logic",
+      "pdf_page": 22,
+      "source_page_asset": "page-22.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q27",
+      "number": 27,
+      "section": "logic",
+      "pdf_page": 23,
+      "source_page_asset": "page-23.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q28",
+      "number": 28,
+      "section": "logic",
+      "pdf_page": 24,
+      "source_page_asset": "page-24.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q29",
+      "number": 29,
+      "section": "logic",
+      "pdf_page": 25,
+      "source_page_asset": "page-25.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q30",
+      "number": 30,
+      "section": "logic",
+      "pdf_page": 26,
+      "source_page_asset": "page-26.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q31",
+      "number": 31,
+      "section": "science",
+      "pdf_page": 27,
+      "source_page_asset": "page-27.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q32",
+      "number": 32,
+      "section": "science",
+      "pdf_page": 28,
+      "source_page_asset": "page-28.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q33",
+      "number": 33,
+      "section": "science",
+      "pdf_page": 29,
+      "source_page_asset": "page-29.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q34",
+      "number": 34,
+      "section": "science",
+      "pdf_page": 30,
+      "source_page_asset": "page-30.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q35",
+      "number": 35,
+      "section": "science",
+      "pdf_page": 30,
+      "source_page_asset": "page-30.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q36",
+      "number": 36,
+      "section": "science",
+      "pdf_page": 31,
+      "source_page_asset": "page-31.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q37",
+      "number": 37,
+      "section": "science",
+      "pdf_page": 32,
+      "source_page_asset": "page-32.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q38",
+      "number": 38,
+      "section": "science",
+      "pdf_page": 33,
+      "source_page_asset": "page-33.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q39",
+      "number": 39,
+      "section": "science",
+      "pdf_page": 34,
+      "source_page_asset": "page-34.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q40",
+      "number": 40,
+      "section": "science",
+      "pdf_page": 34,
+      "source_page_asset": "page-34.pdf",
+      "context_pdf_pages": [],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q41",
+      "number": 41,
+      "section": "reading_comprehension",
+      "pdf_page": 39,
+      "source_page_asset": "page-39.pdf",
+      "context_pdf_pages": [
+        35,
+        36,
+        37,
+        38
+      ],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q42",
+      "number": 42,
+      "section": "reading_comprehension",
+      "pdf_page": 40,
+      "source_page_asset": "page-40.pdf",
+      "context_pdf_pages": [
+        35,
+        36,
+        37,
+        38
+      ],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q43",
+      "number": 43,
+      "section": "reading_comprehension",
+      "pdf_page": 41,
+      "source_page_asset": "page-41.pdf",
+      "context_pdf_pages": [
+        35,
+        36,
+        37,
+        38
+      ],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q44",
+      "number": 44,
+      "section": "reading_comprehension",
+      "pdf_page": 41,
+      "source_page_asset": "page-41.pdf",
+      "context_pdf_pages": [
+        35,
+        36,
+        37,
+        38
+      ],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q45",
+      "number": 45,
+      "section": "reading_comprehension",
+      "pdf_page": 42,
+      "source_page_asset": "page-42.pdf",
+      "context_pdf_pages": [
+        35,
+        36,
+        37,
+        38
+      ],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q46",
+      "number": 46,
+      "section": "reading_comprehension",
+      "pdf_page": 46,
+      "source_page_asset": "page-46.pdf",
+      "context_pdf_pages": [
+        43,
+        44,
+        45
+      ],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q47",
+      "number": 47,
+      "section": "reading_comprehension",
+      "pdf_page": 46,
+      "source_page_asset": "page-46.pdf",
+      "context_pdf_pages": [
+        43,
+        44,
+        45
+      ],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q48",
+      "number": 48,
+      "section": "reading_comprehension",
+      "pdf_page": 47,
+      "source_page_asset": "page-47.pdf",
+      "context_pdf_pages": [
+        43,
+        44,
+        45
+      ],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q49",
+      "number": 49,
+      "section": "reading_comprehension",
+      "pdf_page": 48,
+      "source_page_asset": "page-48.pdf",
+      "context_pdf_pages": [
+        43,
+        44,
+        45
+      ],
+      "status": "source_extracted_not_approved"
+    },
+    {
+      "source_ref": "cisia:english-tolc-i:sample-2021:q50",
+      "number": 50,
+      "section": "reading_comprehension",
+      "pdf_page": 48,
+      "source_page_asset": "page-48.pdf",
+      "context_pdf_pages": [
+        43,
+        44,
+        45
+      ],
+      "status": "source_extracted_not_approved"
+    }
+  ]
+}
