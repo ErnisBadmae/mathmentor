@@ -28,6 +28,7 @@ from app.domain.enums import (
     TopicState,
 )
 from app.domain.figures import parse_interval_answer, parse_interval_answer_from_text
+from app.domain.multiple_choice import CISIA_SOURCE, choice_answer, cisia_number, grade_block
 from app.domain.policies import (
     answer_fits_exam_blank,
     answer_is_correct,
@@ -42,7 +43,6 @@ from app.domain.policies import (
     select_daily_queue,
 )
 from app.domain.prerequisites import PREREQUISITES, prerequisites_met
-from app.domain.multiple_choice import CISIA_SOURCE, choice_answer, cisia_number
 from app.domain.probability_visual import parse_probability_visual_spec
 from app.domain.program import PHASES, PHASES_BY_KEY, current_phase_key
 
@@ -402,6 +402,137 @@ class LearningService:
             and getattr(mission, "task", None) is not None
         ]
         return sorted(missions, key=lambda item: item["cisia_number"])
+
+    def start_timed_block(self, student_id: UUID) -> dict[str, object]:
+        repo = self._uow.timed_blocks
+        repo.lock_student(student_id)
+        block = repo.active(student_id)
+        if block is None:
+            pool = [
+                task
+                for task in self._uow.tasks.list_tasks(TaskStatus.APPROVED)
+                if task["source"] == CISIA_SOURCE and cisia_number(task["source_ref"])
+            ]
+            if len(pool) < 5:
+                raise ValueError("Для тренировки нужны 5 одобренных вопросов CISIA.")
+            familiar = repo.familiar_ids(student_id)
+            random.shuffle(pool)
+            pool.sort(key=lambda task: str(task["id"]) in familiar)
+            chosen = pool[:5]
+            now = repo.now()
+            ids = [str(task["id"]) for task in chosen]
+            block = repo.create(
+                {
+                    "id": uuid4(),
+                    "student_id": student_id,
+                    "source": CISIA_SOURCE,
+                    "task_ids": ids,
+                    "familiar_task_ids": [key for key in ids if key in familiar],
+                    "answer_key": {
+                        str(task["id"]): choice_answer(task["expected_answer"]) for task in chosen
+                    },
+                    "answers": {},
+                    "started_at": now,
+                    "deadline_at": now + timedelta(minutes=10),
+                    "total": len(ids),
+                }
+            )
+        return self._timed_state(student_id, block.id)
+
+    def active_timed_block(self, student_id: UUID, block_id: UUID | None = None):
+        return self._timed_state(student_id, block_id)
+
+    def last_timed_block(self, student_id: UUID):
+        block = self._uow.timed_blocks.latest(student_id)
+        return self._timed_state(student_id, block.id) if block else None
+
+    def answer_timed_block(self, student_id: UUID, block_id: UUID, index: int, answer: str):
+        return self._timed_state(student_id, block_id, index=index, answer=choice_answer(answer))
+
+    def finish_timed_block(self, student_id: UUID, block_id: UUID):
+        return self._timed_state(student_id, block_id, submit=True)
+
+    def _timed_state(self, student_id, block_id=None, *, index=None, answer=None, submit=False):
+        repo = self._uow.timed_blocks
+        # Always student -> block locks, also during creation: no parallel open blocks.
+        repo.lock_student(student_id)
+        block = repo.get(student_id, block_id) if block_id else repo.active(student_id)
+        if block is None:
+            self._uow.commit()
+            return None
+        now = repo.now()  # Real DB time AFTER waiting for the locks.
+        deadline = (
+            block.deadline_at.replace(tzinfo=UTC)
+            if block.deadline_at.tzinfo is None
+            else block.deadline_at
+        )
+        if index is not None:
+            if not isinstance(index, int) or not 0 <= index < len(block.task_ids):
+                raise ValueError("Вопрос не входит в этот блок.")
+            if block.finished_at is None and now < deadline:
+                repo.save_answer(block, block.task_ids[index], answer)
+                now = repo.now()
+        newly_finished = False
+        if block.finished_at is None and (now >= deadline or submit):
+            correct, total = grade_block(block.answers, block.answer_key)
+            newly_finished = repo.finish(
+                block,
+                {
+                    "finished_at": min(now, deadline),
+                    "finish_reason": "deadline" if now >= deadline else "submitted",
+                    "correct": correct,
+                    "total": total,
+                },
+            )
+        finished = block.finished_at is not None
+        tasks = []
+        for task_id in block.task_ids:
+            task = self._uow.tasks.get(UUID(task_id))
+            item = {
+                "number": cisia_number(task.source_ref),
+                "statement": task.statement,
+                "answer": block.answers.get(task_id),
+                "familiar": task_id in block.familiar_task_ids,
+            }
+            if finished:
+                item["correct_answer"] = block.answer_key[task_id]
+            tasks.append(item)
+        start = (
+            block.started_at.replace(tzinfo=UTC)
+            if block.started_at.tzinfo is None
+            else block.started_at
+        )
+        end = block.finished_at or now
+        end = end.replace(tzinfo=UTC) if end.tzinfo is None else end
+        payload = {
+            "id": block.id,
+            "finished": finished,
+            "newly_finished": newly_finished,
+            "remaining_seconds": max(0, int((deadline - now).total_seconds())),
+            "elapsed_seconds": min(600, max(0, int((end - start).total_seconds()))),
+            "deadline_at": deadline,
+            "tasks": tasks,
+            "total": block.total,
+        }
+        if finished:
+            independent = {
+                key: value
+                for key, value in block.answer_key.items()
+                if key not in block.familiar_task_ids
+            }
+            payload.update(
+                {
+                    "correct": block.correct,
+                    "finish_reason": block.finish_reason,
+                    "skipped": block.total - len(block.answers),
+                    "independent": len(independent),
+                    "independent_correct": sum(
+                        block.answers.get(key) == value for key, value in independent.items()
+                    ),
+                }
+            )
+        self._uow.commit()
+        return payload
 
     def build_daily_queue(self, student_id: UUID, limit: int = 5) -> dict[str, object]:
         """Авто-сборщик дня: до ``limit`` дрилл-миссий, повторы вперёд, новые темы в остаток.

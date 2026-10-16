@@ -39,6 +39,7 @@ from app.infrastructure.models import (
     TopicORM,
     TopicRequestORM,
 )
+from app.infrastructure.timed_blocks import TimedBlockSqlRepository
 
 
 def _local_today() -> date:
@@ -69,6 +70,7 @@ class SqlAlchemyUnitOfWork:
         self.theory_cards = TheoryCardSqlRepository(session)
         self.mentor_notes = MentorNoteSqlRepository(session)
         self.topic_requests = TopicRequestSqlRepository(session)
+        self.timed_blocks = TimedBlockSqlRepository(session)
 
     def commit(self) -> None:
         self.session.commit()

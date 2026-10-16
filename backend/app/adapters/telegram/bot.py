@@ -16,17 +16,18 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from pathlib import Path
 import time
 from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from ipaddress import ip_address
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+from app.adapters.telegram import timed_practice
 from app.application.use_cases import (
     SLICE_SUBJECT_LABEL,
     ExactOnlyJudge,
@@ -47,6 +48,7 @@ BOT_COMMANDS = (
     ("start", "Главное меню"),
     ("today", "Задания на сегодня"),
     ("cisia", "CISIA — математика из методички"),
+    ("timed", "CISIA — 5 вопросов за 10 минут"),
     ("slice", "Срез по теме"),
     ("ready", "Отметить: теорию изучила"),
     ("topics", "Своя тема — добавить в сегодня"),
@@ -241,6 +243,7 @@ def _home_keyboard() -> Any:
         inline_keyboard=[
             [InlineKeyboardButton(text="📚 Сегодня", callback_data="menu:today")],
             [InlineKeyboardButton(text="📘 CISIA · методичка", callback_data="menu:cisia")],
+            [InlineKeyboardButton(text="⏱ CISIA · 10 минут", callback_data="menu:timed")],
             [InlineKeyboardButton(text="🧪 Срез по теме", callback_data="menu:slice")],
             [InlineKeyboardButton(text="📖 Готова к новым темам", callback_data="menu:ready")],
             [InlineKeyboardButton(text="➕ Своя тема", callback_data="menu:topics")],
@@ -357,6 +360,9 @@ async def _send_next(message: Any) -> None:
 async def _on_cisia(message: Any) -> None:
     if not await _ensure_authorized(message):
         return
+    if await timed_practice.guard(message):
+        await timed_practice.on_timed(message)
+        return
     chat_id = message.chat.id
     if chat_id in _srez or chat_id in _awaiting:
         await message.answer("Заверши текущую задачу или используй /cancel, затем /cisia.")
@@ -364,6 +370,23 @@ async def _on_cisia(message: Any) -> None:
     _cisia_active.add(chat_id)
     _presented.pop(chat_id, None)
     await _send_next(message)
+
+
+async def _on_timed(message: Any) -> None:
+    if not await _ensure_authorized(message):
+        return
+    if message.chat.id in _srez or message.chat.id in _awaiting:
+        await message.answer("Заверши текущую задачу или /cancel, затем /timed.")
+        return
+    await timed_practice.on_timed(message)
+
+
+async def _on_timed_callback(callback: Any) -> None:
+    chat_id = callback.message.chat.id
+    if callback.data == "tb:start" and (chat_id in _srez or chat_id in _awaiting):
+        await callback.answer("Сначала заверши текущую задачу или /cancel.", show_alert=True)
+        return
+    await timed_practice.on_callback(callback)
 
 
 async def _skip_daily_task(message: Any, chat_id: int) -> bool:
@@ -389,6 +412,8 @@ async def _on_start(message: Any) -> None:
 
 async def _on_today(message: Any) -> None:
     if not await _ensure_authorized(message):
+        return
+    if await timed_practice.guard(message):
         return
     chat_id = message.chat.id
     if chat_id in _srez:
@@ -419,13 +444,16 @@ async def _on_help(message: Any) -> None:
         "Как пользоваться ботом:\n"
         "• Сегодня — подготовленные задания и повторы.\n"
         "• Срез по теме — 5 задач с результатом в конце.\n"
+        "• CISIA (/cisia) — вопросы методички с проверкой после ответа.\n"
+        "• Таймер (/timed) — 5 вопросов CISIA за 10 минут, проверка в конце.\n"
         "• Готова к новым темам (/ready) — отметь, по каким темам изучила теорию: "
         "новые задачи буду брать из твоего списка.\n"
         "• Своя тема (/topics) — выбери тему трека сама, добавлю в «Сегодня» задачу по ней.\n"
         "• Прогресс — текущие баллы и повторы.\n\n"
         "Ответ присылай текстом: кратко распиши решение и в конце укажи ответ. "
         "Кнопка «⏭ Пропустить» (или /skip) пропустит одну задачу, если пока не готова "
-        "(не считается ошибкой). /cancel остановит текущий режим.",
+        "(не считается ошибкой). /cancel остановит обычный режим. "
+        "В /timed часы продолжаются: вернись через /timed или нажми «Завершить».",
     )
 
 
@@ -520,6 +548,8 @@ def _topics_keyboard(rows: list[dict[str, Any]]) -> Any:
 async def _on_topics(message: Any) -> None:
     if not await _ensure_authorized(message):
         return
+    if await timed_practice.guard(message):
+        return
     with SessionLocal() as session:
         rows = _service(session).list_self_pick_candidates(PILOT_STUDENT_ID)
     if not rows:
@@ -531,6 +561,9 @@ async def _on_topics(message: Any) -> None:
 async def _on_topics_pick(callback: Any) -> None:
     if not _is_authorized(callback.message.chat.id):
         await callback.answer("Не авторизовано", show_alert=True)
+        return
+    if await timed_practice.guard(callback.message):
+        await callback.answer()
         return
     topic_id = UUID(callback.data.split(":", 2)[2])
     with SessionLocal() as session:
@@ -556,6 +589,9 @@ async def _on_topics_more(callback: Any) -> None:
     chat_id = callback.message.chat.id
     if not _is_authorized(chat_id):
         await callback.answer("Не авторизовано", show_alert=True)
+        return
+    if await timed_practice.guard(callback.message):
+        await callback.answer()
         return
     topic_id = UUID(callback.data.split(":", 2)[2])
     with SessionLocal() as session:
@@ -605,6 +641,7 @@ async def _on_menu(callback: Any) -> None:
     handlers = {
         "today": _on_today,
         "cisia": _on_cisia,
+        "timed": _on_timed,
         "slice": _on_slice,
         "progress": _on_progress,
         "ready": _on_ready,
@@ -616,6 +653,8 @@ async def _on_menu(callback: Any) -> None:
 async def _on_answer(message: Any) -> None:
     if not await _ensure_authorized(message):
         return
+    if await timed_practice.guard(message):
+        return
     chat_id = message.chat.id
     if chat_id in _srez:  # срез приоритетнее дрилла, пока активен
         await _handle_srez_answer(message, chat_id)
@@ -625,6 +664,9 @@ async def _on_answer(message: Any) -> None:
 
 async def _on_cisia_choice(callback: Any) -> None:
     chat_id = callback.message.chat.id
+    if _is_authorized(chat_id) and await timed_practice.guard(callback.message):
+        await callback.answer()
+        return
     parts = callback.data.split(":")
     if (not _is_authorized(chat_id) or chat_id not in _cisia_active
             or str(_awaiting.get(chat_id)) != parts[2]):
@@ -710,6 +752,8 @@ def _topic_keyboard(topics: list[dict[str, object]]) -> Any:
 async def _on_slice(message: Any) -> None:
     if not await _ensure_authorized(message):
         return
+    if await timed_practice.guard(message):
+        return
     chat_id = message.chat.id
     if chat_id in _srez:
         await message.answer("Срез уже идёт. Заверши его или используй /cancel.")
@@ -764,6 +808,9 @@ async def _on_slice_back(callback: Any) -> None:
 async def _on_slice_topic(callback: Any) -> None:
     if not _is_authorized(callback.message.chat.id):
         await callback.answer("Не авторизовано", show_alert=True)
+        return
+    if await timed_practice.guard(callback.message):
+        await callback.answer()
         return
     await callback.answer()
     topic_id = UUID(callback.data.split(":")[2])
@@ -843,6 +890,8 @@ async def _advance_srez(message: Any, chat_id: int) -> None:
 
 async def _on_cancel(message: Any) -> None:
     if not await _ensure_authorized(message):
+        return
+    if await timed_practice.guard(message):
         return
     chat_id = message.chat.id
     active = _srez.pop(chat_id, None) is not None or chat_id in _awaiting
@@ -938,6 +987,9 @@ async def _run_daily_push(bot: Any, chat_id: int) -> None:
     settings = get_settings()
     with SessionLocal() as session:
         service = _service(session)
+        timed = service.active_timed_block(PILOT_STUDENT_ID)
+        if timed and not timed["finished"]:
+            return
         result = service.build_daily_queue(PILOT_STUDENT_ID, settings.daily_drill_size)
         days_since_slice = service.days_since_last_diagnostic(PILOT_STUDENT_ID)
     _presented.pop(chat_id, None)
@@ -1037,6 +1089,7 @@ async def _register_commands(bot: Any) -> None:
 
 async def _run(dp: Any, bot: Any) -> None:
     await _register_commands(bot)
+    await timed_practice.restore_timer(bot)
     monitor = _install_polling_failure_monitor()
     asyncio.create_task(_polling_failure_watchdog(monitor))
     settings = get_settings()
@@ -1068,6 +1121,7 @@ def main() -> None:
     dp.message.register(_on_start, CommandStart())
     dp.message.register(_on_today, Command("today"))
     dp.message.register(_on_cisia, Command("cisia"))
+    dp.message.register(_on_timed, Command("timed"))
     dp.message.register(_on_slice, Command("slice"))
     dp.message.register(_on_ready, Command("ready"))
     dp.message.register(_on_topics, Command("topics"))
@@ -1081,6 +1135,7 @@ def main() -> None:
     dp.message.register(_on_unsupported)
     dp.callback_query.register(_on_menu, F.data.startswith("menu:"))
     dp.callback_query.register(_on_cisia_choice, F.data.startswith("cisia:choice:"))
+    dp.callback_query.register(_on_timed_callback, F.data.startswith("tb:"))
     dp.callback_query.register(_on_slice_subject, F.data.startswith("slice:subj:"))
     dp.callback_query.register(_on_slice_topic, F.data.startswith("slice:topic:"))
     dp.callback_query.register(_on_slice_back, F.data == "slice:back")

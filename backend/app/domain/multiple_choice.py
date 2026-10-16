@@ -19,3 +19,11 @@ def cisia_number(source_ref: str | None) -> int | None:
     match = re.fullmatch(re.escape(CISIA_PREFIX) + r"(\d+)", source_ref or "")
     number = int(match.group(1)) if match else 0
     return number if 1 <= number <= 20 else None
+
+
+def grade_block(answers: dict[str, str], key: dict[str, str]) -> tuple[int, int]:
+    if not set(answers) <= set(key):
+        raise ValueError("Answer does not belong to this block")
+    return sum(
+        choice_answer(value) == choice_answer(key[task]) for task, value in answers.items()
+    ), len(key)

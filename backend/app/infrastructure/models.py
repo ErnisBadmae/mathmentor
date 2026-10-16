@@ -8,12 +8,14 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
     Uuid,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.enums import (
@@ -31,6 +33,28 @@ from app.domain.enums import (
 from app.infrastructure.db import Base
 
 PG_UUID = Uuid
+
+
+class TimedBlockORM(Base):
+    __tablename__ = "timed_blocks"
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    student_id: Mapped[UUID] = mapped_column(ForeignKey("student_profiles.id"))
+    source: Mapped[str] = mapped_column(String(80))
+    task_ids: Mapped[list] = mapped_column(JSON().with_variant(JSONB, "postgresql"))
+    familiar_task_ids: Mapped[list] = mapped_column(JSON().with_variant(JSONB, "postgresql"))
+    answer_key: Mapped[dict] = mapped_column(JSON().with_variant(JSONB, "postgresql"))
+    answers: Mapped[dict] = mapped_column(JSON().with_variant(JSONB, "postgresql"))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    deadline_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finish_reason: Mapped[str | None] = mapped_column(String(20))
+    correct: Mapped[int | None] = mapped_column(Integer)
+    total: Mapped[int] = mapped_column(Integer)
+
+
+Index("uq_timed_blocks_open_student", TimedBlockORM.student_id, unique=True,
+      postgresql_where=TimedBlockORM.finished_at.is_(None),
+      sqlite_where=TimedBlockORM.finished_at.is_(None))
 
 
 class UserORM(Base):
