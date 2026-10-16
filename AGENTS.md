@@ -75,7 +75,8 @@ backend/app/adapters        FastAPI and Telegram
 
 ## Engineering Rules
 
-- Следовать `.claude/rules/simplicity.md`.
+- Перед любым изменением или ревью кода прочитать `.claude/rules/simplicity.md` и следовать
+  ему: это единое правило простоты для Claude Code и Codex, его не дублируют здесь.
 - Читать только файлы, нужные для задачи; искать через `rg`.
 - Держать domain logic в `domain` или `application`, не в routes или React.
 - LLM-вызовы держать за ports.
