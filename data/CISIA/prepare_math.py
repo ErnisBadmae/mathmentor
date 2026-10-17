@@ -1,4 +1,4 @@
-"""Render the 20 original math questions and package their official keys for import."""
+"""Render the original mathematics and logic questions with official answer keys."""
 
 import hashlib
 import json
@@ -14,7 +14,7 @@ key = json.loads((root / "extracted/answer-key.operator.json").read_text(encodin
 out = root.parents[1] / "backend/data/cisia"
 out.mkdir(parents=True, exist_ok=True)
 questions = []
-for page_index in range(2, 16):
+for page_index in range(2, 26):
     page = doc[page_index]
     starts = []
     for block in page.get_text("dict")["blocks"]:
@@ -37,10 +37,12 @@ for page_index in range(2, 16):
             "asset": filename,
             "asset_sha256": hashlib.sha256((out / filename).read_bytes()).hexdigest(),
         })
-if sorted(q["number"] for q in questions) != list(range(1, 21)):
-    raise ValueError("Expected exactly 20 original mathematics questions")
-(out / "math.json").write_text(json.dumps({
-    "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
-    "questions": sorted(questions, key=lambda item: item["number"]),
-}, indent=2), encoding="utf-8")
+if sorted(q["number"] for q in questions) != list(range(1, 31)):
+    raise ValueError("Expected 20 mathematics and 10 logic questions")
+for name, numbers in [("math", range(1, 21)), ("logic", range(21, 31))]:
+    (out / f"{name}.json").write_text(json.dumps({
+        "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "questions": sorted([q for q in questions if q["number"] in numbers],
+                            key=lambda item: item["number"]),
+    }, indent=2), encoding="utf-8")
 print(f"Prepared {len(questions)} original question images with official keys in {out}")

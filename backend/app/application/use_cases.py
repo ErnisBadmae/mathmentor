@@ -28,7 +28,13 @@ from app.domain.enums import (
     TopicState,
 )
 from app.domain.figures import parse_interval_answer, parse_interval_answer_from_text
-from app.domain.multiple_choice import CISIA_SOURCE, choice_answer, cisia_number, grade_block
+from app.domain.multiple_choice import (
+    CISIA_SOURCE,
+    choice_answer,
+    cisia_number,
+    cisia_section,
+    grade_block,
+)
 from app.domain.policies import (
     answer_fits_exam_blank,
     answer_is_correct,
@@ -394,11 +400,14 @@ class LearningService:
             if self._is_drill(mission) and getattr(mission, "task", None) is not None
         ]
 
-    def list_cisia_drill(self, student_id: UUID) -> list[dict[str, object]]:
+    def list_cisia_drill(self, student_id: UUID, section: str | None = None) -> list[dict[str, object]]:
+        if section not in (None, "math", "logic"):
+            raise ValueError("Unknown CISIA section")
         missions = [
             self._mission_payload(mission)
             for mission in self._uow.missions.list_today(student_id)
             if cisia_number(mission.source_ref) is not None
+            and (section is None or cisia_section(mission.source_ref) == section)
             and getattr(mission, "task", None) is not None
         ]
         return sorted(missions, key=lambda item: item["cisia_number"])
@@ -411,7 +420,7 @@ class LearningService:
             pool = [
                 task
                 for task in self._uow.tasks.list_tasks(TaskStatus.APPROVED)
-                if task["source"] == CISIA_SOURCE and cisia_number(task["source_ref"])
+                if task["source"] == CISIA_SOURCE and cisia_section(task["source_ref"]) == "math"
             ]
             if len(pool) < 5:
                 raise ValueError("Для тренировки нужны 5 одобренных вопросов CISIA.")

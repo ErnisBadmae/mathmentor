@@ -14,13 +14,14 @@ from app.domain.enums import (
     MissionStatus,
     Subject,
 )
-from app.domain.multiple_choice import CISIA_PREFIX, choice_answer
+from app.domain.multiple_choice import CISIA_PREFIX, choice_answer, cisia_number, cisia_section
 from app.infrastructure.models import (
     AttemptORM,
     ErrorEventORM,
     EvidenceORM,
     MissionORM,
     ReviewItemORM,
+    TaskORM,
 )
 from app.infrastructure.repositories import SqlAlchemyUnitOfWork
 from scripts.seed import DEMO_STUDENT_ID
@@ -143,3 +144,94 @@ def test_bot_sends_original_image_with_source_and_without_key(seeded_session):
         bot._cisia_active.discard(12345)
         bot._awaiting.pop(12345, None)
         bot._presented.pop(12345, None)
+
+
+@pytest.mark.parametrize(
+    "number,section",
+    [(1, "math"), (20, "math"), (21, "logic"), (30, "logic"), (31, None), (50, None)],
+)
+def test_cisia_sections_stop_before_science(number, section):
+    assert cisia_section(CISIA_PREFIX + str(number)) == section
+
+
+def test_import_logic_preserves_attempts_and_math_timer(
+    seeded_session, session_factory, monkeypatch
+):
+    import json
+    from pathlib import Path
+
+    from scripts import import_cisia
+
+    svc, task, original = setup_practice(seeded_session)
+    result = asyncio.run(
+        svc.submit_attempt(
+            {
+                "mission_id": original["id"],
+                "kind": AttemptKind.TEXT,
+                "mode": AttemptMode.UNKNOWN,
+                "answer_text": "E",
+            }
+        )
+    )
+    monkeypatch.setattr(import_cisia, "SessionLocal", session_factory)
+    monkeypatch.setattr("sys.argv", ["import_cisia", "--apply"])
+    import_cisia.main()
+    import_cisia.main()
+    seeded_session.expire_all()
+    tasks = seeded_session.scalars(select(TaskORM).where(TaskORM.source == "cisia_sample")).all()
+    assert len(tasks) == 30
+    missions = seeded_session.scalars(
+        select(MissionORM).where(MissionORM.source_ref.like(CISIA_PREFIX + "%"))
+    ).all()
+    assert len(missions) == 30
+    assert seeded_session.get(MissionORM, original["id"]).status == MissionStatus.DONE
+    assert seeded_session.get(EvidenceORM, result["evidence_id"]).status == EvidenceStatus.PASSED
+    queue = svc.list_cisia_drill(DEMO_STUDENT_ID)
+    logic = [q for q in queue if q["cisia_number"] > 20]
+    assert svc.list_cisia_drill(DEMO_STUDENT_ID, section="logic") == logic
+    assert all(
+        q["cisia_number"] <= 20 for q in svc.list_cisia_drill(DEMO_STUDENT_ID, section="math")
+    )
+    assert [q["cisia_number"] for q in logic] == list(range(21, 31))
+    assert all("Логика" in q["title"] and "Логика" in q["statement"] for q in logic)
+    assert all("expected_answer" not in q for q in logic)
+    bundle = json.loads((Path(__file__).parents[1] / "data/cisia/logic.json").read_text())
+    assert [q["expected_answer"] for q in bundle["questions"]] == list("CAADCDCCCD")
+    by_number = {cisia_number(t.source_ref): t for t in tasks}
+    assert all(
+        by_number[q["number"]].expected_answer == q["expected_answer"] for q in bundle["questions"]
+    )
+    logic_result = asyncio.run(
+        svc.submit_attempt(
+            {
+                "mission_id": logic[0]["id"],
+                "kind": AttemptKind.TEXT,
+                "mode": AttemptMode.UNKNOWN,
+                "answer_text": "C",
+            }
+        )
+    )
+    assert logic_result["status"] == EvidenceStatus.PASSED  # BoomReviewer not called
+    from app.adapters.telegram import bot
+
+    message = AsyncMock()
+    message.chat.id = 12346
+    bot._cisia_active.add(12346)
+    bot._cisia_sections[12346] = "logic"
+    try:
+        with patch.object(bot, "SessionLocal"), patch.object(bot, "_service", return_value=svc):
+            asyncio.run(bot._send_next(message))
+        assert "Логика" in message.answer_photo.call_args.kwargs["caption"]
+        assert message.answer_photo.call_args.args[0].path.name == "q22.png"
+    finally:
+        bot._cisia_active.discard(12346)
+        bot._cisia_sections.pop(12346, None)
+        bot._awaiting.pop(12346, None)
+        bot._presented.pop(12346, None)
+    # Put logic first in any mixed pool: timed maths must still select only mathematics.
+    monkeypatch.setattr(
+        "app.application.use_cases.random.shuffle",
+        lambda pool: pool.sort(key=lambda t: cisia_number(t["source_ref"]), reverse=True),
+    )
+    block = svc.start_timed_block(DEMO_STUDENT_ID)
+    assert all(q["number"] <= 20 for q in block["tasks"])

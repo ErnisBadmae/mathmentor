@@ -47,8 +47,9 @@ SLICE_SIZE = 5  # сколько задач в срезе по теме (фак�
 BOT_COMMANDS = (
     ("start", "Главное меню"),
     ("today", "Задания на сегодня"),
-    ("cisia", "CISIA — математика из методички"),
-    ("timed", "CISIA — 5 вопросов за 10 минут"),
+    ("cisia", "CISIA — математика и логика"),
+    ("logic", "CISIA — раздел логики"),
+    ("timed", "CISIA — математика за 10 минут"),
     ("slice", "Срез по теме"),
     ("ready", "Отметить: теорию изучила"),
     ("topics", "Своя тема — добавить в сегодня"),
@@ -138,6 +139,7 @@ async def _polling_failure_watchdog(
 _presented: dict[int, set[UUID]] = {}
 _awaiting: dict[int, UUID] = {}
 _cisia_active: set[int] = set()
+_cisia_sections: dict[int, str | None] = {}
 # Активная сессия среза на чат: {subject, items, idx, judged}. Срез приоритетнее дрилла.
 _srez: dict[int, dict[str, Any]] = {}
 
@@ -243,6 +245,7 @@ def _home_keyboard() -> Any:
         inline_keyboard=[
             [InlineKeyboardButton(text="📚 Сегодня", callback_data="menu:today")],
             [InlineKeyboardButton(text="📘 CISIA · методичка", callback_data="menu:cisia")],
+            [InlineKeyboardButton(text="🧩 CISIA · Логика", callback_data="menu:logic")],
             [InlineKeyboardButton(text="⏱ CISIA · 10 минут", callback_data="menu:timed")],
             [InlineKeyboardButton(text="🧪 Срез по теме", callback_data="menu:slice")],
             [InlineKeyboardButton(text="📖 Готова к новым темам", callback_data="menu:ready")],
@@ -330,13 +333,19 @@ async def _send_next(message: Any) -> None:
     chat_id = message.chat.id
     with SessionLocal() as session:
         service = _service(session)
-        drills = service.list_cisia_drill(PILOT_STUDENT_ID) if chat_id in _cisia_active else service.list_daily_drill(PILOT_STUDENT_ID)
+        if chat_id in _cisia_active:
+            drills = service.list_cisia_drill(
+                PILOT_STUDENT_ID, section=_cisia_sections.get(chat_id)
+            )
+        else:
+            drills = service.list_daily_drill(PILOT_STUDENT_ID)
     presented = _presented.setdefault(chat_id, set())
     nxt = next((d for d in drills if d["id"] not in presented), None)
     if nxt is None:
         _awaiting.pop(chat_id, None)
         if chat_id in _cisia_active:
             _cisia_active.discard(chat_id)
+            _cisia_sections.pop(chat_id, None)
             await _show_home(message, "Блок CISIA завершён. Пропущенные вопросы доступны через /cisia. Результаты сохранены в истории попыток.")
             return
         await _show_home(message, "На сегодня всё сделано ✅ Новая порция — завтра утром.")
@@ -357,7 +366,7 @@ async def _send_next(message: Any) -> None:
     _awaiting[chat_id] = mission_id
 
 
-async def _on_cisia(message: Any) -> None:
+async def _on_cisia(message: Any, *, section: str | None = None) -> None:
     if not await _ensure_authorized(message):
         return
     if await timed_practice.guard(message):
@@ -368,8 +377,13 @@ async def _on_cisia(message: Any) -> None:
         await message.answer("Заверши текущую задачу или используй /cancel, затем /cisia.")
         return
     _cisia_active.add(chat_id)
+    _cisia_sections[chat_id] = section
     _presented.pop(chat_id, None)
     await _send_next(message)
+
+
+async def _on_logic(message: Any) -> None:
+    await _on_cisia(message, section="logic")
 
 
 async def _on_timed(message: Any) -> None:
@@ -422,6 +436,7 @@ async def _on_today(message: Any) -> None:
     _presented.pop(chat_id, None)
     _awaiting.pop(chat_id, None)
     _cisia_active.discard(chat_id)
+    _cisia_sections.pop(chat_id, None)
     await _send_next(message)
 
 
@@ -445,6 +460,7 @@ async def _on_help(message: Any) -> None:
         "• Сегодня — подготовленные задания и повторы.\n"
         "• Срез по теме — 5 задач с результатом в конце.\n"
         "• CISIA (/cisia) — вопросы методички с проверкой после ответа.\n"
+        "• Логика (/logic) — отдельный раздел CISIA, вопросы 21–30.\n"
         "• Таймер (/timed) — 5 вопросов CISIA за 10 минут, проверка в конце.\n"
         "• Готова к новым темам (/ready) — отметь, по каким темам изучила теорию: "
         "новые задачи буду брать из твоего списка.\n"
@@ -641,6 +657,7 @@ async def _on_menu(callback: Any) -> None:
     handlers = {
         "today": _on_today,
         "cisia": _on_cisia,
+        "logic": _on_logic,
         "timed": _on_timed,
         "slice": _on_slice,
         "progress": _on_progress,
@@ -898,6 +915,7 @@ async def _on_cancel(message: Any) -> None:
     _awaiting.pop(chat_id, None)
     _presented.pop(chat_id, None)
     _cisia_active.discard(chat_id)
+    _cisia_sections.pop(chat_id, None)
     await _show_home(message, "Текущий режим остановлен." if active else "Нет активного режима.")
 
 
@@ -1121,6 +1139,7 @@ def main() -> None:
     dp.message.register(_on_start, CommandStart())
     dp.message.register(_on_today, Command("today"))
     dp.message.register(_on_cisia, Command("cisia"))
+    dp.message.register(_on_logic, Command("logic"))
     dp.message.register(_on_timed, Command("timed"))
     dp.message.register(_on_slice, Command("slice"))
     dp.message.register(_on_ready, Command("ready"))
