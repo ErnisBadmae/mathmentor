@@ -1,0 +1,482 @@
+# Session Log Archive - 2026-W27
+
+---
+
+## 2026-07-05 - Import-linter contracts for backend
+
+Status: implemented and verified locally.
+
+- Added `import-linter>=2.0` to backend `dev` extras and configured two contracts in `backend/pyproject.toml`: `app.domain` must stay pure from `app.infrastructure` / `app.adapters` / `app.application`; `app.application` must not import `app.adapters`.
+- Added weekly no-prompt queue task `T-lint-imports` to `backend/scripts/night_queue_weekly.json`.
+- Under these two contracts the backend already had no violations, so no source import rewrites were needed; diff stayed config-only.
+- Local environment note: `pip install -e .[dev]` could not reach the package index because of proxy/socket denial, so `importlinter` + `grimp` were copied into `backend/.venv312` from the neighboring `expert-agent` venv to run the gate without changing repo runtime code.
+
+Verification: `backend\.venv312\Scripts\python.exe -m importlinter.cli --config backend/pyproject.toml` rc=0; backend suite `182 passed`; weekly queue JSON parsed.
+
+Open tail: if backend `.venv312` is recreated, `import-linter` will need a normal `.[dev]` install once package-index access works again.
+
+---
+
+## 2026-07-04 - Night runner v1.1 + unit synonyms + judge weekly gate
+
+Status: implemented and locally verified; live calibration rerun blocked by unavailable LLM endpoint.
+
+- Synced `backend/scripts/night_runner.py` with expert-agent v1.1 behavior: VERSION stamp, `.env` copy into isolated worktree, full command logs under run `logs/<task>/`, report tail `LOG_TAIL_CHARS=3000`; ege queue paths and `C:\tmp\egeMentor-qwen-runs` preserved.
+- Added exact-answer unit synonyms in `normalize_answer`: `кб|кбайт|kb`, `мб|мбайт|mb`, `гб|гбайт|gb`; single `б` stays distinct.
+- Added weekly no-prompt queue task `T-calibrate-ai-judge` with `--max-failure-rate 0.1` and `files_allowed=["data/ai_judge_disagreements.jsonl"]`; runner now enforces `files_allowed` after acceptance too.
+- Calibration rerun attempted from `backend/`: judge returned `None` for 25/25 triples because `http://192.168.0.18:8000/v1` was unreachable; no valid baseline delta recorded. The unit exact case is fixed, but the current replay row is full show-work text starting with `768 кб, ...`, so raw exact remains false without extracted-answer replay.
+
+Verification: focused grader/calibration tests `21 passed`; full backend suite `182 passed`; night runner `--dry-run` GREEN with full-log paths; weekly queue JSON parsed; `py_compile` for runner/calibration OK. `black`/`flake8` are not installed in backend venv.
+
+Open tail: rerun `scripts/calibrate_ai_judge.py` when the local LLM endpoint is reachable; if the goal is to remove the `768 кб` show-work replay disagreement, calibration needs an extracted-answer axis, not only unit suffix normalization.
+
+---
+
+## 2026-07-03 - Retention KPI dashboard
+
+Status: implemented and verified locally.
+
+- Added dashboard `retention`: current-week active days, target 3, Wednesday risk flag, message, and current `daily_drill_size`.
+- Active day v1 counts any learning contact in the current local week: attempt/evidence, diagnostic/srez, or score event; duplicate same-day events count once.
+- Added dashboard card for weekly rhythm; risk state is dashboard-only, with no Telegram or mentor-note side effects.
+- Added regressions for Wednesday risk, Monday non-risk, active-day dedupe, and dashboard exposure.
+
+Verification: focused retention slice `10 passed`; full backend suite `175 passed`; frontend build green.
+
+Open tail: commit this slice, then record the first July timed mini-mock and start weekly mentor review.
+
+---
+
+## 2026-07-03 - Qwen live report 093450 review
+
+Status: reviewed; no product code changes required.
+
+- Live nightly run `C:\tmp\egeMentor-qwen-runs\2026-07-03\report-093450.md`: 4/4 GREEN.
+- Accepted: sandbox MCP contract and `manual_gate_text_solution` are guarded by tests; part-2 post-change QA passed; error-intervention readiness remains read-only.
+- No urgent code from Qwen findings: attempt-mode comparison, threshold-close simulator, and error-category journal propagation can wait.
+- Future blocker before unfreezing deterministic intervention: slice/srez errors currently write category `other`, and `other` already dominates `top_errors` (6); add a small Codex slice to categorize srez errors before routing by `top_error_category`.
+- Frozen rule stays frozen: do not implement deterministic repeated-error daily-queue routing until 2-3 weeks of weekly-review data.
+- Later operator note: if part-2 mission creation is exposed in UX/MCP flows, guard `part2:text:*` missions from accidental `ATTEMPT_FIRST`.
+
+Verification: report acceptance was green (`test_figures` 13 passed, sandbox tests 2 passed, error/intervention slice 55 passed, part2 slice 36 passed).
+
+Open tail: first July timed mini-mock score event, then weekly mentor review.
+
+---
+
+## 2026-07-03 - Manual-gate QA follow-up
+
+Status: implemented and verified locally.
+
+- Added a MANUAL_GATE regression through `RuleBasedReviewer`, not only `StaticReviewer`: reviewer output with nonzero score/error category still lands as `needs_manual_review`, score `0.0`, mission `active`.
+- Added sandbox simulator case `manual_gate_text_solution` so `run_student_simulation()` and the sandbox MCP surface guard the part-2 fail-closed invariant every night.
+- Updated sandbox script/MCP tests to assert manual-review presence, active mission state, and zero score.
+- Updated weekly visualization-surface acceptance to tolerate the new non-visual sandbox case while still checking visual cases.
+- Updated executor-harness docs from stale part2 readiness wording to post-change QA + manual_gate simulator coverage.
+
+Verification: focused slice `34 passed`; simulator script `ok=true`; queue JSON parsed; nightly dry-run GREEN; weekly dry-run GREEN; full backend suite `172 passed`; frontend build green.
+
+Open tail: commit this follow-up, then choose live deploy/reseed for #13/#15 or schedule the first July timed baseline. Deterministic repeated-error intervention remains frozen.
+
+---
+
+## 2026-07-03 - Morning review of nightly batch 235647
+
+Status: reviewed; no product code changed.
+
+- Live nightly run `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-235647.md`: 4/4 GREEN (plumbing, sandbox contract, error-intervention readiness, part-2 post-change QA).
+- Part-2 finding: MANUAL_GATE fail-closed invariant is only tested with StaticReviewer; needs a regression through the real reviewer path. Minor: Part2Page empty-state/filter test, task 4071 wording check at first session.
+- Error-intervention finding: `top_error_category` lacks a minimum-count guard (>=2) — recorded as a design constraint for the still-frozen deterministic rule; `publish_feedback` weekly dedup untested (low, manual gate mitigates).
+- Sandbox finding: worth adding simulator cases `manual_gate`, retry-then-pass, failed-attempt -> error_journal; the `manual_gate` case makes nightly QA guard the part-2 invariant.
+
+Verification: read-only review; all acceptance in the report rc=0.
+
+Open tail: hand the MANUAL_GATE regression + simulator `manual_gate` case to Codex as the next slice.
+
+---
+
+## 2026-07-02 - Nightly queue: part-2 post-change QA
+
+Status: implemented and verified locally.
+
+- Replaced stale `T-report-part2-manual-gate-readiness` with `T-report-part2-postchange` in `night_queue.json`, since the part-2 slice landed in `4294d09`.
+- New Qwen report: read-only post-change QA of the #13/#15 text flow — fail-closed check of `MANUAL_GATE`, answer-key leak check, missing tests before the first real session.
+- Acceptance: pytest (`test_v1_flow`, `test_task_bank_mcp`) + static text checks only; no npm build inside isolated worktrees (known false-RED).
+
+Verification: acceptance replayed with exact runner argv (rc=0 both commands); `night_runner.py --dry-run` GREEN across all 4 nightly tasks.
+
+Open tail: operator runs the live nightly batch; weekly queue untouched.
+
+---
+
+## 2026-07-02 - Part-2 text manual gate
+
+Status: implemented and verified locally.
+
+- Added `AiPolicy.MANUAL_GATE`; manual-gate attempts always become `NEEDS_MANUAL_REVIEW`, score `0.0`, and do not progress the mission before mentor verdict.
+- Exposed safe mission metadata (`ai_policy`, `task_number`, `source_ref`) without exposing answer keys.
+- Seeded two text-only part-2 missions for math #13/#15, linked to approved tasks with no usable autograde key.
+- Added frontend `/part2`: learner selects #13/#15, submits full text reasoning, and sees manual-review pending state.
+- Added regressions for manual-gate submission and seeded part-2 missions.
+
+Verification: focused backend slice `35 passed`; full backend suite `171 passed`; frontend build green.
+
+Open tail: commit this slice, then deploy/reseed live data only when ready to expose these missions to the learner. Deterministic repeated-error intervention remains frozen for 2-3 weeks of observation.
+
+---
+
+## 2026-07-02 - Qwen queue split
+
+Status: implemented and verified locally.
+
+- Kept `backend/scripts/night_queue.json` as the nightly core: plumbing, sandbox MCP contract, error-intervention readiness, and part-2 manual-gate readiness.
+- Added `backend/scripts/night_queue_weekly.json` for broad weekly/change-triggered reports: visualization, slice/review, Telegram, bank coverage, analytics, release-smoke, and score-spine postchange.
+- Added `--queue` to `backend/scripts/night_runner.py` so the weekly queue can be run explicitly.
+- Documented the split and the frontend acceptance rule: Qwen worktree gates must not require `frontend/node_modules`; use static frontend source checks there and run `npm.cmd run build` from main during Codex/Claude verification.
+
+Verification: both queue JSON files parsed; `night_runner.py` py_compile OK; nightly dry-run GREEN; weekly dry-run GREEN; backend suite `169 passed`; frontend build green.
+
+Open tail: start the text-only part-2 manual-gate flow for #13/#15. Do not code deterministic repeated-error intervention yet.
+
+---
+
+## 2026-07-02 - Qwen report 214053 review
+
+Status: reviewed and follow-up implemented locally.
+
+- Latest completed live report: `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-214053.md`.
+- Result: 11 GREEN, 1 RED. The RED was `T-report-score-spine-postchange`, caused by `npm.cmd --prefix frontend run build` inside an isolated Qwen worktree without `frontend/node_modules`; the same frontend build is green in main.
+- Replaced that Qwen acceptance with backend score/grader tests plus a static frontend integration check for `getScoreEvents`, dashboard query key, and operator invalidation.
+- Accepted one real Qwen test gap: added regression coverage that a `topic_check` score event does not move `current_score`.
+- Queue-freshness finding: broad surface reports should move to weekly/manual or change-triggered runs; nightly should stay focused on sandbox MCP, error-intervention, and part-2 readiness.
+
+Verification: score/grader slice `20 passed`; frontend build green; queue static acceptance rc=0 via JSON argv; backend suite `169 passed`; night-runner dry-run GREEN.
+
+Open tail: commit this follow-up, then trim/split the Qwen queue before the next live run.
+
+---
+
+## 2026-07-02 - Qwen live rerun review
+
+Status: reviewed; no completed Qwen QA report was produced.
+
+- Checked latest live report `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-180331.md`: plumbing was GREEN, all report tasks were BLOCKED because main worktree was dirty.
+- Committed the verified score-spine + queue slice as `edcaa70 Add score trend visibility`, making main clean for Qwen.
+- Started a second live Qwen rerun from clean main; the tool call timed out while Qwen was running, then the background run hung/spawned fresh `opencode` executors without producing a consolidated report.
+- Stopped the fresh 18:06-18:19 runner/executor chain; older OpenCode processes from the morning were left alone.
+- No Qwen findings are accepted from the interrupted run; only `report-153010.md` remains the latest completed GREEN Qwen report.
+
+Verification: before commit backend suite `168 passed`, frontend build green; after stopping interrupted Qwen run, main worktree was clean.
+
+Open tail: rerun live Qwen from clean checkout with longer operator-side timeout or a reduced queue, then review the raw consolidated report.
+
+---
+
+## 2026-07-02 - Qwen nightly queue refresh
+
+Status: implemented and verified locally.
+
+- Replaced stale `T-report-score-spine-readiness` with `T-report-score-spine-postchange` for the implemented score-events endpoint, dashboard score trend, weekly digest scores, and operator invalidation.
+- Added `T-report-sandbox-mcp-contract` so Qwen reviews only the deterministic sandbox MCP/simulator boundary, not senior mentor MCP write tools.
+- Added `T-report-night-queue-freshness` to keep nightly reports aligned with `ACTIVE_TASK.md` and the latest session log.
+- Updated `ACTIVE_TASK.md`: next live Qwen run should happen only from a clean checkout after this score-spine + queue slice is committed.
+
+Verification: night queue JSON parse OK; focused score/sandbox acceptance `21 passed`; backend suite `168 passed`; frontend build green; `night_runner.py --dry-run` GREEN across all queued tasks; `git diff --check` clean except CRLF warnings.
+
+Open tail: commit this slice, then run live `backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py` and review raw reports.
+
+---
+
+## 2026-07-02 - Score-spine visibility
+
+Status: implemented and verified locally.
+
+- Added read-side score history: `ScoreRepository.list_events`, `LearningService.list_score_events`, and `GET /students/{student_id}/score-events`.
+- Added score-spine data to `weekly_digest`: recent score events and latest current/target/gap by subject.
+- Added dashboard "Тренд баллов" panel using backend score events, with latest score, event kind/date/note, and delta to the previous score event per subject.
+- Invalidated the new `score-events` query after operator score-event creation.
+- Added score history, endpoint, and weekly digest regression tests.
+
+Verification: focused score/digest tests `19 passed`; backend suite `168 passed`; frontend build green.
+
+Open tail: commit this slice, then schedule/record the first July timed mini-mock and start weekly error-journal review.
+
+---
+
+## 2026-07-02 - Qwen proven-delta report review
+
+Status: reviewed live report; no code changes from findings yet.
+
+- Latest report: `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-153010.md`.
+- GREEN: all 10 tasks, including new score-spine, error-intervention, and part-2 manual-gate readiness reports.
+- Highest-value implementation slice: expose score-event history and show timed-mock trend toward 85/85 on dashboard/weekly digest.
+- Error intervention remains process-first: weekly `error_journal` review + `publish_feedback`, then deterministic queue rule only after observed repetition.
+- Part 2 should start text-only with existing manual review/fail-closed path for #13/#15; photo/OCR is a later UX layer.
+- Lower-priority gaps: visual bar-chart correct-answer simulator case, review double-PASS/idempotency tests, slice/daily duplicate guard, Telegram callback/media/streak tests, and content gaps in #13/#16/informatics divisors/graphs.
+
+Verification: report acceptance in Qwen run was GREEN; no runtime code changed in this review.
+
+Open tail: implement score-spine visibility after committing current doc/queue and probability-bank work.
+
+---
+
+## 2026-07-02 - Proven-delta strategy alignment
+
+Status: implemented and verified locally.
+
+- Replaced the stale LAN/scaffold global and local plans in `AGENTS.md` with the proven-delta strategy: monthly timed score events, error-to-intervention review, part-2 manual-gated evidence, targeted content depth, and hygiene.
+- Updated `ACTIVE_TASK.md` so the current goal is strategy execution with Qwen as a bounded read-only/mechanical executor.
+- Added three read-only Qwen report tasks to `backend/scripts/night_queue.json`: score-spine readiness, error-intervention readiness, and part-2 manual-gate readiness.
+- Kept Qwen out of architecture/product decisions; new tasks are reports with existing pytest acceptance and report-file-change RED behavior.
+
+Verification: night queue JSON parsed; strategy acceptance test slice `59 passed`; backend suite `165 passed`; frontend build green; `night_runner.py --dry-run` GREEN.
+
+Open tail: commit these doc/queue changes, then run the next live Qwen batch and review raw reports before coding L1/L2/L3 slices.
+
+---
+
+## 2026-07-02 - Probability content-bank expansion
+
+Status: implemented and verified locally.
+
+- Expanded the approved probability task bank from 3 to 10 tasks in `seed.py`.
+- Added 7 exact-answer probability tasks covering independent multiplication, complement, at-least-one via complement, conditional probability, without replacement, three-trial counting, and disjoint union.
+- Kept existing probability visual source_ref gate unchanged: only the three reviewed visual tasks render diagrams; the new tasks are regular exact-answer drills/slices.
+- Added a seed regression test that asserts all 10 probability source_refs are present and checks fraction answers for the nontrivial cases.
+
+Verification: probability bank focused tests `9 passed`; backend suite `165 passed`; frontend build green; night-runner dry-run GREEN.
+
+Open tail: commit this content batch. To affect live data, run the seed/update path during deploy/reseed; otherwise continue with math foundations or informatics content gaps.
+
+---
+
+## 2026-07-02 - TG/review hardening from Qwen findings
+
+Status: implemented and verified locally.
+
+- Reviewed full GREEN Qwen report `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-102003.md` and acted on the low-risk actionable findings.
+- Added Telegram tests for post-attempt visual photo delivery, `/cancel` while a slice is active, unauthorized callback rejection, and `/help` home-keyboard flow.
+- Made `record_review_result(..., passed=False)` idempotent for already `BACK_TO_WORK` review cards, preventing duplicate back-to-work missions on retry.
+- Made probability visual captions specific: bar chart vs 2x2 table, including highlighted cell intent.
+
+Verification: focused TG/review/visual tests `49 passed`; backend suite `164 passed`; frontend build green; night-runner dry-run GREEN across all queued tasks.
+
+Open tail: commit this hardening slice; next likely work is content-bank expansion, starting with probability variety and high-gap math/informatics topics.
+
+---
+
+## 2026-07-02 - Morning review of Qwen synthetic QA batch
+
+Status: reviewed live report and fixed the one real gate issue.
+
+- Latest report: `C:\tmp\egeMentor-qwen-runs\2026-07-02\report-095629.md`.
+- GREEN: plumbing, visualization, slice/review, Telegram flow, bank/content coverage, release-smoke readiness.
+- RED: analytics/digest acceptance, caused by `test_scores.py` using fixed `2026-07-01` as a "newer" score-event date while seed baseline uses `date.today()`.
+- Fixed `test_scores.py` to use relative dates: future event moves `current_score`, older backfill does not regress it.
+- Qwen findings to triage later: scalar/non-interval visuals are absent by scope; Telegram visual delivery path lacks a direct photo-send test; content gaps remain in probability variety, economics, informatics divisors/string topics.
+
+Verification: analytics gate `25 passed`; backend suite `156 passed`; frontend build green; night-runner dry-run GREEN across all queued tasks.
+
+Open tail: commit the score-test date fix; rerun live Qwen batch only if a fully GREEN report is needed.
+
+---
+
+## 2026-07-01 - Night queue expanded for read-only synthetic QA
+
+Status: implemented and verified locally; ready for operator live run.
+
+- Added `probability_table_neither_correct_answer` to the sandbox simulator: correct probability table answer now verifies `passed`, mission `done`, and post-attempt `probability` visual.
+- Updated MCP/simulator tests and visualization report acceptance for the probability correct-answer happy path.
+- Expanded `backend/scripts/night_queue.json` from one report into six read-only Qwen reports: visualization, slice/review lifecycle, Telegram learner flow, bank/content coverage, analytics/digest, and release-smoke readiness.
+- All new Qwen tasks are `kind=report`; runner will mark them RED if Qwen edits any file.
+
+Verification: simulator direct run OK with 7 cases; MCP/simulator tests `2 passed`; backend suite `156 passed`; frontend build green; `release_smoke.py` py_compile green; night-runner dry-run GREEN across all queued tasks.
+
+Open tail: run live `backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py`; morning-review raw reports before changing product code.
+
+---
+
+## 2026-07-01 - Synthetic tester coverage expanded for probability tables
+
+Status: implemented and verified locally.
+
+- Addressed the actionable finding from live Qwen report `report-163515.md`: sandbox flow covered probability bar chart only, not the 2x2-table renderer.
+- `simulate_student_flow.py` now exercises all three source-ref-gated probability visuals: task-a bar chart, task-b `neither` 2x2 table, and task-c `only_a` 2x2 table.
+- Updated sandbox/script tests to assert all three probability cases.
+- Strengthened `T-report-visualization-surface` acceptance so a future Qwen GREEN requires the probability bar-chart and both 2x2-table cases.
+- Deferred non-actionable/low-priority Qwen notes: PNG magic wording and repeated `matplotlib.use("Agg")`.
+
+Verification: simulator direct run OK with 6 cases; focused simulator/probability tests `13 passed`; backend suite `156 passed`; frontend build green; night-runner dry-run GREEN.
+
+Open tail: commit this follow-up, then run one live Qwen report against the expanded simulator.
+
+---
+
+## 2026-07-01 - Night-runner dry-run for local Qwen harness
+
+Status: egeMentor harness port tested in dry-run; first live Qwen smoke found an isolation/config issue.
+
+- Added egeMentor-local `backend/scripts/night_queue.json`: one acceptance-only plumbing task and one tiny Qwen sandbox-doc task.
+- Hardened `backend/scripts/night_runner.py`: `files_allowed` is enforced, untracked files are counted, commit failure turns the task RED, and broken venvs without `pyvenv.cfg` are ignored.
+- Run artifacts now go to ignored `.night-runs/` with per-run report names.
+- Dry-run report: `T-night-plumbing-tests` GREEN with `backend/tests/test_figures.py` -> 13 passed; prompt-dependent sandbox task skipped by design.
+- First live report `report-123842.md`: plumbing GREEN, sandbox RED because Qwen claimed the file was created but the isolated worktree had no changes.
+- A stray `docs/NIGHT_RUNNER_SANDBOX.md` appeared in the main worktree; removed it and added a main-worktree contamination check around executor runs.
+- Second live report `report-124445.md`: isolation was clean, but sandbox stayed RED because Qwen wrote `docs/NIGHT_RUNNER_SANDBOX.md` as UTF-16; queue acceptance now rejects UTF-16 BOM and requires exact two-line UTF-8 content.
+- Third live report `report-125020.md`: Qwen wrote UTF-8 but creative markdown instead of exact content. Replaced the sandbox-doc task with `T-qwen-write-probe`: one file, one machine-token line, exact UTF-8 acceptance.
+- Fourth live report `report-125401.md`: Qwen made no changes and claimed the prompt missed the token after a multiline instruction. The probe prompt is now one line, with the token inline, and runner reports a prompt preview for future debugging.
+- Fifth live report `report-125830.md`: Qwen wrote the exact probe token, but into the main worktree; contamination guard blocked the run. Root cause: worktrees were nested under `.night-runs/` inside the repo, so OpenCode/file tools could resolve the parent checkout. Runner now uses external `C:\tmp\egeMentor-qwen-runs`.
+- Sixth live report `report-132447.md`: external worktree isolation held, but Qwen wrote `\ufeff-NoNewlineQWEN_WRITE_PROBE_OK`. Queue now forbids PowerShell-style writers/`-NoNewline`, asks for Python `Path.write_text(..., encoding='utf-8')`, and rejects UTF-8 BOM explicitly.
+- Seventh live report `report-134418.md`: GREEN. Qwen wrote exact UTF-8 probe file in the external worktree, acceptance passed, `test_figures.py` passed, and runner committed `bc08955` on `auto/2026-07-01-134418/T-qwen-write-probe`.
+
+Verification: `backend\.venv312\Scripts\python.exe backend\scripts\night_runner.py --dry-run` -> GREEN; `backend\.venv312\Scripts\python.exe -m py_compile backend\scripts\night_runner.py` -> green; `git worktree list` / `git branch --list "auto/*"` show no leftovers.
+
+Open tail: morning-review auto branch `auto/2026-07-01-134418/T-qwen-write-probe`, then replace the probe queue with a real but low-risk report/mechanical task.
+
+---
+
+## 2026-07-01 - Night queue switched from probe to report task
+
+Status: implemented and dry-run verified.
+
+- Morning-review of `auto/2026-07-01-134418/T-qwen-write-probe`: branch contains only test artifact `docs/QWEN_WRITE_PROBE.txt`; do not merge into product.
+- `backend/scripts/night_runner.py` now supports `kind=report`: Qwen may produce raw-output reports, but any file change makes the task RED.
+- `backend/scripts/night_queue.json` now contains `T-report-visualization-surface`, a read-only report over the current visualization implementation and tests.
+- Added `backend/scripts/simulate_student_flow.py`: in-memory sandbox flow for interval overlay, unparseable interval answer, and probability visual; no prod DB and no Telegram.
+- Added `backend/tests/test_student_simulation.py` so the simulator stays under the normal test suite.
+- Updated `T-report-visualization-surface` to run the simulator and summarize visual kinds/source_refs/tests as raw-output report.
+
+Verification: simulator OK; focused tests `28 passed`; backend suite `155 passed`; frontend build green; `night_runner.py --dry-run` -> GREEN.
+
+Open tail: operator may run live report task manually; deploy/smoke of `api` + `bot` remains an operator/Codex action, not a Qwen task.
+
+---
+
+## 2026-07-01 - Sandbox MCP for synthetic tester
+
+Status: implemented and verified locally; live Qwen report should wait for clean main checkout.
+
+- Added `backend/app/adapters/mcp/sandbox_server.py` with `run_student_simulation()` only. It exposes no prod DB, no Telegram, and no write tools.
+- Refactored `backend/scripts/simulate_student_flow.py` to provide `build_report()` / `run_json()` for script and MCP reuse.
+- Added `backend/tests/test_mcp_sandbox.py`.
+- Updated `T-report-visualization-surface` so Qwen acts as synthetic tester through sandbox MCP/function and reports raw flow observations.
+- Hardened `night_runner.py`: live executor is BLOCKED when the main checkout is dirty, preventing Qwen from staging/touching the active work package.
+
+Verification: sandbox MCP direct call OK; simulator OK; MCP/simulator tests `2 passed`; backend suite `156 passed`; frontend build green; night-runner dry-run GREEN.
+
+Live Qwen report `report-161442.md`: GREEN. Qwen used the sandbox surface, changed no files, and gates passed (`test_figures.py`, sandbox MCP assertion, simulator script, probability/drill tests). Reported rough edges: unparseable interval answer lacks learner-facing reason, no passed-case visual scenario in simulator, sandbox covers only drill exact path, seed monkeypatch is fragile, and `probability` visual kind hides chart subtype.
+
+Open tail: decide which Qwen findings to address first; stale auto worktrees from earlier calibration can be cleaned after review.
+
+---
+
+## 2026-07-01 - Synthetic tester finding fixed: passed case + unparseable caption
+
+Status: implemented and verified locally.
+
+- Added `interval_correct_answer` to `simulate_student_flow.py`: correct interval answer now verifies `passed`, mission `done`, and post-attempt `number_line` visual.
+- Changed unparseable interval caption to explain why no orange overlay appears: the answer could not be recognized as an interval.
+- Updated drill and simulator tests for the new behavior.
+
+Verification: simulator direct run OK with 4 cases; focused tests `18 passed`; backend suite `156 passed`; frontend build green; night-runner dry-run GREEN.
+
+Open tail: next sandbox expansion candidate is slice/review-card flow, not another renderer.
+
+---
+
+## 2026-07-01 - Probability visual spike integrated narrowly
+
+Status: implemented and verified locally.
+
+- Reviewed Qwen probability spike and integrated it only after interval parsing fails, using source_ref-gated `parse_probability_visual_spec`.
+- `LearningService.drill_solution_visual` now returns `VisualAid(kind="probability")` for the three known probability seed tasks; unknown scalar tasks still return `None`.
+- Telegram needs no separate change because it already sends any returned `VisualAid`.
+- Added drill integration tests for known probability visual and unknown scalar fallback.
+
+Verification: `backend\.venv312\Scripts\python.exe -m pytest backend\tests -q` -> 154 passed, 1 existing Starlette/httpx warning; `npm.cmd run build` in `frontend` -> green.
+
+Open tail: deploy/observe whether probability visuals reduce `PROBABILITY_DOUBLE_COUNT`; do not generalize parser beyond known source_refs until more tasks justify it.
+
+---
+
+## 2026-07-01 - Docker deploy and release smoke after visuals
+
+Status: deployed locally; live boundaries green.
+
+- Rebuilt/recreated `bot`; compose also recreated `api` from the shared backend image. `web` and `postgres` stayed running.
+- Ran `alembic upgrade head` in `api`; no pending migration output.
+- Host `release_smoke.py` hit Windows/proxy access error on Telegram, so the equivalent smoke was run inside the `bot` container with `PUBLIC_API_BASE_URL=http://api:8001`.
+- Container smoke GREEN: API health OK, migrations at `c0d1e2f3a4b5`, bot `getMe` OK, live Qwen short-answer judge OK.
+- `api`, `bot`, and `web` all running with RestartCount=0.
+
+Verification command: `docker compose exec -T -e PUBLIC_API_BASE_URL=http://api:8001 bot python scripts/release_smoke.py` -> GREEN.
+
+Open tail: manual Telegram smoke remains: send `/today`, answer an interval drill if available, and verify post-attempt visual image/caption.
+
+---
+
+## 2026-06-30 - Weekly digest run and mentor-note draft
+
+Status: digest read from DB; note drafted in chat, not published to TG.
+
+- Period 2026-06-23..2026-06-30: 6 attempts, 2 active days, 4 passed attempts, pass rate 0.67.
+- Diagnostics: 3 slices, all captured with details; probability moved from 1/3 to 5/5, powers/roots stayed 3/5.
+- Errors: 6 recent, mostly `other` plus 2 old `probability_double_count`; latest powers/roots errors include the `7776`/`7.776` issue now fixed in code.
+- Manual queue still has 2 old OДЗ items from 2026-06-17.
+
+Verification: read-only service calls through current `LearningService.weekly_digest`, `list_manual_reviews`, `list_attempt_history`; no DB writes.
+
+Open tail: operator should approve/edit the mentor-note text before publishing; then close the two old manual-review items if they are known correct/incorrect.
+
+---
+
+## 2026-06-30 - Judge reliability + weekly digest
+
+Status: implemented and verified locally.
+
+- Fixed exact-answer policy for grouped integer notation: `7.776` now matches key `7776`, while `0.667` still does not match `2/3` or `667`.
+- Added `weekly_digest` in `LearningService` and MCP: attempts, active days, pass rate, touched topics, diagnostics capture status, errors, reviews, manual queue.
+- Extended diagnostics rows with `captured` / `captured_items` derived from existing `details_json`; no migration or new tables.
+- Added regression tests for grouped integers, decimal approximation guard, and digest data from existing slice/error events.
+
+Verification: `backend\.venv312\Scripts\python.exe -m pytest backend\tests -q` -> 124 passed, 1 existing Starlette/httpx warning; `npm.cmd run build` in `frontend` -> green.
+
+Open tail: use MCP `weekly_digest` for the next weekly mentor note; feedback compression and complex-practice track remain deferred until observed need.
+
+---
+
+## 2026-06-29 - Заметка по срезу 28.06 опубликована и доставлена Ульяне
+
+Статус: на сайте + доставлена в TG (`delivered_at`=29.06 06:59)
+
+- Анализ срезов: подтверждено, что 28.06 было два среза — вероятность **5/5 (33%→100%, закрыт приоритет №1 прошлой заметки)** и степени/корни 3/5. По истории попыток виден реальный путь обучения вероятности (двойной счёт → независимость → верная формула → 5/5).
+- Нюанс честно: пошаговых решений вчерашних срезов в системе нет (пришли только баллы, последняя попытка в истории — 26.06). Степени 60% — по истории это потеря на ЗАПИСИ ответа (7776 → «7.776»), не на математике. Чтобы видеть ход — решать через бота `/slice`.
+- Заметка `9f113dd1` через `publish_feedback` (сайт-лента) → доставлена в чат ученика прод-ботом (`_deliver_mentor_notes`). Детальная+мотивирующая: победа по вероятности, фикс записи степеней, фокус (проценты №11, ОДЗ формально), часть 2 как рост. Два вопроса ей: отметить новые темы (темп за ней) и в каком формате давать задачи посложнее (она просила) — отдельно «для себя» или вперемешку, по каким предметам.
+- Открытый хвост: ждём ответы Ульяны (отметки тем + формат сложных задач); 2 старые попытки 17.06 (ответ x=5 — верный) всё ещё висят на ручной проверке — можно отметить зачтёнными по слову пользователя.
+
+---
+
+## 2026-06-29 - Банк информатики part-1: +28 задач (контентный хвост слабого предмета)
+
+Статус: залито и одобрено в боевой БД через MCP; ответы проверены вычислением
+
+- Возврат к контенту (по решению: визуализацию пока наблюдаем, не расширяем). 7 верифицируемых part-1 тем по +4: системы счисления, информационный объём, логика (таблицы истинности, было 1 → стало 5), делители (№25), подсчёт путей в графе, рекурсия (трассировка), кодирование Фано (префиксные коды).
+- Ответы посчитаны кодом (`scratchpad/gen_inf2.py`): переводы СС, перебор таблиц истинности, делители, подсчёт путей DFS, прогон рекурсии, ceil(log2) для кодов — не с моих слов.
+- Темы, требующие таблиц/картинок/файлов, **отложены** (нужен другой канал): анализ диаграмм (5017), БД (5024), Excel (5025), задание 17 по файлу (5035), теория игр (5027 — ответ-условие, не короткий).
+- Итог банка (read-only): системы счисления/информ.объём/делители/пути/рекурсия/Фано = 4, логика = 5. Информатика всего **65** одобренных (старт сессии — 9), всего в банке **170**.
+
+Проверка: `gen_inf2.py` — 28 OK; прямой SQL-count (enum хранится как `INFORMATICS`/`APPROVED`). Побочное: темы, бывшие `open` с пустым банком (системы счисления, делители, пути, рекурсия, Фано, информ.объём), теперь могут попадать в ежедневную очередь новых тем. Открытый хвост: визуальные информ-темы (диаграммы/БД/Excel/файл) — отдельным каналом; наблюдать визуализацию неравенств.
+
+---
+
+## 2026-06-29 - Визуализация: фигура решения в drill-разборе (post-attempt)
+
+Статус: ЗАДЕПЛОЕНО (коммит `d90a826`), live-проверено в прод-контейнере
+
+- Первая реальная post-attempt визуализация (урезанный план по ревью Codex): числовая прямая по интервальному ответу неравенства/ОДЗ, **показ только после попытки** (до — слил бы эталон). Парсер не уверен → фигуры нет (никогда не рисуем неверное).
+- Слои (правка Codex): `domain/figures.py` = только чистый `parse_interval_answer` (leak-safe spec); рендер вынесен в `infrastructure/figures_render.py` (`render_number_line`, matplotlib, ленивый импорт). `LearningService.drill_solution_figure(mission_id)` отдаёт PNG post-attempt (эталон не покидает бэкенд сырым ключом — уходит готовая картинка). Бот `_on_answer`: после вердикта шлёт фото, если есть.
+- Зависимость: matplotlib в extra `[bot]` (рисует только бот; образ общий — api её не импортит, рендер ленивый). Свап на drawsvg/resvg отклонён (та же Cairo-боль; matplotlib уже работает).
+- Ресёрч (живой): движок не пишем. Web-интерактив — **JSXGraph** (MIT/LGPL), 3D-стерео — **GeoGebra** embed (внимание: non-commercial), Penrose/DeTikZify — мимо (тяжело/врёт геометрию). Наша новизна = тонкая ЕГЭ-склейка «ответ/условие→спека→фигура», OSS только после пользы в пилоте.
+- Решения отложены осознанно: JSXGraph (нет доказанной потребности в интерактиве), `figure_json` на задаче (потечёт до попытки — фигура живёт в разборе/evidence), 3D.
+
+Проверка: `pytest -q` 121 passed; ruff чист по новым файлам; live — `docker compose exec bot` отрисовал интервал (кириллица ок, PNG 8244B) и прод-бот доставил фото в родительский чат; bot RestartCount=0. Тесты: parse (скобки/объединения/неравенства/запятая, скаляр→None), render→PNG, склейка `drill_solution_figure` (interval→PNG, scalar→None). Открытый хвост: следующий рендерер (график параболы) по потребности; геометрия из условия может быть pre-attempt.
